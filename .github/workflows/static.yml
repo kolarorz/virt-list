@@ -1,0 +1,62 @@
+name: Deploy static content to Pages
+
+on:
+  push:
+    branches: ['master']
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build micro apps
+        run: |
+          pnpm -C docs/apps/react exec vite build
+          pnpm -C docs/apps/vue exec vite build
+          pnpm -C docs/apps/js exec vite build
+        env:
+          DEPLOY_BASE: /virt-list/
+
+      - name: Build docs site
+        run: pnpm -C docs exec vitepress build .
+        env:
+          DEPLOY_BASE: /virt-list/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs/.vitepress/dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

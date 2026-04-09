@@ -1,0 +1,4 @@
+packages:
+  - docs
+  - docs/apps/*
+  - packages/*

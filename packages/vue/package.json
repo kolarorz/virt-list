@@ -1,0 +1,50 @@
+{
+  "name": "@virt-list/vue",
+  "version": "1.0.0",
+  "description": "Vue virtual list, grid and tree components",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@virt-list/core": "workspace:*",
+    "@virt-list/dom": "workspace:*",
+    "vue-demi": "latest"
+  },
+  "peerDependencies": {
+    "@vue/composition-api": "^1.0.0-rc.1",
+    "vue": "^2.0.0 || >=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@vue/composition-api": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "vue",
+    "virtual-list",
+    "virtual-tree",
+    "virtual-grid"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicepkg/virt-list",
+    "directory": "packages/vue"
+  },
+  "sideEffects": false
+}

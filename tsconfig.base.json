@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@virt-list/core": ["./packages/core/src/index.ts"],
+      "@virt-list/dom": ["./packages/dom/src/index.ts"],
+      "@virt-list/react": ["./packages/react/src/index.ts"],
+      "@virt-list/vue": ["./packages/vue/src/index.ts"],
+      "@virt-list/js": ["./packages/js/src/index.ts"]
+    }
+  }
+}

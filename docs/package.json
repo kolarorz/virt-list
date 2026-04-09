@@ -1,0 +1,22 @@
+{
+  "name": "docs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev . --host --port 5173",
+    "build": "pnpm run build:micro && vitepress build .",
+    "build:micro": "pnpm -C ./apps/react build && pnpm -C ./apps/vue build && pnpm -C ./apps/js build",
+    "preview": "vitepress preview . --host --port 4173",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "qiankun": "^2.10.16",
+    "vue": "^3.5.25"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "vitepress": "^1.6.4",
+    "vue-tsc": "^3.1.5"
+  }
+}
