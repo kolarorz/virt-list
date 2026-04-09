@@ -1,6 +1,6 @@
 {
   "name": "@virt-list/core",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Framework-agnostic virtual list core engine",
   "type": "module",
   "main": "./dist/index.js",
