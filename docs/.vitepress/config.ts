@@ -64,9 +64,9 @@ export default defineConfig({
   description: 'A high-performance virtual list component for JavaScript',
   themeConfig: {
     nav: [
-      { component: 'FwNavLink', props: { text: 'Guide', mod: 'guide' } },
-      { component: 'FwNavLink', props: { text: 'Examples', mod: 'examples' } },
-      { component: 'FwNavLink', props: { text: 'API', mod: 'api' } },
+      { component: 'FwNavLink', props: { text: 'Guide', mod: 'guide' }, activeMatch: '^/guide/' },
+      { component: 'FwNavLink', props: { text: 'Examples', mod: 'examples' }, activeMatch: '/examples/' },
+      { component: 'FwNavLink', props: { text: 'API', mod: 'api' }, activeMatch: '/api/' },
     ],
     sidebar: {
       '/js/examples/': buildSidebar('js'),
