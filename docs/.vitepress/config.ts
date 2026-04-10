@@ -41,37 +41,37 @@ const gridDemos = [
   { text: '基础', link: 'virt-grid' },
 ];
 
-function buildSidebar(prefix: string) {
+function buildSidebar(fw: string) {
   return [
     {
       text: '虚拟列表示例',
-      items: listDemos.map((d) => ({ text: d.text, link: `/examples/${prefix}/${d.link}` })),
+      items: listDemos.map((d) => ({ text: d.text, link: `/${fw}/examples/${d.link}` })),
     },
     {
       text: '虚拟树',
-      items: treeDemos.map((d) => ({ text: d.text, link: `/examples/${prefix}/${d.link}` })),
+      items: treeDemos.map((d) => ({ text: d.text, link: `/${fw}/examples/${d.link}` })),
     },
     {
       text: '网格布局',
-      items: gridDemos.map((d) => ({ text: d.text, link: `/examples/${prefix}/${d.link}` })),
+      items: gridDemos.map((d) => ({ text: d.text, link: `/${fw}/examples/${d.link}` })),
     },
   ];
 }
 
 export default defineConfig({
   base: deployBase || '/',
-  title: 'virt-list',
+  title: 'VirtList',
   description: 'A high-performance virtual list component for JavaScript',
   themeConfig: {
     nav: [
-      { text: 'Pure JS', link: '/examples/js/basic', activeMatch: '^/examples/js/' },
-      { text: 'Vue', link: '/examples/vue/basic', activeMatch: '^/examples/vue/' },
-      { text: 'React', link: '/examples/react/basic', activeMatch: '^/examples/react/' },
+      { component: 'FwNavLink', props: { text: 'Guide', mod: 'guide' } },
+      { component: 'FwNavLink', props: { text: 'Examples', mod: 'examples' } },
+      { component: 'FwNavLink', props: { text: 'API', mod: 'api' } },
     ],
     sidebar: {
-      '/examples/js/': buildSidebar('js'),
-      '/examples/vue/': buildSidebar('vue'),
-      '/examples/react/': buildSidebar('react'),
+      '/js/examples/': buildSidebar('js'),
+      '/vue/examples/': buildSidebar('vue'),
+      '/react/examples/': buildSidebar('react'),
     },
   },
   vite: {

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  useState,
+  useReducer,
   useRef,
   useEffect,
   useCallback,
@@ -15,6 +15,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { VirtListCore } from '@virt-list/core';
 import type {
   ReactiveData,
@@ -26,9 +27,16 @@ import { ObserverItem } from './ObserverItem';
 
 
 // ======================== useVirtList (hook) ========================
-// React Hook 封装，将 VirtListCore 的状态映射为 React state。
-// core 在首次渲染时创建（useRef），update 事件通过 setSnapshot 触发 React 重渲染。
-// 事件回调通过 eventsRef 间接引用，避免 core 重建。
+// React Hook 封装，将 VirtListCore 的状态映射为 React 响应式数据。
+//
+// 策略：将共享对象（state / slotSize）注入 Core，Core 直接写入同一对象。
+// React 通过 _notify() → update 回调 → forceRender 触发重渲染，
+// 渲染时直接读共享对象即可拿到最新值，零拷贝开销。
+//
+// 为何不用 Proxy 自动触发 re-render：
+// Core 的 _onScroll 会先写 offset 再算 range，如果每次写入都触发 React 渲染，
+// React 可能在 range 还没更新时就拿到 offset=0 + renderBegin=旧值 的中间态，
+// 导致巨大空白。只在 _notify() 后触发能保证所有关联状态已一致更新。
 
 export interface UseVirtListOptions<T extends Record<string, any>>
   extends VirtListOptions<T> {
@@ -85,46 +93,44 @@ export function useVirtList<T extends Record<string, any>>(
     ...coreOptions
   } = options;
 
-  const [snapshot, setSnapshot] = useState<{
-    renderList: T[];
-    reactiveData: ReactiveData;
-    slotSize: SlotSize;
-  }>(() => ({
-    renderList: [],
-    reactiveData: {
-      views: 0, offset: 0, listTotalSize: 0, virtualSize: 0,
-      inViewBegin: 0, inViewEnd: 0, renderBegin: 0, renderEnd: 0,
-      bufferTop: 0, bufferBottom: 0,
-    },
-    slotSize: {
-      clientSize: 0, headerSize: 0, footerSize: 0,
-      stickyHeaderSize: 0, stickyFooterSize: 0,
-    },
-  }));
+  const [, forceRender] = useReducer((c: number) => c + 1, 0);
+  const mountedRef = useRef(false);
+  const pendingUpdateRef = useRef(false);
+
+  // 共享对象注入 Core，Core 直接写入，渲染时直接读，零拷贝
+  const reactiveData = useRef<ReactiveData>({
+    views: 0, offset: 0, listTotalSize: 0, virtualSize: 0,
+    inViewBegin: 0, inViewEnd: 0, renderBegin: 0, renderEnd: 0,
+    bufferTop: 0, bufferBottom: 0,
+  }).current;
+
+  const slotSize = useRef<SlotSize>({
+    clientSize: 0, headerSize: 0, footerSize: 0,
+    stickyHeaderSize: 0, stickyFooterSize: 0,
+  }).current;
 
   const eventsRef = useRef<Omit<UseVirtListOptions<T>, keyof VirtListOptions<T>>>({});
   eventsRef.current = { onScroll, onToTop, onToBottom, onItemResize, onRangeUpdate };
 
   const coreRef = useRef<VirtListCore<T> | null>(null);
   if (!coreRef.current) {
-    let core: VirtListCore<T>;
     const events: VirtListEvents<T> = {
       scroll: (e) => eventsRef.current.onScroll?.(e),
       toTop: (item) => eventsRef.current.onToTop?.(item),
       toBottom: (item) => eventsRef.current.onToBottom?.(item),
       itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
       rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
-      update: (renderList, state) => {
-        if (!core) return;
-        setSnapshot({
-          renderList,
-          reactiveData: { ...state },
-          slotSize: { ...core.slotSize },
+      update: () => {
+        if (!mountedRef.current) {
+          pendingUpdateRef.current = true;
+          return;
+        }
+        flushSync(() => {
+          forceRender();
         });
       },
     };
-    core = new VirtListCore<T>(coreOptions, events);
-    coreRef.current = core;
+    coreRef.current = new VirtListCore<T>(coreOptions, events, { state: reactiveData, slotSize });
   }
 
   const core = coreRef.current;
@@ -158,6 +164,11 @@ export function useVirtList<T extends Record<string, any>>(
   const stickyFooterRef = useMemo(() => makeSlotRefCallback('stickyFooter'), [makeSlotRefCallback]);
 
   useEffect(() => {
+    mountedRef.current = true;
+    if (pendingUpdateRef.current) {
+      pendingUpdateRef.current = false;
+      forceRender();
+    }
     if (destroyTimerRef.current) {
       clearTimeout(destroyTimerRef.current);
       destroyTimerRef.current = null;
@@ -166,6 +177,7 @@ export function useVirtList<T extends Record<string, any>>(
       core.bindDOM(clientRef.current);
     }
     return () => {
+      mountedRef.current = false;
       destroyTimerRef.current = setTimeout(() => {
         core.destroy();
         destroyTimerRef.current = null;
@@ -173,35 +185,45 @@ export function useVirtList<T extends Record<string, any>>(
     };
   }, [core]);
 
-  const prevListStateRef = useRef({ list: options.list, length: options.list.length });
-  if (
-    options.list !== prevListStateRef.current.list ||
-    options.list.length !== prevListStateRef.current.length
-  ) {
-    prevListStateRef.current = { list: options.list, length: options.list.length };
+  useEffect(() => {
     core.updateOptions({ list: options.list });
-  }
+  }, [core, options.list, options.list.length]);
 
-  const prevOptionsRef = useRef(coreOptions);
-  const prevOpts = prevOptionsRef.current;
-  if (
-    prevOpts.itemPreSize !== coreOptions.itemPreSize ||
-    prevOpts.itemGap !== coreOptions.itemGap ||
-    prevOpts.fixed !== coreOptions.fixed ||
-    prevOpts.buffer !== coreOptions.buffer ||
-    prevOpts.bufferTop !== coreOptions.bufferTop ||
-    prevOpts.bufferBottom !== coreOptions.bufferBottom ||
-    prevOpts.horizontal !== coreOptions.horizontal ||
-    prevOpts.scrollDistance !== coreOptions.scrollDistance
-  ) {
-    core.updateOptions(coreOptions);
-    prevOptionsRef.current = coreOptions;
-  }
+  useEffect(() => {
+    core.updateOptions({
+      itemPreSize: coreOptions.itemPreSize,
+      itemGap: coreOptions.itemGap,
+      fixed: coreOptions.fixed,
+      buffer: coreOptions.buffer,
+      bufferTop: coreOptions.bufferTop,
+      bufferBottom: coreOptions.bufferBottom,
+      horizontal: coreOptions.horizontal,
+      scrollDistance: coreOptions.scrollDistance,
+      itemKey: coreOptions.itemKey,
+      renderControl: coreOptions.renderControl,
+      start: coreOptions.start,
+      offset: coreOptions.offset,
+    });
+  }, [
+    core,
+    coreOptions.itemPreSize,
+    coreOptions.itemGap,
+    coreOptions.fixed,
+    coreOptions.buffer,
+    coreOptions.bufferTop,
+    coreOptions.bufferBottom,
+    coreOptions.horizontal,
+    coreOptions.scrollDistance,
+    coreOptions.itemKey,
+    coreOptions.renderControl,
+    coreOptions.start,
+    coreOptions.offset,
+  ]);
 
   return {
-    renderList: snapshot.renderList,
-    reactiveData: snapshot.reactiveData,
-    slotSize: snapshot.slotSize,
+    renderList: core.renderList,
+    reactiveData,
+    slotSize,
     sizesMap: core.sizesMap,
     resizeObserver: core.resizeObserver,
 

@@ -11,7 +11,7 @@
 `;function xo(){return Array.from({length:100},(a,e)=>({id:e,content:V.lorem.paragraph()}))}function Ro(a){a.innerHTML=Lo;const e=a.querySelector("#virtListContainer"),r=new E(e,{list:xo(),itemKey:"id",itemPreSize:72,buffer:3,renderItem:t=>{const i=document.createElement("div");return i.style.padding="4px",i.innerHTML=`
         <div style="font-weight:bold;">Item ${t.id}</div>
         <div style="color:#666;font-size:12px;">${t.content}</div>
-        <div style="color:#999;font-size:10px;">Key: ${t.id} (Pure JS)</div>
+        <div style="color:#999;font-size:10px;">Key: ${t.id} (DOM)</div>
       `,i}});return()=>{r.destroy(),a.innerHTML=""}}const Ce=["虚拟列表只渲染可视区域内的元素，大幅提升性能。","动态高度列表需要在渲染后测量实际尺寸。","每一行的内容长度不同，高度也会随之变化。这是虚拟列表最核心的能力之一，它需要实时追踪每个元素的实际渲染尺寸。","短文本。","相比全量渲染，虚拟列表可以将 DOM 节点控制在很小的范围内。即使面对数十万条数据，滚动体验依然流畅丝滑，内存占用也维持在较低水平。","滚动过程中列表会计算需要渲染的起始和结束索引。","被移出可视区域的节点会被及时回收，新进入可视区域的节点会被创建并插入到正确的位置。这个过程对用户来说是完全透明的。","纯 JS 实现，无框架依赖。"],J=Array.from({length:1e3},(a,e)=>{const r=e%5+1,t=[];for(let i=0;i<r;i++)t.push(Ce[(e+i*3)%Ce.length]);return{id:e,content:t.join(" ")}}),Po=`
   <div class="virt-list-controls">
     <div class="virt-list-control-group">

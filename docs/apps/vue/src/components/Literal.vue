@@ -53,7 +53,7 @@ const initVirtList = (): void => {
       row.innerHTML = `
         <div style="font-weight:bold;">Item ${item.id}</div>
         <div style="color:#666;font-size:12px;">${item.content}</div>
-        <div style="color:#999;font-size:10px;">Key: ${item.id} (Pure JS)</div>
+        <div style="color:#999;font-size:10px;">Key: ${item.id} (DOM)</div>
       `;
       return row;
     },

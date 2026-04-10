@@ -24,8 +24,9 @@ import { _h, _hChild, getSlot, mergeStyles } from './utils';
 import { ObserverItem } from './ObserverItem';
 
 // ======================== useVirtList (composable) ========================
-// Vue Composition API 封装，将 VirtListCore 的状态映射为 Vue 响应式数据。
-// update 事件中同步 renderList / reactiveData / slotSize，驱动模板重渲染。
+// Vue Composition API 封装，将 shallowReactive 对象直接注入 VirtListCore。
+// Core 每次修改 state/slotSize 时 Vue 自动感知变化并驱动模板重渲染。
+// update 事件仅用于同步 renderList（数组引用替换）。
 
 export interface EmitFunction<T> {
   scroll?: (e: Event) => void;
@@ -110,20 +111,14 @@ export function useVirtList<T extends Record<string, any>>(
     toBottom: (item) => emitFunction?.toBottom?.(item),
     itemResize: (id, size) => emitFunction?.itemResize?.(id, size),
     rangeUpdate: (begin, end) => emitFunction?.rangeUpdate?.(begin, end),
-    update: (list, state) => {
+    update: (list) => {
       renderList.value = list;
-      Object.assign(reactiveData, state);
-      if (core) {
-        Object.assign(slotSize, core.slotSize);
-      }
     },
   };
 
-  core = new VirtListCore<T>(userProps, events);
+  core = new VirtListCore<T>(userProps, events, { state: reactiveData, slotSize });
 
   renderList.value = core.renderList;
-  Object.assign(reactiveData, core.state);
-  Object.assign(slotSize, core.slotSize);
 
   // watch list length changes -> forward to core
   watch(

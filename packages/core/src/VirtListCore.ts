@@ -67,6 +67,7 @@ export class VirtListCore<T extends Record<string, any>> {
   constructor(
     options: VirtListOptions<T>,
     events: VirtListEvents<T> = {},
+    reactiveState?: { state?: ReactiveData; slotSize?: SlotSize },
   ) {
     this._events = events;
     this._boundOnScroll = this._onScroll.bind(this);
@@ -80,7 +81,7 @@ export class VirtListCore<T extends Record<string, any>> {
       },
     }) as RequiredOptions<T>;
 
-    this.slotSize = {
+    this.slotSize = reactiveState?.slotSize ?? {
       clientSize: 0,
       headerSize: 0,
       footerSize: 0,
@@ -88,7 +89,7 @@ export class VirtListCore<T extends Record<string, any>> {
       stickyFooterSize: 0,
     };
 
-    this.state = {
+    this.state = reactiveState?.state ?? {
       views: 0,
       offset: 0,
       listTotalSize: 0,

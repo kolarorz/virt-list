@@ -384,6 +384,92 @@
   line-height: 1.6;
 }
 
+/* Code block */
+.demo-block__actions {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  padding: 0 12px;
+}
+
+.demo-block__divider {
+  flex: 1;
+  height: 1px;
+  background: #e8e8e8;
+}
+
+.demo-block__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 16px;
+  white-space: nowrap;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.demo-block__toggle:hover {
+  color: #2563eb;
+}
+
+.demo-block__arrow {
+  transition: transform 0.25s ease;
+}
+
+.demo-block__arrow.is-open {
+  transform: rotate(180deg);
+}
+
+.demo-block__source {
+  position: relative;
+  margin-top: 8px;
+  border-top: 1px solid #e8e8e8;
+  background: #1e1e1e;
+}
+
+.demo-block__source-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px 0;
+}
+
+.demo-block__copy {
+  background: rgb(255 255 255 / 10%);
+  color: #a0aec0;
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.demo-block__copy:hover {
+  background: rgb(255 255 255 / 20%);
+  color: #e2e8f0;
+}
+
+.demo-block__pre {
+  margin: 0;
+  padding: 8px 16px 16px;
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.demo-block__pre code {
+  font-family: 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #d4d4d4;
+  white-space: pre;
+}
+
 /* Tree demo styles */
 .tree-demo {
   width: 100%;
