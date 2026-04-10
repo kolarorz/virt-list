@@ -17,9 +17,10 @@ export const FRAMEWORK_LABELS: Record<Framework, string> = {
  * Resolves the target URL for a given framework + module combination.
  * All routes follow /{fw}/{module}/... pattern.
  */
+const deployBase = process.env.DEPLOY_BASE || '/';
 export function getModuleLink(fw: Framework, mod: ModuleName): string {
-  if (mod === 'examples') return `/${fw}/examples/basic`;
-  return `/${fw}/${mod}/`;
+  if (mod === 'examples') return `${deployBase || '/'}${fw}/examples/basic`;
+  return `${deployBase || '/'}${fw}/${mod}/`;
 }
 
 export function useFramework() {

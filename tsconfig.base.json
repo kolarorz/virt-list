@@ -13,7 +13,6 @@
       "@virt-list/dom": ["./packages/dom/src/index.ts"],
       "@virt-list/react": ["./packages/react/src/index.ts"],
       "@virt-list/vue": ["./packages/vue/src/index.ts"],
-      "@virt-list/js": ["./packages/js/src/index.ts"]
     }
   }
 }
