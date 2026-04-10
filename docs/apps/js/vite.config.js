@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import qiankun from 'vite-plugin-qiankun';
 import { fileURLToPath, URL } from 'node:url';
 
-const deployBase = process.env.DEPLOY_BASE;
+const deployBase = process.env.VITE_DEPLOY_BASE;
 
 export default defineConfig({
   base: deployBase ? `${deployBase}micro-apps/js/` : '/',

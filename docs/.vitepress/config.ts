@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress';
 import { fileURLToPath, URL } from 'node:url';
 
-const deployBase = process.env.DEPLOY_BASE;
+const deployBase = process.env.VITE_DEPLOY_BASE;
 
 const listDemos = [
   { text: '基础示例', link: 'basic' },

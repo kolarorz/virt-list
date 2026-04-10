@@ -42,12 +42,12 @@ jobs:
           pnpm -C docs/apps/vue exec vite build
           pnpm -C docs/apps/js exec vite build
         env:
-          DEPLOY_BASE: /virt-list/
+          VITE_DEPLOY_BASE: /virt-list/
 
       - name: Build docs site
         run: pnpm -C docs exec vitepress build .
         env:
-          DEPLOY_BASE: /virt-list/
+          VITE_DEPLOY_BASE: /virt-list/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
