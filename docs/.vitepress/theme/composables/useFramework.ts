@@ -19,8 +19,12 @@ export const FRAMEWORK_LABELS: Record<Framework, string> = {
  */
 const deployBase = process.env.DEPLOY_BASE || '/';
 export function getModuleLink(fw: Framework, mod: ModuleName): string {
-  if (mod === 'examples') return `/${deployBase || '/'}${fw}/examples/basic`;
-  return `/${deployBase || '/'}${fw}/${mod}/`;
+  if (mod === 'examples') {
+    console.log('getModuleLink11', `${deployBase || '/'}${fw}/examples/basic`);
+    return `${deployBase || '/'}${fw}/examples/basic`;
+  }
+  console.log('getModuleLink22', `${deployBase || '/'}${fw}/${mod}/`);
+  return `${deployBase || '/'}${fw}/${mod}/`;
 }
 
 export function useFramework() {
