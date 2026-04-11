@@ -31,7 +31,7 @@ export function useFramework() {
   const route = useRoute();
 
   const currentFramework = computed<Framework>(() => {
-    const parts = route.path.split('/').filter(Boolean);
+    const parts = route.path.replace(deployBase, '').split('/').filter(Boolean);
     if (FRAMEWORKS.includes(parts[0] as Framework)) {
       return parts[0] as Framework;
     }
@@ -39,7 +39,7 @@ export function useFramework() {
   });
 
   const currentModule = computed<ModuleName>(() => {
-    const parts = route.path.split('/').filter(Boolean);
+    const parts = route.path.replace(deployBase, '').split('/').filter(Boolean);
     const mod = parts[1] as ModuleName | undefined;
     if (mod && MODULES.includes(mod)) return mod;
     return 'guide';
