@@ -10,7 +10,7 @@ import {
   type PropType,
   type VNode,
 } from 'vue-demi';
-import { VirtTreeDOM } from '@virt-list/dom';
+import { VirtTree } from '@virt-list/vanilla';
 import type {
   TreeNode,
   TreeNodeKey,
@@ -20,15 +20,15 @@ import type {
   IScrollParams,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
-} from '@virt-list/dom';
-import '@virt-list/dom/src/tree/tree.css';
+} from '@virt-list/vanilla';
+import '@virt-list/vanilla/src/tree/tree.css';
 
 export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams };
 
 /**
  * Vue 虚拟树组件。
  *
- * 薄封装层：在 onMounted 时创建 VirtTreeDOM 实例，通过 watch 监听 prop 变化
+ * 薄封装层：在 onMounted 时创建 VirtTree 实例，通过 watch 监听 prop 变化
  * 并调用 setList / updateOptions 同步给 DOM 层。
  *
  * 支持通过 slot 使用 Vue 模板语法自定义渲染（优先级高于 render* props）:
@@ -103,10 +103,10 @@ export const VirtTree = defineComponent({
   },
   setup(props, { emit, expose, slots }) {
     const containerRef = ref<HTMLElement | null>(null);
-    let tree: VirtTreeDOM | null = null;
+    let tree: VirtTree | null = null;
 
     /**
-     * 将 Vue slot 渲染到独立 DOM 容器中，供 VirtTreeDOM 使用。
+     * 将 Vue slot 渲染到独立 DOM 容器中，供 VirtTree 使用。
      * 同一 mountKey 的旧容器会先被卸载，避免内存泄漏。
      */
     const _slotContainers = new Map<string, HTMLElement>();
@@ -221,7 +221,7 @@ export const VirtTree = defineComponent({
 
     onMounted(() => {
       if (!containerRef.value) return;
-      tree = new VirtTreeDOM(containerRef.value, buildOptions(), buildEvents());
+      tree = new VirtTree(containerRef.value, buildOptions(), buildEvents());
     });
 
     onBeforeUnmount(() => {

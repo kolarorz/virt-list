@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-import { VirtListDOM } from '@virt-list/dom';
+import { VirtList } from '@virt-list/vanilla';
 import { faker } from '@faker-js/faker';
 
 interface DemoItem {
@@ -23,7 +23,7 @@ interface DemoItem {
 }
 
 const container = ref<HTMLElement | null>(null);
-let virtList: VirtListDOM<DemoItem> | null = null;
+let virtList: VirtList<DemoItem> | null = null;
 
 const generateData = (): DemoItem[] => {
   const data: DemoItem[] = [];
@@ -43,7 +43,7 @@ const initVirtList = (): void => {
     virtList.destroy();
   }
 
-  virtList = new VirtListDOM(container.value, {
+  virtList = new VirtList(container.value, {
     list: generateData(),
     itemKey: 'id',
     itemPreSize: 50,

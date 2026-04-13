@@ -81,6 +81,7 @@ export function useVirtList<T extends Record<string, any>>(
   const stickyFooterRefEl = ref<HTMLElement | null>(null);
 
   const renderList: ShallowRef<T[]> = shallowRef([]);
+  const renderKey = ref(0);
 
   const reactiveData: ShallowReactive<ReactiveData> = shallowReactive({
     views: 0,
@@ -111,20 +112,30 @@ export function useVirtList<T extends Record<string, any>>(
     toBottom: (item) => emitFunction?.toBottom?.(item),
     itemResize: (id, size) => emitFunction?.itemResize?.(id, size),
     rangeUpdate: (begin, end) => emitFunction?.rangeUpdate?.(begin, end),
-    update: (list) => {
-      renderList.value = list;
-    },
   };
 
   core = new VirtListCore<T>(userProps, events, { state: reactiveData, slotSize });
 
-  renderList.value = core.renderList;
+  // Render list is derived from watching inViewBegin, inViewEnd, renderKey.
+  // Core computes renderBegin/renderEnd/virtualSize synchronously;
+  // this watch syncs renderList reactively (kolarorz pattern).
+  // renderKey enables forceUpdate to trigger a re-slice even when the range is unchanged.
+  watch(
+    () => [reactiveData.inViewBegin, reactiveData.inViewEnd, renderKey.value],
+    () => {
+      renderList.value = core.props.list.slice(
+        reactiveData.renderBegin,
+        reactiveData.renderEnd + 1,
+      );
+    },
+    { immediate: true },
+  );
 
-  // watch list length changes -> forward to core
   watch(
     () => (userProps as any).list?.length,
     () => {
       core.updateOptions({ list: (userProps as any).list });
+      renderKey.value += 1;
     },
   );
 
@@ -172,13 +183,24 @@ export function useVirtList<T extends Record<string, any>>(
     scrollToTop: () => core.scrollToTop(),
     scrollToBottom: () => core.scrollToBottom(),
     scrollToOffset: (o) => core.scrollToOffset(o),
-    manualRender: (b, e) => core.manualRender(b, e),
+    manualRender: (b, e) => {
+      core.manualRender(b, e);
+      renderKey.value += 1;
+    },
     getItemSize: (k) => core.getItemSize(k),
     deleteItemSize: (k) => core.deleteItemSize(k),
-    deletedList2Top: (l) => core.deletedList2Top(l),
-    addedList2Top: (l) => core.addedList2Top(l),
+    deletedList2Top: (l) => {
+      core.deletedList2Top(l);
+      renderKey.value += 1;
+    },
+    addedList2Top: (l) => {
+      core.addedList2Top(l);
+      renderKey.value += 1;
+    },
     getItemPosByIndex: (i) => core.getItemPosByIndex(i),
-    forceUpdate: () => core.forceUpdate(),
+    forceUpdate: () => {
+      renderKey.value += 1;
+    },
   };
 }
 

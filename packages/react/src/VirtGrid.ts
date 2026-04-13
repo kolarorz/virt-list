@@ -9,7 +9,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
-import { VirtGridDOM } from '@virt-list/dom';
+import { VirtGrid } from '@virt-list/vanilla';
 
 export interface VirtGridProps {
   list: any[];
@@ -52,19 +52,19 @@ export interface VirtGridRef {
 /**
  * React 虚拟网格组件的内部实现。
  *
- * VirtGridDOM 在 useEffect([]) 中创建一次。
+ * VirtGrid 在 useEffect([]) 中创建一次。
  * list 和 gridItems 的变化通过 render 阶段的 ref 比较检测并同步。
  */
 function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const gridRef = useRef<VirtGridDOM<any> | null>(null);
+  const gridRef = useRef<VirtGrid<any> | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    gridRef.current = new VirtGridDOM(
+    gridRef.current = new VirtGrid(
       containerRef.current,
       {
         list: props.list,

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vitepress dev . --host --port 5173",
     "build": "pnpm run build:micro && vitepress build .",
-    "build:micro": "pnpm -C ./apps/react build && pnpm -C ./apps/vue build && pnpm -C ./apps/js build",
+    "build:micro": "pnpm -C ./apps/react build && pnpm -C ./apps/vue build && pnpm -C ./apps/vanilla build",
     "preview": "vitepress preview . --host --port 4173",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },

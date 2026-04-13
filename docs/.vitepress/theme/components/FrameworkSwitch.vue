@@ -5,6 +5,7 @@ import {
   useFramework,
   getModuleLink,
   FRAMEWORK_LABELS,
+  FRAMEWORK_ICONS,
   type Framework,
 } from '../composables/useFramework';
 
@@ -13,7 +14,7 @@ const { currentFramework, currentModule } = useFramework();
 
 const open = ref(false);
 
-const frameworks: Framework[] = ['js', 'vue', 'react'];
+const frameworks: Framework[] = ['vanilla', 'vue', 'react'];
 
 function select(fw: Framework) {
   open.value = false;
@@ -23,7 +24,6 @@ function select(fw: Framework) {
 </script>
 
 <template>
-  <!-- @click.prevent.stop prevents the parent <a> (VPNavBarTitle) from navigating -->
   <div
     class="VPFlyout fw-flyout"
     @click.prevent.stop
@@ -39,7 +39,8 @@ function select(fw: Framework) {
       @click="open = !open"
     >
       <span class="text">
-        <span v-html="FRAMEWORK_LABELS[currentFramework]"></span>
+        <span class="fw-icon" v-html="FRAMEWORK_ICONS[currentFramework]"></span>
+        <span>{{ FRAMEWORK_LABELS[currentFramework] }}</span>
         <span class="vpi-chevron-down text-icon" />
       </span>
     </button>
@@ -56,7 +57,8 @@ function select(fw: Framework) {
             :class="{ active: fw === currentFramework }"
             @click="select(fw)"
           >
-            {{ FRAMEWORK_LABELS[fw] }}
+            <span class="fw-icon" v-html="FRAMEWORK_ICONS[fw]"></span>
+            <span>{{ FRAMEWORK_LABELS[fw] }}</span>
           </button>
         </div>
       </div>
@@ -87,7 +89,7 @@ function select(fw: Framework) {
 .button {
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding-left: 24px;
   height: var(--vp-nav-height);
   color: var(--vp-c-text-1);
   transition: color 0.5s;
@@ -96,11 +98,18 @@ function select(fw: Framework) {
 .text {
   display: flex;
   align-items: center;
+  gap: 6px;
   line-height: var(--vp-nav-height);
   font-size: 14px;
   font-weight: 500;
   color: var(--vp-c-text-1);
   transition: color 0.25s;
+}
+
+.fw-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .text-icon {
@@ -135,7 +144,9 @@ function select(fw: Framework) {
 }
 
 .link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-radius: 6px;
   padding: 0 12px;
   width: 100%;

@@ -8,12 +8,12 @@ import {
   h,
   type PropType,
 } from 'vue-demi';
-import { VirtGridDOM } from '@virt-list/dom';
+import { VirtGrid } from '@virt-list/vanilla';
 
 /**
  * Vue 虚拟网格组件。
  *
- * 薄封装层：在 onMounted 时创建 VirtGridDOM 实例，
+ * 薄封装层：在 onMounted 时创建 VirtGrid 实例，
  * watch list 和 gridItems 变化并同步给 DOM 层。
  */
 export const VirtGrid = defineComponent({
@@ -44,11 +44,11 @@ export const VirtGrid = defineComponent({
   },
   setup(props, { emit, expose }) {
     const containerRef = ref<HTMLElement | null>(null);
-    let grid: VirtGridDOM<any> | null = null;
+    let grid: VirtGrid<any> | null = null;
 
     onMounted(() => {
       if (!containerRef.value) return;
-      grid = new VirtGridDOM(
+      grid = new VirtGrid(
         containerRef.value,
         {
           list: props.list,

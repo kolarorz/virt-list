@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@virt-list/core": "workspace:*",
-    "@virt-list/dom": "workspace:*",
+    "@virt-list/vanilla": "workspace:*",
     "vue-demi": "latest"
   },
   "peerDependencies": {

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress';
 import { fileURLToPath, URL } from 'node:url';
 
-const deployBase = process.env.VITE_DEPLOY_BASE;
+const deployBase = process.env.DEPLOY_BASE;
 
 const listDemos = [
   { text: '基础示例', link: 'basic' },
@@ -41,7 +41,7 @@ const gridDemos = [
   { text: '基础', link: 'virt-grid' },
 ];
 
-function buildSidebar(fw: string) {
+function buildExamplesSidebar(fw: string) {
   return [
     {
       text: '虚拟列表示例',
@@ -58,20 +58,57 @@ function buildSidebar(fw: string) {
   ];
 }
 
+function buildGuideSidebar(fw: string) {
+  return [
+    {
+      text: '指南',
+      items: [
+        { text: '快速开始', link: `/${fw}/guide/started` },
+        { text: '特殊说明', link: `/${fw}/guide/instructions` },
+      ],
+    },
+  ];
+}
+
+function buildApiSidebar(fw: string) {
+  return [
+    {
+      text: 'API',
+      items: [
+        { text: 'VirtList', link: `/${fw}/api/virt-list` },
+        { text: 'VirtTree', link: `/${fw}/api/virt-tree` },
+        { text: 'VirtGrid', link: `/${fw}/api/virt-grid` },
+      ],
+    },
+  ];
+}
+
 export default defineConfig({
   base: deployBase || '/',
   title: 'VirtList',
   description: 'A high-performance virtual list component for JavaScript',
   themeConfig: {
+    logo: '/logo.svg',
+    search: {
+      provider: 'local',
+    },
     nav: [
-      { component: 'FwNavLink', props: { text: 'Guide', mod: 'guide' }, activeMatch: '/guide/' },
-      { component: 'FwNavLink', props: { text: 'Examples', mod: 'examples' }, activeMatch: '/examples/' },
-      { component: 'FwNavLink', props: { text: 'API', mod: 'api' }, activeMatch: '/api/' },
+      { component: 'FwNavLink', props: { text: '指南', mod: 'guide' } },
+      { component: 'FwNavLink', props: { text: '示例', mod: 'examples' } },
+      { component: 'FwNavLink', props: { text: 'API', mod: 'api' } },
     ],
     sidebar: {
-      '/js/examples/': buildSidebar('js'),
-      '/vue/examples/': buildSidebar('vue'),
-      '/react/examples/': buildSidebar('react'),
+      '/vanilla/guide/': buildGuideSidebar('vanilla'),
+      '/vue/guide/': buildGuideSidebar('vue'),
+      '/react/guide/': buildGuideSidebar('react'),
+
+      '/vanilla/examples/': buildExamplesSidebar('vanilla'),
+      '/vue/examples/': buildExamplesSidebar('vue'),
+      '/react/examples/': buildExamplesSidebar('react'),
+
+      '/vanilla/api/': buildApiSidebar('vanilla'),
+      '/vue/api/': buildApiSidebar('vue'),
+      '/react/api/': buildApiSidebar('react'),
     },
   },
   vite: {
@@ -81,7 +118,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@virt-list/core': fileURLToPath(new URL('../../packages/core/src/index.ts', import.meta.url)),
-        '@virt-list/dom': fileURLToPath(new URL('../../packages/dom/src/index.ts', import.meta.url)),
+        '@virt-list/vanilla': fileURLToPath(new URL('../../packages/vanilla/src/index.ts', import.meta.url)),
         '@virt-list/vue': fileURLToPath(new URL('../../packages/vue/src/index.ts', import.meta.url)),
         '@virt-list/react': fileURLToPath(new URL('../../packages/react/src/index.ts', import.meta.url)),
       },

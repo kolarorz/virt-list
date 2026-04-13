@@ -8,7 +8,7 @@
 virt-list/
 ├── packages/           # 可发布的 npm 包
 │   ├── core/           # @virt-list/core   — 零依赖算法内核
-│   ├── dom/            # @virt-list/dom    — DOM 层实现
+│   ├── vanilla/            # @virt-list/vanilla    — DOM 层实现
 │   ├── vue/            # @virt-list/vue    — Vue 组件
 │   └── react/          # @virt-list/react  — React 组件
 ├── docs/               # VitePress 文档站 + demo 微应用（不发布）
@@ -22,7 +22,7 @@ virt-list/
 ```text
 @virt-list/core        ← 零依赖
     ↑
-@virt-list/dom         ← dependencies: core
+@virt-list/vanilla         ← dependencies: core
     ↑
 @virt-list/vue         ← dependencies: core + dom, peerDep: vue ≥3.2
 @virt-list/react       ← dependencies: core + dom, peerDep: react ≥18
@@ -46,9 +46,9 @@ pnpm dev
 
 # 单独启动
 pnpm dev:docs      # VitePress 文档站 (port 5173)
+pnpm dev:vanilla        # JS demo (port 7103)
 pnpm dev:vue       # Vue demo (port 7102)
 pnpm dev:react     # React demo (port 7101)
-pnpm dev:js        # JS demo (port 7103)
 ```
 
 ### 运行测试
@@ -69,8 +69,8 @@ pnpm typecheck     # 检查文档站 + demo 应用
 ### 给某个包添加依赖
 
 ```bash
-# 给 @virt-list/dom 添加运行时依赖
-pnpm --filter @virt-list/dom add <package-name>
+# 给 @virt-list/vanilla 添加运行时依赖
+pnpm --filter @virt-list/vanilla add <package-name>
 
 # 给 @virt-list/react 添加开发依赖
 pnpm --filter @virt-list/react add -D <package-name>
@@ -175,7 +175,7 @@ git push --follow-tags
 ```bash
 # 1. 手动修改各包的 version
 # packages/core/package.json  → "version": "1.1.0"
-# packages/dom/package.json   → "version": "1.1.0"
+# packages/vanilla/package.json   → "version": "1.1.0"
 # ...
 
 # 2. 构建
@@ -183,7 +183,7 @@ pnpm build:packages
 
 # 3. 发布（按依赖顺序）
 pnpm --filter @virt-list/core publish --access public
-pnpm --filter @virt-list/dom publish --access public
+pnpm --filter @virt-list/vanilla publish --access public
 pnpm --filter @virt-list/vue publish --access public
 pnpm --filter @virt-list/react publish --access public
 
@@ -207,7 +207,7 @@ git push --tags
 ```bash
 # 发布 beta 版
 pnpm --filter @virt-list/core publish --tag beta --access public
-pnpm --filter @virt-list/dom publish --tag beta --access public
+pnpm --filter @virt-list/vanilla publish --tag beta --access public
 pnpm --filter @virt-list/vue publish --tag beta --access public
 pnpm --filter @virt-list/react publish --tag beta --access public
 ```
@@ -230,7 +230,7 @@ pnpm --filter @virt-list/react publish --tag beta --access public
 ```bash
 # 验证包内容
 npm pack --dry-run --workspace=packages/core
-npm pack --dry-run --workspace=packages/dom
+npm pack --dry-run --workspace=packages/vanilla
 
 # 在新项目中测试安装
 mkdir /tmp/test-virt-list && cd /tmp/test-virt-list

@@ -5,7 +5,7 @@ import qiankun from 'vite-plugin-qiankun'
 import { fileURLToPath, URL } from 'node:url'
 
 // https://vite.dev/config/
-const deployBase = process.env.VITE_DEPLOY_BASE
+const deployBase = process.env.DEPLOY_BASE
 
 export default defineConfig({
   base: deployBase ? `${deployBase}micro-apps/vue/` : '/',
@@ -13,12 +13,12 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@virt-list\/dom$/,
-        replacement: fileURLToPath(new URL('../../../packages/dom/src/index.ts', import.meta.url)),
+        find: /^@virt-list\/vanilla$/,
+        replacement: fileURLToPath(new URL('../../../packages/vanilla/src/index.ts', import.meta.url)),
       },
       {
-        find: /^@virt-list\/dom\/(.*)$/,
-        replacement: fileURLToPath(new URL('../../../packages/dom/$1', import.meta.url)),
+        find: /^@virt-list\/vanilla\/(.*)$/,
+        replacement: fileURLToPath(new URL('../../../packages/vanilla/$1', import.meta.url)),
       },
       {
         find: '@src',

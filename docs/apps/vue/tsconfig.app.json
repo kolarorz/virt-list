@@ -9,7 +9,7 @@
     "baseUrl": ".",
     "paths": {
       "@virt-list/core": ["../../../packages/core/src/index.ts"],
-      "@virt-list/dom": ["../../../packages/dom/src/index.ts"],
+      "@virt-list/vanilla": ["../../../packages/vanilla/src/index.ts"],
       "@virt-list/vue": ["../../../packages/vue/src/index.ts"]
     },
     /* Linting */

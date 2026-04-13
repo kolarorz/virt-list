@@ -17,7 +17,7 @@ import { DEFAULT_OPTIONS } from './types';
  * - 通过 ResizeObserver 监听容器和列表项的尺寸变化
  * - 根据滚动方向（forward/backward）计算可视区间，并在区间变化时通知上层
  *
- * 该类不直接操作 DOM，由 VirtListDOM 负责 DOM 构建与增量 patch。
+ * 该类不直接操作 DOM，由 VirtList 负责 DOM 构建与增量 patch。
  */
 export class VirtListCore<T extends Record<string, any>> {
   /** 响应式状态，驱动上层渲染 */

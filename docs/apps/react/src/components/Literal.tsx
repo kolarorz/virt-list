@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { useEffect, useRef } from 'react';
-import { VirtListDOM } from '@virt-list/dom';
+import { VirtList } from '@virt-list/vanilla';
 
 interface DemoItem {
   id: number;
@@ -9,7 +9,7 @@ interface DemoItem {
 
 function Literal() {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const virtListRef = useRef<VirtListDOM<DemoItem> | null>(null);
+  const virtListRef = useRef<VirtList<DemoItem> | null>(null);
 
   const generateData = (): DemoItem[] => {
     const data: DemoItem[] = [];
@@ -31,7 +31,7 @@ function Literal() {
         virtListRef.current.destroy();
       }
 
-      virtListRef.current = new VirtListDOM(container, {
+      virtListRef.current = new VirtList(container, {
         list: generateData(),
         itemKey: 'id',
         itemPreSize: 50,

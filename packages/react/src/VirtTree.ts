@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { VirtTreeDOM } from '@virt-list/dom';
+import { VirtTree } from '@virt-list/vanilla';
 import type {
   TreeNode,
   TreeNodeKey,
@@ -22,8 +22,8 @@ import type {
   IScrollParams,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
-} from '@virt-list/dom';
-import '@virt-list/dom/src/tree/tree.css';
+} from '@virt-list/vanilla';
+import '@virt-list/vanilla/src/tree/tree.css';
 
 export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams };
 
@@ -130,7 +130,7 @@ export interface VirtTreeRef {
 /**
  * React 虚拟树组件的内部实现。
  *
- * VirtTreeDOM 在 useEffect([]) 中创建一次。事件通过 eventsRef 间接引用，
+ * VirtTree 在 useEffect([]) 中创建一次。事件通过 eventsRef 间接引用，
  * 避免 effect 重建。list 引用变化时通过 render 阶段的 ref 比较触发 setList。
  *
  * 注意：setList 会重置展开/勾选状态（从 options 重新初始化），
@@ -138,14 +138,14 @@ export interface VirtTreeRef {
  */
 function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const treeRef = useRef<VirtTreeDOM | null>(null);
+  const treeRef = useRef<VirtTree | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
 
   const reactRootsRef = useRef(new Map<string, Root>());
 
   /**
-   * 将 ReactNode 渲染到独立 DOM 容器中，供 VirtTreeDOM 使用。
+   * 将 ReactNode 渲染到独立 DOM 容器中，供 VirtTree 使用。
    * 同一 mountKey 的旧 root 会先被卸载，避免内存泄漏。
    */
   function mountReact(mountKey: string, node: ReactNode): HTMLElement {
@@ -246,7 +246,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
     };
 
-    treeRef.current = new VirtTreeDOM(containerRef.current, options, events);
+    treeRef.current = new VirtTree(containerRef.current, options, events);
 
     return () => {
       treeRef.current?.destroy();

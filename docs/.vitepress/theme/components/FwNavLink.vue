@@ -14,10 +14,10 @@ const props = defineProps<{
 
 const router = useRouter();
 const route = useRoute();
-const { currentFramework, currentModule } = useFramework();
+const { currentFramework } = useFramework();
 
 const href = computed(() => getModuleLink(currentFramework.value, props.mod));
-const isActive = computed(() => currentModule.value === props.mod);
+const isActive = computed(() => route.path.includes(props.mod));
 
 function navigate(e: MouseEvent) {
   e.preventDefault();
@@ -28,8 +28,8 @@ function navigate(e: MouseEvent) {
 <template>
   <a
     class="VPNavBarMenuLink"
-    :class="{ active: isActive }"
     :href="href"
+    :class="{ active: isActive }"
     @click="navigate"
   >
     <span>{{ text }}</span>

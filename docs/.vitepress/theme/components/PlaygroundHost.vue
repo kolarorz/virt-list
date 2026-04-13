@@ -2,7 +2,7 @@
 import type { MicroApp } from 'qiankun';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-type FrameworkKind = 'react' | 'vue' | 'js';
+type FrameworkKind = 'vanilla' | 'vue' | 'react';
 
 interface PlaygroundProps {
   framework: FrameworkKind;
@@ -16,7 +16,7 @@ const props = withDefaults(
     exampleId?: string;
   }>(),
   {
-    framework: 'react',
+    framework: 'vanilla',
     exampleId: '',
   },
 );
@@ -40,21 +40,21 @@ const isDev = (import.meta as ImportMeta & { env: { DEV: boolean } }).env.DEV;
 
 const base = (import.meta as any).env.BASE_URL || '/';
 const appEntries: Record<FrameworkKind, string> = {
-  react: isDev ? 'http://localhost:7101/' : `${base}micro-apps/react/`,
+  vanilla: isDev ? 'http://localhost:7103/' : `${base}micro-apps/vanilla/`,
   vue: isDev ? 'http://localhost:7102/' : `${base}micro-apps/vue/`,
-  js: isDev ? 'http://localhost:7103/' : `${base}micro-apps/js/`,
+  react: isDev ? 'http://localhost:7101/' : `${base}micro-apps/react/`,
 };
 
 const appNames: Record<FrameworkKind, string> = {
-  react: 'reactDemo',
+  vanilla: 'vanillaDemo',
   vue: 'vueDemo',
-  js: 'jsDemo',
+  react: 'reactDemo',
 };
 
 const titleMap: Record<FrameworkKind, string> = {
-  react: 'React 示例运行中',
+  vanilla: 'Vanilla 示例运行中',
   vue: 'Vue 示例运行中',
-  js: 'JS 示例运行中',
+  react: 'React 示例运行中',
 };
 
 const appendLog = (message: string) => {

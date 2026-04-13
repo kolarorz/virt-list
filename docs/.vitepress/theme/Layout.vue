@@ -36,7 +36,7 @@ onBeforeUnmount(() => {
 
 <template>
   <DefaultTheme.Layout>
-    <template #nav-bar-title-after>
+    <template #nav-bar-content-before>
       <FrameworkSwitch />
     </template>
   </DefaultTheme.Layout>

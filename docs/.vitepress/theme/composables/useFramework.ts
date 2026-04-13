@@ -1,45 +1,59 @@
 import { computed } from 'vue';
-import { useRoute } from 'vitepress';
+import { useRoute, useData, withBase } from 'vitepress';
 
-export type Framework = 'js' | 'vue' | 'react';
+export type Framework = 'vanilla' | 'vue' | 'react';
 export type ModuleName = 'guide' | 'examples' | 'api';
 
-const FRAMEWORKS: Framework[] = ['js', 'vue', 'react'];
+const FRAMEWORKS: Framework[] = ['vanilla', 'vue', 'react'];
 const MODULES: ModuleName[] = ['guide', 'examples', 'api'];
 
 export const FRAMEWORK_LABELS: Record<Framework, string> = {
-  js: 'DOM',
+  vanilla: 'Vanilla',
   vue: 'Vue',
   react: 'React',
 };
 
+export const FRAMEWORK_ICONS: Record<Framework, string> = {
+  vanilla: '<svg width="16" height="16" viewBox="0 0 20 20"><rect width="20" height="20" rx="3" fill="#f7df1e"/><text x="10" y="14.5" font-size="10" font-weight="bold" fill="#323330" text-anchor="middle" font-family="sans-serif">JS</text></svg>',
+  vue: '<svg width="16" height="16" viewBox="0 0 32 32"><path d="M2 4l14 24L30 4h-6l-8 14L8 4z" fill="#41b883"/><path d="M8 4l8 14L24 4h-5l-3 5.5L13 4z" fill="#35495e"/></svg>',
+  react: '<svg width="16" height="16" viewBox="-11 -11 22 22"><circle r="2" fill="#61dafb"/><g fill="none" stroke="#61dafb" stroke-width="1"><ellipse rx="10" ry="4.2"/><ellipse rx="10" ry="4.2" transform="rotate(60)"/><ellipse rx="10" ry="4.2" transform="rotate(120)"/></g></svg>',
+};
+
 /**
  * Resolves the target URL for a given framework + module combination.
- * All routes follow /{fw}/{module}/... pattern.
+ * Uses withBase() to prepend the configured base path (e.g. /virt-list/).
  */
-const deployBase = import.meta.env.VITE_DEPLOY_BASE || '/';
+const MODULE_ENTRY: Record<ModuleName, string> = {
+  guide: 'started',
+  examples: 'basic',
+  api: 'virt-list',
+};
+
 export function getModuleLink(fw: Framework, mod: ModuleName): string {
-  if (mod === 'examples') {
-    console.log('getModuleLink11', `${deployBase || '/'}${fw}/${mod}/`);
-    return `${deployBase || '/'}${fw}/examples/basic`;
-  }
-  console.log('getModuleLink22', `${deployBase || '/'}${fw}/${mod}/`);
-  return `${deployBase || '/'}${fw}/${mod}/`;
+  return withBase(`/${fw}/${mod}/${MODULE_ENTRY[mod]}`);
 }
 
 export function useFramework() {
   const route = useRoute();
+  const { site } = useData();
+
+  /** Strip the configured base prefix from route.path for segment parsing. */
+  const relativePath = computed(() => {
+    const base = site.value.base || '/';
+    const p = route.path;
+    return p.startsWith(base) ? '/' + p.slice(base.length) : p;
+  });
 
   const currentFramework = computed<Framework>(() => {
-    const parts = route.path.replace(deployBase, '').split('/').filter(Boolean);
+    const parts = relativePath.value.split('/').filter(Boolean);
     if (FRAMEWORKS.includes(parts[0] as Framework)) {
       return parts[0] as Framework;
     }
-    return 'js';
+    return 'vanilla';
   });
 
   const currentModule = computed<ModuleName>(() => {
-    const parts = route.path.replace(deployBase, '').split('/').filter(Boolean);
+    const parts = relativePath.value.split('/').filter(Boolean);
     const mod = parts[1] as ModuleName | undefined;
     if (mod && MODULES.includes(mod)) return mod;
     return 'guide';

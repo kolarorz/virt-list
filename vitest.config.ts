@@ -11,15 +11,15 @@ export default defineConfig({
         ),
       },
       {
-        find: /^@virt-list\/dom$/,
+        find: /^@virt-list\/vanilla$/,
         replacement: fileURLToPath(
-          new URL('./packages/dom/src/index.ts', import.meta.url),
+          new URL('./packages/vanilla/src/index.ts', import.meta.url),
         ),
       },
       {
-        find: /^@virt-list\/dom\/(.*)$/,
+        find: /^@virt-list\/vanilla\/(.*)$/,
         replacement: fileURLToPath(
-          new URL('./packages/dom/$1', import.meta.url),
+          new URL('./packages/vanilla/$1', import.meta.url),
         ),
       },
     ],

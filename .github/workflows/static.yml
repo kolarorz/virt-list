@@ -38,16 +38,16 @@ jobs:
 
       - name: Build micro apps
         run: |
-          pnpm -C docs/apps/react exec vite build
+          pnpm -C docs/apps/vanilla exec vite build
           pnpm -C docs/apps/vue exec vite build
-          pnpm -C docs/apps/js exec vite build
+          pnpm -C docs/apps/react exec vite build
         env:
-          VITE_DEPLOY_BASE: /virt-list/
+          DEPLOY_BASE: /virt-list/
 
       - name: Build docs site
         run: pnpm -C docs exec vitepress build .
         env:
-          VITE_DEPLOY_BASE: /virt-list/
+          DEPLOY_BASE: /virt-list/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
