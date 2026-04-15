@@ -4,6 +4,7 @@ import Literal from './components/Literal.vue';
 import Widget from './components/Widget.vue';
 
 import Basic from './components/list/Basic.vue';
+import Buffer from './components/list/Buffer.vue';
 import HugeData from './components/list/HugeData.vue';
 import Fixed from './components/list/Fixed.vue';
 import Horizontal from './components/list/Horizontal.vue';
@@ -17,6 +18,8 @@ import Chat from './components/list/Chat.vue';
 import Advanced from './components/list/Advanced.vue';
 import Pagination from './components/list/Pagination.vue';
 import KeepAlive from './components/list/KeepAlive.vue';
+import Empty from './components/list/Empty.vue';
+import Reactive from './components/list/Reactive.vue';
 
 import TreeBasic from './components/tree/TreeBasic.vue';
 import TreeExpand from './components/tree/TreeExpand.vue';
@@ -63,6 +66,7 @@ export default defineComponent({
       'literal': () => <Literal />,
       'widget': () => <Widget />,
       'basic': () => <DemoBlock source={src('./components/list/Basic.vue')}><Basic /></DemoBlock>,
+      'buffer': () => <DemoBlock source={src('./components/list/Buffer.vue')}><Buffer /></DemoBlock>,
       'huge-data': () => <DemoBlock source={src('./components/list/HugeData.vue')}><HugeData /></DemoBlock>,
       'fixed': () => <DemoBlock source={src('./components/list/Fixed.vue')}><Fixed /></DemoBlock>,
       'horizontal': () => <DemoBlock source={src('./components/list/Horizontal.vue')}><Horizontal /></DemoBlock>,
@@ -76,6 +80,8 @@ export default defineComponent({
       'advanced': () => <DemoBlock source={src('./components/list/Advanced.vue')}><Advanced /></DemoBlock>,
       'pagination': () => <DemoBlock source={src('./components/list/Pagination.vue')}><Pagination /></DemoBlock>,
       'keep-alive': () => <DemoBlock source={src('./components/list/KeepAlive.vue')}><KeepAlive /></DemoBlock>,
+      'empty': () => <DemoBlock source={src('./components/list/Empty.vue')}><Empty /></DemoBlock>,
+      'reactive': () => <DemoBlock source={src('./components/list/Reactive.vue')}><Reactive /></DemoBlock>,
       'virt-tree-basic': () => <DemoBlock source={src('./components/tree/TreeBasic.vue')}><TreeBasic /></DemoBlock>,
       'virt-tree-expand': () => <DemoBlock source={src('./components/tree/TreeExpand.vue')}><TreeExpand /></DemoBlock>,
       'virt-tree-checkbox': () => <DemoBlock source={src('./components/tree/TreeCheckbox.vue')}><TreeCheckbox /></DemoBlock>,

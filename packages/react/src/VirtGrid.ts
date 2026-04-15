@@ -9,7 +9,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
-import { VirtGrid } from '@virt-list/vanilla';
+import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
 
 export interface VirtGridProps {
   list: any[];
@@ -57,14 +57,14 @@ export interface VirtGridRef {
  */
 function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const gridRef = useRef<VirtGrid<any> | null>(null);
+  const gridRef = useRef<VirtGridVanilla<any> | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    gridRef.current = new VirtGrid(
+    gridRef.current = new VirtGridVanilla(
       containerRef.current,
       {
         list: props.list,

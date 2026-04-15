@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { VirtTree } from '@virt-list/vanilla';
+import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
   TreeNode,
   TreeNodeKey,
@@ -138,11 +138,11 @@ export interface VirtTreeRef {
  */
 function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const treeRef = useRef<VirtTree | null>(null);
+  const treeRef = useRef<VirtTreeVanilla | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
 
-  const reactRootsRef = useRef(new Map<string, Root>());
+  const reactRootsRef = useRef(new Map<string, RootLike>());
 
   /**
    * 将 ReactNode 渲染到独立 DOM 容器中，供 VirtTree 使用。
@@ -246,7 +246,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
     };
 
-    treeRef.current = new VirtTree(containerRef.current, options, events);
+    treeRef.current = new VirtTreeVanilla(containerRef.current, options, events);
 
     return () => {
       treeRef.current?.destroy();

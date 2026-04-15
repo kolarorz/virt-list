@@ -49,9 +49,9 @@ export default function Chat() {
   const listLenRef = useRef(list.length);
   listLenRef.current = list.length;
 
-  const updateStats = useCallback((begin?: number, end?: number) => {
+  const updateStats = useCallback((state?: any) => {
     setStats(
-      `总数: ${listLenRef.current} | Page: ${pageRef.current} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}`,
+      `总数: ${listLenRef.current} | Page: ${pageRef.current} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`,
     );
   }, []);
 
@@ -60,7 +60,7 @@ export default function Chat() {
     if (!vl || loadingRef.current || pageRef.current <= 1) return;
     loadingRef.current = true;
     setStats(
-      `总数: ${list.length} | Page: ${pageRef.current} | RenderBegin: - | RenderEnd: - | 加载中...`,
+      `总数: ${list.length} | Page: ${pageRef.current} | 加载中...`,
     );
     const prevPage = await asyncGeneratePage(pageRef.current - 1, PAGE_SIZE);
     pageRef.current--;
@@ -92,9 +92,9 @@ export default function Chat() {
           itemPreSize={60}
           onToTop={onToTop}
           onItemResize={onItemResize}
-          onRangeUpdate={(begin, end) => {
+          onUpdate={(_, state) => {
             setStats(
-              `总数: ${list.length} | Page: ${pageRef.current} | RenderBegin: ${begin} | RenderEnd: ${end}`,
+              `总数: ${list.length} | Page: ${pageRef.current} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`,
             );
           }}
           renderHeader={() => (
@@ -102,15 +102,16 @@ export default function Chat() {
               {pageRef.current > 1 ? '加载中...' : '没有更早的消息了'}
             </div>
           )}
-          renderItem={(item) => (
+        >
+          {({ itemData }) => (
             <div className="demo-chat-message">
               <div className="demo-chat-bubble">
-                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>消息 #{item.index}</div>
-                <div>{item.text}</div>
+                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>消息 #{itemData.index}</div>
+                <div>{itemData.text}</div>
               </div>
             </div>
           )}
-        />
+        </VirtList>
       </div>
     </div>
   );

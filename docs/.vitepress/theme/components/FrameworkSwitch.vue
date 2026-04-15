@@ -3,14 +3,14 @@ import { ref } from 'vue';
 import { useRouter } from 'vitepress';
 import {
   useFramework,
-  getModuleLink,
+  getFrameworkLink,
   FRAMEWORK_LABELS,
   FRAMEWORK_ICONS,
   type Framework,
 } from '../composables/useFramework';
 
 const router = useRouter();
-const { currentFramework, currentModule } = useFramework();
+const { currentFramework, relativePath } = useFramework();
 
 const open = ref(false);
 
@@ -19,7 +19,7 @@ const frameworks: Framework[] = ['vanilla', 'vue', 'react'];
 function select(fw: Framework) {
   open.value = false;
   if (fw === currentFramework.value) return;
-  router.go(getModuleLink(fw, currentModule.value));
+  router.go(getFrameworkLink(fw, relativePath.value));
 }
 </script>
 

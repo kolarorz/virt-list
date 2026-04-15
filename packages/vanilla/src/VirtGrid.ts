@@ -5,7 +5,7 @@ import type { VirtListEvents } from '@virt-list/core';
 /**
  * 网格布局配置项。
  */
-export interface VirtGridDOMOptions<T extends Record<string, any>> {
+export interface VirtGridOptions<T extends Record<string, any>> {
   /** 数据源（扁平数组，会被自动分组为行） */
   list: T[];
   /** 每行显示的列数 */
@@ -32,7 +32,7 @@ export interface VirtGridDOMOptions<T extends Record<string, any>> {
   stickyHeaderStyle?: string;
 }
 
-export interface VirtGridDOMEvents<_T extends Record<string, any> = Record<string, any>> {
+export interface VirtGridEvents<_T extends Record<string, any> = Record<string, any>> {
   scroll?: (e: Event) => void;
   toTop?: (item: any) => void;
   toBottom?: (item: any) => void;
@@ -61,15 +61,15 @@ interface GridRow<T> {
  * 因此 setGridItems 时必须先 clearItemPool，否则 pool 中的旧 DOM 会被错误复用。
  */
 export class VirtGrid<T extends Record<string, any>> {
-  private _options: VirtGridDOMOptions<T>;
+  private _options: VirtGridOptions<T>;
   private _virtListDOM: VirtList<GridRow<T>>;
   /** 分组后的行数据 */
   private _gridList: GridRow<T>[] = [];
 
   constructor(
     container: HTMLElement,
-    options: VirtGridDOMOptions<T>,
-    events?: VirtGridDOMEvents<T>,
+    options: VirtGridOptions<T>,
+    events?: VirtGridEvents<T>,
   ) {
     this._options = options;
     this._updateGridList();

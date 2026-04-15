@@ -6,7 +6,9 @@ import {
 import { mountDemoBlock } from './demo-block.js';
 import { bootstrapLiteral } from './components/list/literal.js';
 import { bootstrapVirtList } from './components/list/virt-list.js';
+
 import { bootstrapBasic } from './components/list/basic.js';
+import { bootstrapBuffer } from './components/list/buffer.js';
 import { bootstrapHugeData } from './components/list/huge-data.js';
 import { bootstrapFixed } from './components/list/fixed.js';
 import { bootstrapHorizontal } from './components/list/horizontal.js';
@@ -20,6 +22,8 @@ import { bootstrapAdvanced } from './components/list/advanced.js';
 import { bootstrapPagination } from './components/list/pagination.js';
 import { bootstrapKeepAlive } from './components/list/keep-alive.js';
 import { bootstrapTable } from './components/list/table.js';
+import { bootstrapEmpty } from './components/list/empty.js';
+import { bootstrapReactive } from './components/list/reactive.js';
 
 import { bootstrapTreeBasic } from './components/tree/virt-tree-basic.js';
 import { bootstrapTreeCheckbox } from './components/tree/virt-tree-checkbox.js';
@@ -48,7 +52,9 @@ const demoBootstrapMap = {
   literal: bootstrapLiteral,
   'virt-list': bootstrapVirtList,
   'virt-grid': bootstrapVirtGrid,
+
   basic: bootstrapBasic,
+  buffer: bootstrapBuffer,
   'huge-data': bootstrapHugeData,
   fixed: bootstrapFixed,
   horizontal: bootstrapHorizontal,
@@ -62,6 +68,8 @@ const demoBootstrapMap = {
   advanced: bootstrapAdvanced,
   pagination: bootstrapPagination,
   'keep-alive': bootstrapKeepAlive,
+  empty: bootstrapEmpty,
+  reactive: bootstrapReactive,
   'virt-tree-basic': bootstrapTreeBasic,
   'virt-tree-checkbox': bootstrapTreeCheckbox,
   'virt-tree-expand': bootstrapTreeExpand,
@@ -82,7 +90,9 @@ const demoSourceMap = {
   literal: './components/list/literal.js',
   'virt-list': './components/list/virt-list.js',
   'virt-grid': './components/grid/virt-grid.js',
+
   basic: './components/list/basic.js',
+  buffer: './components/list/buffer.js',
   'huge-data': './components/list/huge-data.js',
   fixed: './components/list/fixed.js',
   horizontal: './components/list/horizontal.js',
@@ -96,6 +106,8 @@ const demoSourceMap = {
   advanced: './components/list/advanced.js',
   pagination: './components/list/pagination.js',
   'keep-alive': './components/list/keep-alive.js',
+  empty: './components/list/empty.js',
+  reactive: './components/list/reactive.js',
   'virt-tree-basic': './components/tree/virt-tree-basic.js',
   'virt-tree-checkbox': './components/tree/virt-tree-checkbox.js',
   'virt-tree-expand': './components/tree/virt-tree-expand.js',

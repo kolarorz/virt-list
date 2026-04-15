@@ -7,8 +7,7 @@
         item-key="id"
         :item-pre-size="60"
         horizontal
-        :buffer="2"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #default="{ itemData }">
           <div
@@ -45,7 +44,7 @@ const list = ref<Item[]>(generateList(1000));
 
 statsText.value = `总数: ${list.value.length} | 水平滚动`;
 
-function onRangeUpdate(begin: number, end: number) {
-  statsText.value = `总数: ${list.value.length} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+function onUpdate(_list: any[], state: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
 }
 </script>

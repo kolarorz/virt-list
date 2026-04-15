@@ -9,8 +9,7 @@
         :list="list"
         item-key="id"
         :item-pre-size="20"
-        :buffer="5"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #default="{ itemData }">
           <div class="demo-row-item demo-dynamic-row">
@@ -56,8 +55,8 @@ const list = ref<Item[]>(generateList(200));
 
 statsText.value = `总数: ${list.value.length} | 可变高度 + 可编辑`;
 
-function onRangeUpdate(begin: number, end: number) {
-  statsText.value = `总数: ${list.value.length} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+function onUpdate(_list: any[], state: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
 }
 
 function onEditInput(item: Item, e: Event) {

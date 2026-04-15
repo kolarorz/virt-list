@@ -30,7 +30,6 @@
         :list="list"
         item-key="id"
         :min-size="50"
-        :buffer="4"
         @toTop="onToTop"
         @toBottom="onToBottom"
       >

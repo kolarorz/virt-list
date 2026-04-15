@@ -6,10 +6,9 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        :buffer="2"
         sticky-header-style="background:#2e8b57;height:50px;"
         sticky-footer-style="background:#008b8b;height:50px;"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #stickyHeader>
           <div
@@ -111,7 +110,7 @@ type Item = ReturnType<typeof generateList>[number];
 const statsText = ref(`总数: ${1000} | 含 Sticky/Header/Footer 插槽`);
 const list = ref<Item[]>(generateList(1000));
 
-function onRangeUpdate(begin: number, end: number) {
-  statsText.value = `总数: ${list.value.length} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+function onUpdate(_list: any[], state: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
 }
 </script>

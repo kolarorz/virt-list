@@ -55,16 +55,6 @@ function VirtListDemo() {
           list={list}
           itemKey="id"
           itemPreSize={50}
-          buffer={4}
-          renderItem={(item, index) => (
-            <div style={{ padding: 4 }}>
-              <div style={{ fontWeight: 'bold' }}>Item {item.id}</div>
-              <div style={{ color: '#666', fontSize: 12 }}>{item.content}</div>
-              <div style={{ color: '#999', fontSize: 10 }}>
-                Index: {index} (@virt-list/react VirtList)
-              </div>
-            </div>
-          )}
           renderStickyHeader={() => (
             <div
               style={{
@@ -91,7 +81,17 @@ function VirtListDemo() {
           )}
           onToTop={(item) => console.log('到达顶部', item)}
           onToBottom={(item) => console.log('到达底部', item)}
-        />
+        >
+          {({ itemData, index }) => (
+            <div style={{ padding: 4 }}>
+              <div style={{ fontWeight: 'bold' }}>Item {itemData.id}</div>
+              <div style={{ color: '#666', fontSize: 12 }}>{itemData.content}</div>
+              <div style={{ color: '#999', fontSize: 10 }}>
+                Index: {index} (@virt-list/react VirtList)
+              </div>
+            </div>
+          )}
+        </VirtList>
       </div>
     </div>
   );

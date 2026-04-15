@@ -62,7 +62,6 @@ export function bootstrapBasic(root) {
       list,
       itemKey: 'id',
       itemPreSize: 40,
-      buffer: 5,
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item';
@@ -74,8 +73,8 @@ export function bootstrapBasic(root) {
       },
     },
     {
-      rangeUpdate: (begin, end) => {
-        statsEl.textContent = `总数: ${list.length} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+      update: (_, state) => {
+        statsEl.textContent = `总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
       },
     },
   );

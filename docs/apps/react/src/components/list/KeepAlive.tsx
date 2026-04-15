@@ -121,8 +121,8 @@ export default function KeepAlive() {
             list={users}
             itemKey="id"
             itemPreSize={70}
-            buffer={5}
-            renderItem={(user) => (
+          >
+            {({ itemData: user }) => (
               <div className="demo-ka-card">
                 <div className="demo-ka-avatar">{user.name.charAt(0)}</div>
                 <div className="demo-ka-info">
@@ -132,15 +132,15 @@ export default function KeepAlive() {
                 </div>
               </div>
             )}
-          />
+          </VirtList>
         ) : (
           <VirtList
             ref={productListRef}
             list={products}
             itemKey="id"
             itemPreSize={70}
-            buffer={5}
-            renderItem={(product) => (
+          >
+            {({ itemData: product }) => (
               <div className="demo-ka-card">
                 <div className="demo-ka-avatar" style={{ background: '#f0ad4e' }}>{product.name.charAt(0)}</div>
                 <div className="demo-ka-info">
@@ -150,7 +150,7 @@ export default function KeepAlive() {
                 </div>
               </div>
             )}
-          />
+          </VirtList>
         )}
       </div>
     </div>

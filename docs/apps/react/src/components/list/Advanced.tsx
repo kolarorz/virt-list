@@ -84,15 +84,16 @@ export default function Advanced() {
               ))}
             </div>
           )}
-          onRangeUpdate={(begin, end) =>
-            setStats(`总数: ${list.length} | RenderBegin: ${begin} | RenderEnd: ${end}`)
+          onUpdate={(_, state) =>
+            setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
           }
-          renderItem={(item, index) => (
+        >
+          {({ itemData, index }) => (
             <div className="demo-table-row" style={{ minWidth: 'min-content' }}>
               {index === 0 ? (
                 <>
                   <TableCell
-                    text={`合并行 (ID: ${item.id} & ${item.id + 1})`}
+                    text={`合并行 (ID: ${itemData.id} & ${itemData.id + 1})`}
                     width={COLUMNS[0].width + COLUMNS[1].width}
                     extra={{
                       minWidth: COLUMNS[0].width + COLUMNS[1].width,
@@ -101,13 +102,13 @@ export default function Advanced() {
                     }}
                   />
                   {COLUMNS.slice(2).map((col) => (
-                    <TableCell key={col.key} text={String(item[col.key])} width={col.width} />
+                    <TableCell key={col.key} text={String(itemData[col.key])} width={col.width} />
                   ))}
                 </>
               ) : index === 1 ? (
                 <>
                   <TableCell
-                    text={`(续) ID: ${item.id}`}
+                    text={`(续) ID: ${itemData.id}`}
                     width={COLUMNS[0].width + COLUMNS[1].width}
                     extra={{
                       minWidth: COLUMNS[0].width + COLUMNS[1].width,
@@ -115,17 +116,17 @@ export default function Advanced() {
                     }}
                   />
                   {COLUMNS.slice(2).map((col) => (
-                    <TableCell key={col.key} text={String(item[col.key])} width={col.width} />
+                    <TableCell key={col.key} text={String(itemData[col.key])} width={col.width} />
                   ))}
                 </>
               ) : (
                 COLUMNS.map((col) => (
-                  <TableCell key={col.key} text={String(item[col.key])} width={col.width} />
+                  <TableCell key={col.key} text={String(itemData[col.key])} width={col.width} />
                 ))
               )}
             </div>
           )}
-        />
+        </VirtList>
       </div>
     </div>
   );

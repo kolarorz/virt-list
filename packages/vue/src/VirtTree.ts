@@ -10,7 +10,7 @@ import {
   type PropType,
   type VNode,
 } from 'vue-demi';
-import { VirtTree } from '@virt-list/vanilla';
+import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
   TreeNode,
   TreeNodeKey,
@@ -103,7 +103,7 @@ export const VirtTree = defineComponent({
   },
   setup(props, { emit, expose, slots }) {
     const containerRef = ref<HTMLElement | null>(null);
-    let tree: VirtTree | null = null;
+    let tree: VirtTreeVanilla | null = null;
 
     /**
      * 将 Vue slot 渲染到独立 DOM 容器中，供 VirtTree 使用。
@@ -221,7 +221,7 @@ export const VirtTree = defineComponent({
 
     onMounted(() => {
       if (!containerRef.value) return;
-      tree = new VirtTree(containerRef.value, buildOptions(), buildEvents());
+      tree = new VirtTreeVanilla(containerRef.value, buildOptions(), buildEvents());
     });
 
     onBeforeUnmount(() => {

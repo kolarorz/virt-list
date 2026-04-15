@@ -8,7 +8,7 @@ import {
   h,
   type PropType,
 } from 'vue-demi';
-import { VirtGrid } from '@virt-list/vanilla';
+import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
 
 /**
  * Vue 虚拟网格组件。
@@ -44,11 +44,11 @@ export const VirtGrid = defineComponent({
   },
   setup(props, { emit, expose }) {
     const containerRef = ref<HTMLElement | null>(null);
-    let grid: VirtGrid<any> | null = null;
+    let grid: VirtGridVanilla<any> | null = null;
 
     onMounted(() => {
       if (!containerRef.value) return;
-      grid = new VirtGrid(
+      grid = new VirtGridVanilla(
         containerRef.value,
         {
           list: props.list,

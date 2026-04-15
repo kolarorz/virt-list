@@ -40,27 +40,27 @@ export default function Dynamic() {
           list={list}
           itemKey="id"
           itemPreSize={20}
-          buffer={5}
-          onRangeUpdate={(begin, end) =>
-            setStats(`总数: ${list.length} | RenderBegin: ${begin} | RenderEnd: ${end}`)
+          onUpdate={(_, state) =>
+            setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
           }
-          renderItem={(item) => (
+        >
+          {({ itemData }) => (
             <div className="demo-row-item demo-dynamic-row">
-              <span className="demo-row-index">#{item.index}</span>
+              <span className="demo-row-index">#{itemData.index}</span>
               <div
                 className="demo-editable"
                 contentEditable
                 suppressContentEditableWarning
                 onInput={(e) => {
-                  item.text = e.currentTarget.textContent || '';
+                  itemData.text = e.currentTarget.textContent || '';
                   virtListRef.current?.forceUpdate();
                 }}
               >
-                {item.text}
+                {itemData.text}
               </div>
             </div>
           )}
-        />
+        </VirtList>
       </div>
     </div>
   );

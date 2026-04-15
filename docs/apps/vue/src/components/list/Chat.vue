@@ -9,7 +9,7 @@
         :item-pre-size="60"
         @to-top="onToTop"
         @item-resize="onItemResize"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #header>
           <div id="chatLoadingBar" class="demo-loading-bar">{{ headerHint }}</div>
@@ -79,8 +79,8 @@ const firstResize = ref(true);
 
 const headerHint = computed(() => (page.value > 1 ? '加载中...' : '没有更早的消息了'));
 
-function updateStats(begin?: number, end?: number) {
-  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}`;
+function updateStats(state?: any) {
+  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`;
 }
 
 updateStats();
@@ -107,8 +107,8 @@ function onItemResize() {
   }
 }
 
-function onRangeUpdate(begin: number, end: number) {
-  updateStats(begin, end);
+function onUpdate(_list: any[], state: any) {
+  updateStats(state);
 }
 
 function onSend() {

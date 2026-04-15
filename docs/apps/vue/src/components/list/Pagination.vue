@@ -7,11 +7,10 @@
         :list="list"
         item-key="id"
         :item-pre-size="60"
-        :buffer="2"
         @to-top="onToTop"
         @to-bottom="onToBottom"
         @item-resize="onItemResize"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #header>
           <div class="demo-loading-bar">{{ headerHint }}</div>
@@ -82,9 +81,9 @@ const firstResize = ref(true);
 const headerHint = computed(() => (page.value > 2 ? '上拉加载...' : '没有更早的数据了'));
 const footerHint = computed(() => (page.value < PAGE_MAX ? '下拉加载...' : '没有更新的数据了'));
 
-function updateStats(begin?: number, end?: number) {
+function updateStats(state?: any) {
   const extra = loadingTop.value || loadingBottom.value ? ' | 加载中...' : '';
-  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}${extra}`;
+  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${extra}`;
 }
 
 updateStats();
@@ -131,7 +130,7 @@ function onItemResize() {
   }
 }
 
-function onRangeUpdate(begin: number, end: number) {
-  updateStats(begin, end);
+function onUpdate(_list: any[], state: any) {
+  updateStats(state);
 }
 </script>

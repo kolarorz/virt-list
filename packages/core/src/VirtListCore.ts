@@ -27,6 +27,13 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 列表项 key → 实测尺寸 的映射，未测量项回退到 itemPreSize + itemGap */
   readonly sizesMap: Map<string, number> = new Map();
 
+  /** 当前滚动偏移量（内部状态，不驱动 UI 渲染） */
+  private _offset = 0;
+  /** 向上方向的缓冲项数 */
+  private _bufferTop = 0;
+  /** 向下方向的缓冲项数 */
+  private _bufferBottom = 0;
+
   /** 当前需要渲染的列表项子集 */
   private _renderList: T[] = [];
   /** 经 Proxy 封装的配置项，访问时自动回退到 DEFAULT_OPTIONS */
@@ -47,6 +54,8 @@ export class VirtListCore<T extends Record<string, any>> {
   private _abortFixOffset = false;
   /** scrollToIndex 的渐进修正回调，每次 ResizeObserver 触发时执行 */
   private _fixTaskFn: (() => void) | null = null;
+  /** 首次渲染完成标记，用于首帧后重新校准区间 */
+  private _isInit = false;
   /** 绑定的滚动容器 DOM */
   private _clientEl: HTMLElement | null = null;
   private _resizeObserver: ResizeObserver | undefined;
@@ -67,7 +76,6 @@ export class VirtListCore<T extends Record<string, any>> {
   constructor(
     options: VirtListOptions<T>,
     events: VirtListEvents<T> = {},
-    reactiveState?: { state?: ReactiveData; slotSize?: SlotSize },
   ) {
     this._events = events;
     this._boundOnScroll = this._onScroll.bind(this);
@@ -81,7 +89,7 @@ export class VirtListCore<T extends Record<string, any>> {
       },
     }) as RequiredOptions<T>;
 
-    this.slotSize = reactiveState?.slotSize ?? {
+    this.slotSize = {
       clientSize: 0,
       headerSize: 0,
       footerSize: 0,
@@ -89,17 +97,13 @@ export class VirtListCore<T extends Record<string, any>> {
       stickyFooterSize: 0,
     };
 
-    this.state = reactiveState?.state ?? {
-      views: 0,
-      offset: 0,
+    this.state = {
       listTotalSize: 0,
       virtualSize: 0,
       inViewBegin: 0,
       inViewEnd: 0,
       renderBegin: 0,
       renderEnd: 0,
-      bufferTop: 0,
-      bufferBottom: 0,
     };
 
     this._initBuffer();
@@ -271,8 +275,8 @@ export class VirtListCore<T extends Record<string, any>> {
         if (count > 10) return;
         if (
           Math.abs(
-            Math.round(this.state.offset + this.slotSize.clientSize) -
-              Math.round(this.getTotalSize()),
+            Math.round(this._offset + this.slotSize.clientSize) -
+            Math.round(this.getTotalSize()),
           ) > 2
         ) {
           loop();
@@ -304,7 +308,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 重置所有状态（列表清空时调用） */
   reset(): void {
-    this.state.offset = 0;
+    this._offset = 0;
     this.state.listTotalSize = 0;
     this.state.virtualSize = 0;
     this.state.inViewBegin = 0;
@@ -323,7 +327,7 @@ export class VirtListCore<T extends Record<string, any>> {
       deletedListSize += this.getItemSize(item[this._props.itemKey]);
     }
     this._updateTotalVirtualSize();
-    this.scrollToOffset(this.state.offset - deletedListSize);
+    this.scrollToOffset(this._offset - deletedListSize);
     this._calcRange();
   }
 
@@ -335,15 +339,17 @@ export class VirtListCore<T extends Record<string, any>> {
       addedListSize += this.getItemSize(item[this._props.itemKey]);
     }
     this._updateTotalVirtualSize();
-    this.scrollToOffset(this.state.offset + addedListSize);
+    this.scrollToOffset(this._offset + addedListSize);
     this._forceFixOffset = true;
     this._abortFixOffset = false;
     this._calcRange();
   }
 
-  /** 强制触发一次渲染更新 */
+  /** 强制触发一次完整的重新计算与渲染更新 */
   forceUpdate(): void {
-    this._updateRenderRange();
+    this._calcListTotalSize();
+    this._updateTotalVirtualSize();
+    this._updateRange(this.state.inViewBegin);
   }
 
   getReactiveData(): ReactiveData {
@@ -388,7 +394,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 恢复滚动位置（如 keep-alive 场景） */
   resume(): void {
-    this.scrollToOffset(this.state.offset);
+    this.scrollToOffset(this._offset);
   }
 
   destroy(): void {
@@ -410,13 +416,13 @@ export class VirtListCore<T extends Record<string, any>> {
   }
 
   private _initBuffer(): void {
-    this.state.bufferTop = this._props.bufferTop || this._props.buffer;
-    this.state.bufferBottom = this._props.bufferBottom || this._props.buffer;
+    this._bufferTop = this._props.bufferTop || this._props.buffer;
+    this._bufferBottom = this._props.bufferBottom || this._props.buffer;
   }
 
   /**
    * 初始化 ResizeObserver，统一监听：
-   * - 滚动容器（data-id="client"）→ 更新 clientSize，重算 views
+   * - 滚动容器（data-id="client"）→ 更新 clientSize，重算起始
    * - 插槽元素（header/footer/sticky）→ 更新对应 slotSize
    * - 列表项（data-id=itemKey）→ 更新 sizesMap，触发偏移修正
    */
@@ -477,13 +483,21 @@ export class VirtListCore<T extends Record<string, any>> {
       ) {
         this._fixOffset = false;
         this._forceFixOffset = false;
-        this.scrollToOffset(this.state.offset + diff);
+        this.scrollToOffset(this._offset + diff);
       }
       this._abortFixOffset = false;
 
       // listTotalSize 已更新，通知 UI 层刷新 minHeight，防止底部空白
       if (diff !== 0) {
         this._notify();
+      }
+
+      // 首次渲染完成后，基于 start 再校准一次区间
+      if (!this._isInit) {
+        requestAnimationFrame(() => {
+          this._updateRange(this._props.start);
+        });
+        this._isInit = true;
       }
     });
   }
@@ -493,27 +507,36 @@ export class VirtListCore<T extends Record<string, any>> {
     this._events.scroll?.(evt);
 
     const offset = this.getOffset();
-    if (offset === this.state.offset) return;
+    if (offset === this._offset) return;
 
-    this._direction = offset < this.state.offset ? 'forward' : 'backward';
-    this.state.offset = offset;
+    this._direction = offset < this._offset ? 'forward' : 'backward';
+    this._offset = offset;
 
     this._calcRange();
     this._judgePosition();
   }
 
-  /** 根据容器尺寸和预估项高计算视口能容纳的项数 */
-  private _calcViews(): void {
-    this.state.views =
-      Math.ceil(
-        this.slotSize.clientSize / (this._props.itemPreSize + this._props.itemGap),
-      ) + 1;
+
+  /** 容器尺寸变化后重算起始并更新区间 */
+  private _onClientResize(): void {
+    this._updateRange(this.state.inViewBegin);
   }
 
-  /** 容器尺寸变化后重算 views 并更新区间 */
-  private _onClientResize(): void {
-    this._calcViews();
-    this._updateRange(this.state.inViewBegin);
+  /** 根据 start 和 clientSize 动态计算 inViewEnd（不依赖预估项高） */
+  private _calculateViewEnd(start: number): number {
+    const { itemKey, list } = this._props;
+    let currentOffset = 0;
+
+    for (let i = start; i < list.length; i += 1) {
+      const itemSize = this.getItemSize(list[i]?.[itemKey]);
+      currentOffset += itemSize;
+
+      if (currentOffset > this.slotSize.clientSize) {
+        // 多给一个渲染位，减少边界闪烁
+        return i + 1;
+      }
+    }
+    return Math.max(0, list.length - 1);
   }
 
   /** 重新计算所有列表项的尺寸总和 */
@@ -541,11 +564,7 @@ export class VirtListCore<T extends Record<string, any>> {
     }
 
     this.state.inViewBegin = start;
-    this.state.inViewEnd = Math.min(
-      start + this.state.views,
-      this._props.list.length - 1,
-    );
-
+    this.state.inViewEnd = this._calculateViewEnd(start);
     this._events.rangeUpdate?.(this.state.inViewBegin, this.state.inViewEnd);
     this._updateRenderRange();
   }
@@ -556,7 +575,8 @@ export class VirtListCore<T extends Record<string, any>> {
    * - backward（向下滚）：从当前 inViewBegin 往后搜索
    */
   private _calcRange(): void {
-    const { offset, inViewBegin } = this.state;
+    const { inViewBegin } = this.state;
+    const offset = this._offset;
     const { itemKey, list } = this._props;
 
     const offsetWithNoHeader = offset - this.slotSize.headerSize;
@@ -609,12 +629,12 @@ export class VirtListCore<T extends Record<string, any>> {
     const threshold = Math.max(this._props.scrollDistance, 2);
 
     if (this._direction === 'forward') {
-      if (this.state.offset - threshold <= 0) {
+      if (this._offset - threshold <= 0) {
         this._events.toTop?.(this._props.list[0] as T);
       }
     } else if (this._direction === 'backward') {
       const scrollSize = Math.round(
-        this.state.offset + this.slotSize.clientSize,
+        this._offset + this.slotSize.clientSize,
       );
       const distanceToBottom = Math.round(this.getTotalSize() - scrollSize);
       if (distanceToBottom <= threshold) {
@@ -661,9 +681,9 @@ export class VirtListCore<T extends Record<string, any>> {
     let newRenderBegin = this.state.inViewBegin;
     let newRenderEnd = this.state.inViewEnd;
 
-    newRenderBegin = Math.max(0, newRenderBegin - this.state.bufferTop);
+    newRenderBegin = Math.max(0, newRenderBegin - this._bufferTop);
     newRenderEnd = Math.min(
-      newRenderEnd + this.state.bufferBottom,
+      newRenderEnd + this._bufferBottom,
       this._props.list.length - 1 > 0 ? this._props.list.length - 1 : 0,
     );
 

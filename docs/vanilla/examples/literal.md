@@ -1,3 +1,3 @@
-# JS - literal
+# Vanilla - literal
 
 <PlaygroundHost framework="vanilla" example-id="literal" />

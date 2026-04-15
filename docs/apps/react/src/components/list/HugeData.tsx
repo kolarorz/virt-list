@@ -77,17 +77,17 @@ export default function HugeData() {
             list={list}
             itemKey="id"
             itemPreSize={40}
-            buffer={5}
-            onRangeUpdate={(begin, end) =>
-              setStats(`总数: ${list.length.toLocaleString()} | RenderBegin: ${begin} | RenderEnd: ${end}`)
+            onUpdate={(_, state) =>
+              setStats(`总数: ${list.length.toLocaleString()} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
             }
-            renderItem={(item) => (
+          >
+            {({ itemData }) => (
               <div className="demo-row-item">
-                <span className="demo-row-index">#{item.index}</span>
-                <span className="demo-row-text">{item.text}</span>
+                <span className="demo-row-index">#{itemData.index}</span>
+                <span className="demo-row-text">{itemData.text}</span>
               </div>
             )}
-          />
+          </VirtList>
         )}
       </div>
     </div>

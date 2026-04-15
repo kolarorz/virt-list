@@ -54,6 +54,10 @@ export function bootstrapChat(root) {
   let loading = false;
   let firstResize = true;
 
+  function updateStats(state) {
+    statsEl.textContent = `总数: ${list.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${loading ? ' | 加载中...' : ''}`;
+  }
+
   const virtList = new VirtList(
     container,
     {
@@ -99,15 +103,11 @@ export function bootstrapChat(root) {
           virtList.scrollToBottom();
         }
       },
-      rangeUpdate: (begin, end) => {
-        updateStats(begin, end);
+      update: (_, state) => {
+        statsEl.textContent = `总数: ${list.length} | Page: ${page} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
       },
     },
   );
-
-  function updateStats(begin, end) {
-    statsEl.textContent = `总数: ${list.length} | Page: ${page} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}`;
-  }
 
   updateStats();
 

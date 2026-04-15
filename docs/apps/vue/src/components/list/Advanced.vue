@@ -10,7 +10,7 @@
         item-key="id"
         :item-pre-size="40"
         sticky-header-style="background:#f5f5f5;"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #stickyHeader>
           <div class="demo-table-row demo-table-header" style="min-width: min-content">
@@ -120,7 +120,7 @@ const list = ref<Item[]>(generateList(100));
 
 statsText.value = `总数: ${list.value.length} | 高阶表格`;
 
-function onRangeUpdate(begin: number, end: number) {
-  statsText.value = `总数: ${list.value.length} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+function onUpdate(_list: any[], state: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
 }
 </script>

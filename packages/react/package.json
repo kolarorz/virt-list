@@ -29,8 +29,8 @@
     "@virt-list/vanilla": "workspace:*"
   },
   "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18"
+    "react": ">=16.8",
+    "react-dom": ">=16.8"
   },
   "keywords": ["react", "virtual-list", "virtual-tree", "virtual-grid"],
   "license": "MIT",

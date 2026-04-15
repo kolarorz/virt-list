@@ -4,10 +4,6 @@
  * 虚拟列表的响应式状态数据，驱动渲染与滚动定位。
  */
 export interface ReactiveData {
-  /** 当前视口能容纳的列表项数量 */
-  views: number;
-  /** 当前滚动偏移量（scrollTop / scrollLeft） */
-  offset: number;
   /** 所有列表项的尺寸总和（不含 slot） */
   listTotalSize: number;
   /** renderBegin 之前所有项的累计尺寸，用于虚拟占位 */
@@ -20,10 +16,6 @@ export interface ReactiveData {
   renderBegin: number;
   /** 实际渲染区间结束索引（含 buffer） */
   renderEnd: number;
-  /** 向上方向的缓冲项数 */
-  bufferTop: number;
-  /** 向下方向的缓冲项数 */
-  bufferBottom: number;
 }
 
 /**

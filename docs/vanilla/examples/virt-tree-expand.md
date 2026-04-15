@@ -1,3 +1,3 @@
-# JS - 虚拟树（展开/折叠）
+# Vanilla - 虚拟树（展开/折叠）
 
 <PlaygroundHost framework="vanilla" example-id="virt-tree-expand" />

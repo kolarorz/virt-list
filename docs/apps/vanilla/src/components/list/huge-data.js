@@ -68,8 +68,8 @@ export function bootstrapHugeData(root) {
           },
         },
         {
-          rangeUpdate: (begin, end) => {
-            statsEl.textContent = `总数: ${list.length.toLocaleString()} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+          update: (_, state) => {
+            statsEl.textContent = `总数: ${list.length.toLocaleString()} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
           },
         },
       );

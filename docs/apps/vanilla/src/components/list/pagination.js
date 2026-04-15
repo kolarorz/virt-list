@@ -124,13 +124,13 @@ export function bootstrapPagination(root) {
           virtList.scrollToBottom();
         }
       },
-      rangeUpdate: (begin, end) => updateStats(begin, end),
+      update: (_, state) => updateStats(state),
     },
   );
 
-  function updateStats(begin, end) {
+  function updateStats(state) {
     const extra = loadingTop || loadingBottom ? ' | 加载中...' : '';
-    statsEl.textContent = `总数: ${list.length} | Page: ${page} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}${extra}`;
+    statsEl.textContent = `总数: ${list.length} | Page: ${page} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${extra}`;
   }
 
   updateStats();

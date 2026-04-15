@@ -39,8 +39,8 @@ export function bootstrapInfinity(root) {
   let loading = false;
   let virtList = null;
 
-  function updateStats(begin, end) {
-    statsEl.textContent = `总数: ${list.length} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}${loading ? ' | 加载中...' : ''}`;
+  function updateStats(state) {
+    statsEl.textContent = `总数: ${list.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${loading ? ' | 加载中...' : ''}`;
   }
 
   async function loadMore() {
@@ -78,7 +78,7 @@ export function bootstrapInfinity(root) {
         },
         {
           toBottom: () => loadMore(),
-          rangeUpdate: (begin, end) => updateStats(begin, end),
+          update: (_, state) => updateStats(state),
         },
       );
     } else {

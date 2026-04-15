@@ -1,4 +1,4 @@
-# JS - 插槽
+# Vanilla - 插槽
 
 展示 stickyHeader、header、footer、stickyFooter 四种插槽的用法。
 

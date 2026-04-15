@@ -52,7 +52,6 @@
           :list="users"
           item-key="id"
           :item-pre-size="70"
-          :buffer="5"
         >
           <template #default="{ itemData }">
             <div class="demo-ka-card">
@@ -75,7 +74,6 @@
           :list="products"
           item-key="id"
           :item-pre-size="70"
-          :buffer="5"
         >
           <template #default="{ itemData }">
             <div class="demo-ka-card">

@@ -5,6 +5,8 @@ const deployBase = process.env.DEPLOY_BASE;
 
 const listDemos = [
   { text: '基础示例', link: 'basic' },
+  { text: '空状态', link: 'empty' },
+  { text: '渲染buffer', link: 'buffer' },
   { text: '海量数据', link: 'huge-data' },
   { text: '固定高度', link: 'fixed' },
   { text: '水平滚动', link: 'horizontal' },
@@ -16,8 +18,9 @@ const listDemos = [
   { text: '聊天室', link: 'chat' },
   { text: '上下分页', link: 'pagination' },
   { text: 'keep-alive', link: 'keep-alive' },
-  { text: '高阶用法', link: 'advanced' },
   { text: '表格', link: 'table' },
+  { text: '高阶用法', link: 'advanced' },
+  { text: '响应式更新', link: 'reactive' },
 ];
 
 const treeDemos = [

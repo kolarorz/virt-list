@@ -10,7 +10,7 @@
       color: #333;
       transition: transform 0.15s ease;
     "
-    :style="{ transform: props.isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }"
+    :style="{ transform: props.isExpanded ? 'rotate(-90deg)' : 'rotate(0deg)' }"
   >
     <svg
       viewBox="0 0 48 48"

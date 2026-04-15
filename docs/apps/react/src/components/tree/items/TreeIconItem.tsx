@@ -9,7 +9,7 @@ export default function TreeIconItem({ isExpanded }: { isExpanded: boolean }) {
         height: 20,
         color: '#333',
         transition: 'transform 0.15s ease',
-        transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+        transform: isExpanded ? 'rotate(-90deg)' : 'rotate(0deg)',
       }}
     >
       <svg

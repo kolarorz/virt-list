@@ -29,20 +29,20 @@ export default function Horizontal() {
           itemKey="id"
           itemPreSize={60}
           horizontal
-          buffer={2}
-          onRangeUpdate={(begin, end) =>
-            setStats(`总数: ${list.length} | RenderBegin: ${begin} | RenderEnd: ${end}`)
+          onUpdate={(_, state) =>
+            setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
           }
-          renderItem={(item) => (
+        >
+          {({ itemData }) => (
             <div
               className="demo-col-item"
-              style={{ minWidth: item.width, width: item.width }}
+              style={{ minWidth: itemData.width, width: itemData.width }}
             >
-              <div style={{ fontWeight: 'bold' }}>{item.id}</div>
-              <div style={{ fontSize: 11, color: '#999' }}>w:{item.width}</div>
+              <div style={{ fontWeight: 'bold' }}>{itemData.id}</div>
+              <div style={{ fontSize: 11, color: '#999' }}>w:{itemData.width}</div>
             </div>
           )}
-        />
+        </VirtList>
       </div>
     </div>
   );

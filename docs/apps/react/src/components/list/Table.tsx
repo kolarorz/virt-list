@@ -76,15 +76,16 @@ export default function Table() {
               />
             </div>
           )}
-          onRangeUpdate={(begin, end) =>
-            setStats(`总数: ${list.length} | RenderBegin: ${begin} | RenderEnd: ${end}`)
+          onUpdate={(_, state) =>
+            setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
           }
-          renderItem={(item) => (
+        >
+          {({ itemData }) => (
             <div className="demo-table-row">
-              <Cell text={String(item.id)} style={{ ...stickyLeft, width: 80, minWidth: 80 }} />
-              <Cell text={String(item.name)} style={{ width: 120, minWidth: 120 }} />
-              <Cell text={String(item.desc1)} style={{ width: 600, minWidth: 600 }} />
-              <Cell text={String(item.desc2)} style={{ width: 600, minWidth: 600 }} />
+              <Cell text={String(itemData.id)} style={{ ...stickyLeft, width: 80, minWidth: 80 }} />
+              <Cell text={String(itemData.name)} style={{ width: 120, minWidth: 120 }} />
+              <Cell text={String(itemData.desc1)} style={{ width: 600, minWidth: 600 }} />
+              <Cell text={String(itemData.desc2)} style={{ width: 600, minWidth: 600 }} />
               <div
                 className="demo-table-cell"
                 style={{ ...stickyRight, width: 80, minWidth: 80 }}
@@ -99,7 +100,7 @@ export default function Table() {
               </div>
             </div>
           )}
-        />
+        </VirtList>
       </div>
     </div>
   );

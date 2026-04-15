@@ -51,10 +51,10 @@ export default function Pagination() {
   const firstResizeRef = useRef(true);
 
   const updateStats = useCallback(
-    (begin?: number, end?: number) => {
+    (state?: any) => {
       const extra = loadingTopRef.current || loadingBottomRef.current ? ' | 加载中...' : '';
       setStats(
-        `总数: ${list.length} | Page: ${pageRef.current} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}${extra}`,
+        `总数: ${list.length} | Page: ${pageRef.current} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${extra}`,
       );
     },
     [list.length],
@@ -121,14 +121,13 @@ export default function Pagination() {
           list={list}
           itemKey="id"
           itemPreSize={60}
-          buffer={2}
           onToTop={onToTop}
           onToBottom={onToBottom}
           onItemResize={onItemResize}
-          onRangeUpdate={(begin, end) => {
+          onUpdate={(_, state) => {
             const extra = loadingTopRef.current || loadingBottomRef.current ? ' | 加载中...' : '';
             setStats(
-              `总数: ${list.length} | Page: ${pageRef.current} | RenderBegin: ${begin} | RenderEnd: ${end}${extra}`,
+              `总数: ${list.length} | Page: ${pageRef.current} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}${extra}`,
             );
           }}
           renderHeader={() => (
@@ -141,15 +140,16 @@ export default function Pagination() {
               {pageRef.current < PAGE_MAX ? '下拉加载...' : '没有更新的数据了'}
             </div>
           )}
-          renderItem={(item) => (
+        >
+          {({ itemData }) => (
             <div className="demo-chat-message">
               <div className="demo-chat-bubble">
-                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>消息 #{item.index}</div>
-                <div>{item.text}</div>
+                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>消息 #{itemData.index}</div>
+                <div>{itemData.text}</div>
               </div>
             </div>
           )}
-        />
+        </VirtList>
       </div>
     </div>
   );

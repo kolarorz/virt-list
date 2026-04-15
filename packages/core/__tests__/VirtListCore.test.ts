@@ -52,20 +52,7 @@ describe('VirtListCore', () => {
       expect(core.props.itemGap).toBe(8);
       expect(core.props.fixed).toBe(true);
       expect(core.props.buffer).toBe(2);
-      expect(core.state.bufferTop).toBe(1);
-      expect(core.state.bufferBottom).toBe(3);
       expect(core.props.horizontal).toBe(true);
-    });
-
-    it('uses bufferTop/bufferBottom over buffer when provided', () => {
-      const core = new VirtListCore({
-        ...baseOptions(),
-        buffer: 10,
-        bufferTop: 2,
-        bufferBottom: 4,
-      });
-      expect(core.state.bufferTop).toBe(2);
-      expect(core.state.bufferBottom).toBe(4);
     });
 
     it('accepts optional events object as second argument', () => {
@@ -244,12 +231,10 @@ describe('VirtListCore', () => {
     it('reset clears offset, totals, maps, and re-runs render range', () => {
       const core = new VirtListCore({ ...baseOptions(makeList(4)), fixed: false });
       core.setItemSize('0', 50);
-      core.state.offset = 123;
       core.state.listTotalSize = 999;
 
       core.reset();
 
-      expect(core.state.offset).toBe(0);
       expect(core.state.listTotalSize).toBe(0);
       expect(core.state.virtualSize).toBe(0);
       expect(core.sizesMap.size).toBe(0);

@@ -33,6 +33,19 @@ export function getModuleLink(fw: Framework, mod: ModuleName): string {
   return withBase(`/${fw}/${mod}/${MODULE_ENTRY[mod]}`);
 }
 
+/**
+ * Build a link that switches only the framework segment, preserving the
+ * current module and page slug. E.g. /vue/examples/reactive → /react/examples/reactive
+ */
+export function getFrameworkLink(fw: Framework, relativePath: string): string {
+  const parts = relativePath.split('/').filter(Boolean);
+  // parts[0] = current fw, parts[1] = mod, parts[2..] = page slug
+  if (parts.length >= 2) {
+    return withBase(`/${fw}/${parts.slice(1).join('/')}`);
+  }
+  return withBase(`/${fw}/guide/${MODULE_ENTRY.guide}`);
+}
+
 export function useFramework() {
   const route = useRoute();
   const { site } = useData();
@@ -59,5 +72,5 @@ export function useFramework() {
     return 'guide';
   });
 
-  return { currentFramework, currentModule };
+  return { currentFramework, currentModule, relativePath };
 }

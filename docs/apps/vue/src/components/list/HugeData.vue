@@ -24,8 +24,7 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        :buffer="5"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #default="{ itemData }">
           <div class="demo-row-item">
@@ -51,8 +50,8 @@ const emptyHint = ref('点击按钮生成海量数据');
 const loaded = ref(false);
 const list = ref<Row[]>([]);
 
-function onRangeUpdate(begin: number, end: number) {
-  statsText.value = `总数: ${list.value.length.toLocaleString()} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+function onUpdate(_list: any[], state: any) {
+  statsText.value = `总数: ${list.value.length.toLocaleString()} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
 }
 
 function onLoad() {

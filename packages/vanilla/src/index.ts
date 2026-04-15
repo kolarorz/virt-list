@@ -1,7 +1,8 @@
 export { VirtList } from './VirtList';
 export { VirtGrid } from './VirtGrid';
-export type { VirtGridDOMOptions, VirtGridDOMEvents } from './VirtGrid';
 export { VirtTree } from './tree';
+
+export type { VirtGridOptions, VirtGridEvents } from './VirtGrid';
 export type {
   TreeNode,
   TreeNodeData,

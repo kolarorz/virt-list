@@ -8,9 +8,8 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        :buffer="2"
         @to-bottom="onToBottom"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #default="{ itemData }">
           <div class="demo-row-item">
@@ -60,8 +59,8 @@ const statsText = ref('');
 const list = ref<Item[]>([]);
 const loading = ref(false);
 
-function updateStats(begin?: number, end?: number) {
-  statsText.value = `总数: ${list.value.length} | RenderBegin: ${begin ?? '-'} | RenderEnd: ${end ?? '-'}${
+function updateStats(state?: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
     loading.value ? ' | 加载中...' : ''
   }`;
 }
@@ -82,8 +81,8 @@ function onToBottom() {
   void loadMore();
 }
 
-function onRangeUpdate(begin: number, end: number) {
-  updateStats(begin, end);
+function onUpdate(_list: any[], state: any) {
+  updateStats(state);
 }
 
 onMounted(() => {

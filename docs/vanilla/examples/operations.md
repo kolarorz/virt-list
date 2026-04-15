@@ -1,4 +1,4 @@
-# JS - 各类操作
+# Vanilla - 各类操作
 
 展示 scrollToOffset、scrollToIndex、scrollIntoView、scrollToTop、scrollToBottom 等 API。
 

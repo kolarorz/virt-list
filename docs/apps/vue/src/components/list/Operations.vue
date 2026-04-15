@@ -46,7 +46,7 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        @range-update="onRangeUpdate"
+        @update="onUpdate"
       >
         <template #default="{ itemData }">
           <div class="demo-row-item">
@@ -93,8 +93,8 @@ const list = ref<Item[]>(generateList(2000));
 
 statsText.value = `总数: ${list.value.length}`;
 
-function onRangeUpdate(begin: number, end: number) {
-  statsText.value = `总数: ${list.value.length} | RenderBegin: ${begin} | RenderEnd: ${end}`;
+function onUpdate(_list: any[], state: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
 }
 
 function onOffset() {

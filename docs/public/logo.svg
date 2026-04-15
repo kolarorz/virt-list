@@ -8,6 +8,6 @@
   <rect x="40" y="110" width="100" height="20" rx="4" fill="#c5c9cfff"/>
   <rect x="40" y="140" width="70" height="20" rx="4" fill="#c5c9cfff"/>
 
-  <!-- 蓝色标准闪电（清晰、醒目、不抽象） -->
-  <path d="M145 80 L175 80 L160 110 L185 110 L150 150 L160 115 L135 115 Z" fill="#FFD700"/>
+  <!-- 闪电 -->
+  <path d="M139 64 L179 64 L159 104 L193 104 L145 158 L159 111 L125 111 Z" fill="#FFD700"/>
 </svg>

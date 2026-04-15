@@ -4,6 +4,7 @@ import Literal from './components/Literal.tsx';
 import Widget from './components/Widget.tsx';
 
 import Basic from './components/list/Basic.tsx';
+import Buffer from './components/list/Buffer.tsx';
 import HugeData from './components/list/HugeData.tsx';
 import Fixed from './components/list/Fixed.tsx';
 import Horizontal from './components/list/Horizontal.tsx';
@@ -17,6 +18,8 @@ import Chat from './components/list/Chat.tsx';
 import Advanced from './components/list/Advanced.tsx';
 import Pagination from './components/list/Pagination.tsx';
 import KeepAlive from './components/list/KeepAlive.tsx';
+import Empty from './components/list/Empty.tsx';
+import Reactive from './components/list/Reactive.tsx';
 
 import TreeBasic from './components/tree/TreeBasic.tsx';
 import TreeExpand from './components/tree/TreeExpand.tsx';
@@ -53,6 +56,7 @@ const demoRenderMap: Record<string, () => JSX.Element> = {
   'literal': () => <Literal />,
   'widget': () => <Widget />,
   'basic': () => <DemoBlock source={src('./components/list/Basic.tsx')}><Basic /></DemoBlock>,
+  'buffer': () => <DemoBlock source={src('./components/list/Buffer.tsx')}><Buffer /></DemoBlock>,
   'huge-data': () => <DemoBlock source={src('./components/list/HugeData.tsx')}><HugeData /></DemoBlock>,
   'fixed': () => <DemoBlock source={src('./components/list/Fixed.tsx')}><Fixed /></DemoBlock>,
   'horizontal': () => <DemoBlock source={src('./components/list/Horizontal.tsx')}><Horizontal /></DemoBlock>,
@@ -66,6 +70,8 @@ const demoRenderMap: Record<string, () => JSX.Element> = {
   'advanced': () => <DemoBlock source={src('./components/list/Advanced.tsx')}><Advanced /></DemoBlock>,
   'pagination': () => <DemoBlock source={src('./components/list/Pagination.tsx')}><Pagination /></DemoBlock>,
   'keep-alive': () => <DemoBlock source={src('./components/list/KeepAlive.tsx')}><KeepAlive /></DemoBlock>,
+  'empty': () => <DemoBlock source={src('./components/list/Empty.tsx')}><Empty /></DemoBlock>,
+  'reactive': () => <DemoBlock source={src('./components/list/Reactive.tsx')}><Reactive /></DemoBlock>,
   'virt-tree-basic': () => <DemoBlock source={src('./components/tree/TreeBasic.tsx')}><TreeBasic /></DemoBlock>,
   'virt-tree-expand': () => <DemoBlock source={src('./components/tree/TreeExpand.tsx')}><TreeExpand /></DemoBlock>,
   'virt-tree-checkbox': () => <DemoBlock source={src('./components/tree/TreeCheckbox.tsx')}><TreeCheckbox /></DemoBlock>,

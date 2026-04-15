@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { VirtListCore } from '@virt-list/core';
 import type {
   ReactiveData,
@@ -28,6 +27,7 @@ export class VirtList<T extends Record<string, any>> {
   private _listEl!: HTMLElement;
   /** 虚拟占位元素，高度等于 virtualSize，将渲染项推到正确位置 */
   private _virtualEl!: HTMLElement;
+
   private _stickyHeaderEl: HTMLElement | null = null;
   private _stickyFooterEl: HTMLElement | null = null;
   private _headerEl: HTMLElement | null = null;
@@ -137,6 +137,7 @@ export class VirtList<T extends Record<string, any>> {
   }
 
   forceUpdate(): void {
+    this.clearItemPool();
     this._core.forceUpdate();
   }
 
@@ -194,8 +195,8 @@ export class VirtList<T extends Record<string, any>> {
 
     this._clientEl = document.createElement('div');
     this._clientEl.className = 'virt-list__client';
-    applyStyle(this._clientEl, 'width:100%;height:100%;overflow:auto;');
     this._clientEl.dataset.id = 'client';
+    applyStyle(this._clientEl, 'width:100%; height:100%; overflow:auto; position: relative;');
 
     if (this._options.renderStickyHeader) {
       this._stickyHeaderEl = document.createElement('div');
@@ -206,8 +207,8 @@ export class VirtList<T extends Record<string, any>> {
       applyStyle(
         this._stickyHeaderEl,
         mergeStyles(
-          'position:sticky;z-index:10;',
-          horizontal ? 'left:0' : 'top:0',
+          'position: sticky; z-index: 10;',
+          horizontal ? 'left: 0' : 'top: 0',
           this._options.stickyHeaderStyle,
         ),
       );
@@ -260,8 +261,8 @@ export class VirtList<T extends Record<string, any>> {
       applyStyle(
         this._stickyFooterEl,
         mergeStyles(
-          'position:sticky;z-index:10;',
-          horizontal ? 'right:0' : 'bottom:0',
+          'position: sticky;  z-index:10;',
+          horizontal ? 'right: 0;' : 'bottom: 0;',
           this._options.stickyFooterStyle,
         ),
       );
@@ -289,13 +290,13 @@ export class VirtList<T extends Record<string, any>> {
     const { listTotalSize, virtualSize, renderBegin } = reactiveData;
 
     const dynamicListStyle = horizontal
-      ? `will-change:width;min-width:${listTotalSize}px;display:flex;${listStyle ?? ''}`
-      : `will-change:height;min-height:${listTotalSize}px;${listStyle ?? ''}`;
+      ? `will-change: width; min-width: ${listTotalSize}px; display: flex; ${listStyle ?? ''}`
+      : `will-change: height; min-height: ${listTotalSize}px; ${listStyle ?? ''}`;
     applyStyle(this._listEl, dynamicListStyle);
 
     const virtualStyle = horizontal
-      ? `width:${virtualSize}px;will-change:width;`
-      : `height:${virtualSize}px;will-change:height;`;
+      ? `width: ${virtualSize}px; will-change: width;`
+      : `height: ${virtualSize}px; will-change: height;`;
     applyStyle(this._virtualEl, virtualStyle);
 
     const newKeys: string[] = [];
@@ -320,10 +321,8 @@ export class VirtList<T extends Record<string, any>> {
     // 空状态处理
     if (renderList.length === 0) {
       if (this._options.renderEmpty && !this._emptyEl) {
-        const height =
-          this._core.slotSize.clientSize - this._core.getSlotSize();
         this._emptyEl = document.createElement('div');
-        applyStyle(this._emptyEl, `height:${height}px`);
+        applyStyle(this._emptyEl, `width: 100%; height: 100%; position: absolute; top: 0; left: 0;`);
         this._emptyEl.appendChild(this._options.renderEmpty());
         this._listEl.appendChild(this._emptyEl);
       }
@@ -348,7 +347,7 @@ export class VirtList<T extends Record<string, any>> {
         el.dataset.id = key;
 
         const gap = itemGap ?? 0;
-        const baseStyle = gap > 0 ? `padding:${gap / 2}px 0;` : '';
+        const baseStyle = gap > 0 ? `padding: ${gap / 2}px 0;` : '';
         const customStyle =
           typeof this._options.itemStyle === 'function'
             ? this._options.itemStyle(item, renderBegin + i)
