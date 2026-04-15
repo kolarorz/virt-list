@@ -142,7 +142,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
   const eventsRef = useRef(props);
   eventsRef.current = props;
 
-  const reactRootsRef = useRef(new Map<string, RootLike>());
+  const reactRootsRef = useRef(new Map<string, Root>());
 
   /**
    * 将 ReactNode 渲染到独立 DOM 容器中，供 VirtTree 使用。
