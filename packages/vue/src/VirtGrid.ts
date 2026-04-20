@@ -7,8 +7,9 @@ import {
   watch,
   h,
   type PropType,
-} from 'vue-demi';
+} from 'vue';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
+import type { StyleValue } from '@virt-list/core';
 
 /**
  * Vue 虚拟网格组件。
@@ -20,8 +21,8 @@ export const VirtGrid = defineComponent({
   name: 'VirtGrid',
   emits: {
     scroll: (_e: Event) => true,
-    toTop: (_item: any) => true,
-    toBottom: (_item: any) => true,
+    toTop: (_item: unknown) => true,
+    toBottom: (_item: unknown) => true,
     itemResize: (_id: string, _size: number) => true,
     rangeUpdate: (_begin: number, _end: number) => true,
   },
@@ -33,14 +34,14 @@ export const VirtGrid = defineComponent({
     itemGap: { type: Number, default: 0 },
     fixed: { type: Boolean, default: false },
     buffer: { type: Number, default: 2 },
-    itemStyle: { type: String, default: undefined },
+    itemStyle: { type: [String, Object] as PropType<StyleValue>, default: undefined },
     renderCell: { type: Function as PropType<(item: any, index: number, rowIndex: number) => HTMLElement>, required: true },
-    renderStickyHeader: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderStickyFooter: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderHeader: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderFooter: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderEmpty: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    stickyHeaderStyle: { type: String, default: undefined },
+    renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderStickyFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderEmpty: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    stickyHeaderStyle: { type: [String, Object] as PropType<StyleValue>, default: undefined },
   },
   setup(props, { emit, expose }) {
     const containerRef = ref<HTMLElement | null>(null);

@@ -48,8 +48,6 @@ packages/
 │     ├─ index.ts                 # 包入口，导出 VirtList + 框架适配器工具
 │     ├─ VirtList.ts           # DOM 操作封装：容器创建、ResizeObserver、滚动条、DOM 渲染
 │     ├─ utils.ts                 # DOM 工具函数（样式合并、属性设置等）
-│     ├─ reactAdapter.ts          # React ↔ VirtList 桥接工具（用于在 React 中使用 DOM 版本）
-│     └─ vueAdapter.ts            # Vue ↔ VirtList 桥接工具（用于在 Vue 中使用 DOM 版本）
 │
 ├─ react/                         # @virt-list/react — React 原生虚拟列表组件
 │  └─ src/

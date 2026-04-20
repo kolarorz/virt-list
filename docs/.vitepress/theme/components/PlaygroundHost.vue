@@ -2,7 +2,7 @@
 import type { MicroApp } from 'qiankun';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-type FrameworkKind = 'vanilla' | 'vue' | 'react';
+type FrameworkKind = 'vanilla' | 'vue' | 'vue2' | 'react' | 'react-legacy';
 
 interface PlaygroundProps {
   framework: FrameworkKind;
@@ -40,21 +40,27 @@ const isDev = (import.meta as ImportMeta & { env: { DEV: boolean } }).env.DEV;
 
 const base = (import.meta as any).env.BASE_URL || '/';
 const appEntries: Record<FrameworkKind, string> = {
-  vanilla: isDev ? 'http://localhost:7103/' : `${base}micro-apps/vanilla/`,
+  vanilla: isDev ? 'http://localhost:7101/' : `${base}micro-apps/vanilla/`,
   vue: isDev ? 'http://localhost:7102/' : `${base}micro-apps/vue/`,
-  react: isDev ? 'http://localhost:7101/' : `${base}micro-apps/react/`,
+  react: isDev ? 'http://localhost:7103/' : `${base}micro-apps/react/`,
+  vue2: isDev ? 'http://localhost:7104/' : `${base}micro-apps/vue2/`,
+  'react-legacy': isDev ? 'http://localhost:7105/' : `${base}micro-apps/react-legacy/`,
 };
 
 const appNames: Record<FrameworkKind, string> = {
   vanilla: 'vanillaDemo',
   vue: 'vueDemo',
+  vue2: 'vue2Demo',
   react: 'reactDemo',
+  'react-legacy': 'reactLegacyDemo',
 };
 
 const titleMap: Record<FrameworkKind, string> = {
   vanilla: 'Vanilla 示例运行中',
-  vue: 'Vue 示例运行中',
-  react: 'React 示例运行中',
+  vue: 'Vue 3 示例运行中',
+  vue2: 'Vue 2 示例运行中',
+  react: 'React 18+ 示例运行中',
+  'react-legacy': 'React 16-17 示例运行中',
 };
 
 const appendLog = (message: string) => {

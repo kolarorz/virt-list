@@ -1,0 +1,135 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  useRef,
+  useEffect,
+  useImperativeHandle,
+  forwardRef,
+  createElement,
+  type ForwardedRef,
+  type Ref,
+  type ReactElement,
+} from 'react';
+import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
+import type { StyleValue } from '@virt-list/core';
+
+export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
+  list: T[];
+  gridItems: number;
+  itemKey: string;
+  itemPreSize?: number;
+  itemGap?: number;
+  fixed?: boolean;
+  buffer?: number;
+  itemStyle?: StyleValue;
+  renderCell: (item: T, index: number, rowIndex: number) => HTMLElement;
+  renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderEmpty?: (el: HTMLElement) => HTMLElement | void;
+  stickyHeaderStyle?: StyleValue;
+
+  onScroll?: (e: Event) => void;
+  onToTop?: (item: unknown) => void;
+  onToBottom?: (item: unknown) => void;
+  onItemResize?: (id: string, size: number) => void;
+  onRangeUpdate?: (begin: number, end: number) => void;
+
+  style?: React.CSSProperties;
+  className?: string;
+}
+
+export interface VirtGridRef {
+  setList: (list: Record<string, any>[]) => void;
+  setGridItems: (n: number) => void;
+  scrollToIndex: (i: number) => void;
+  scrollIntoView: (i: number) => void;
+  scrollToTop: () => void;
+  scrollToBottom: () => void;
+  scrollToOffset: (o: number) => void;
+  forceUpdate: () => void;
+}
+
+/**
+ * React 16-17 虚拟网格组件。
+ *
+ * VirtGrid 的 renderCell 直接返回 HTMLElement，不涉及 React 节点挂载，
+ * 因此 React 16-17 与 18+ 无 API 差异。
+ */
+function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<VirtGridVanilla<any> | null>(null);
+  const eventsRef = useRef(props);
+  eventsRef.current = props;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    gridRef.current = new VirtGridVanilla(
+      containerRef.current,
+      {
+        list: props.list,
+        gridItems: props.gridItems,
+        itemKey: props.itemKey,
+        itemPreSize: props.itemPreSize ?? 50,
+        itemGap: props.itemGap,
+        fixed: props.fixed,
+        buffer: props.buffer ?? 2,
+        itemStyle: props.itemStyle,
+        renderCell: props.renderCell,
+        renderStickyHeader: props.renderStickyHeader,
+        renderStickyFooter: props.renderStickyFooter,
+        renderHeader: props.renderHeader,
+        renderFooter: props.renderFooter,
+        renderEmpty: props.renderEmpty,
+        stickyHeaderStyle: props.stickyHeaderStyle,
+      },
+      {
+        scroll: (e) => eventsRef.current.onScroll?.(e),
+        toTop: (item) => eventsRef.current.onToTop?.(item),
+        toBottom: (item) => eventsRef.current.onToBottom?.(item),
+        itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
+        rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
+      },
+    );
+
+    return () => {
+      gridRef.current?.destroy();
+      gridRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const prevListRef = useRef(props.list);
+  if (props.list !== prevListRef.current) {
+    prevListRef.current = props.list;
+    gridRef.current?.setList(props.list);
+  }
+
+  const prevGridItemsRef = useRef(props.gridItems);
+  if (props.gridItems !== prevGridItemsRef.current) {
+    prevGridItemsRef.current = props.gridItems;
+    if (props.gridItems > 0) gridRef.current?.setGridItems(props.gridItems);
+  }
+
+  useImperativeHandle(ref, () => ({
+    setList: (list) => gridRef.current?.setList(list),
+    setGridItems: (n) => gridRef.current?.setGridItems(n),
+    scrollToIndex: (i) => gridRef.current?.scrollToIndex(i),
+    scrollIntoView: (i) => gridRef.current?.scrollIntoView(i),
+    scrollToTop: () => gridRef.current?.scrollToTop(),
+    scrollToBottom: () => gridRef.current?.scrollToBottom(),
+    scrollToOffset: (o) => gridRef.current?.scrollToOffset(o),
+    forceUpdate: () => gridRef.current?.forceUpdate(),
+  }));
+
+  return createElement('div', {
+    ref: containerRef,
+    style: { width: '100%', height: '100%', ...props.style },
+    className: props.className,
+  });
+}
+
+export const VirtGrid = forwardRef(VirtGridInner) as (
+  props: VirtGridProps & { ref?: Ref<VirtGridRef> },
+) => ReactElement | null;

@@ -1,7 +1,6 @@
 <template>
-  <div style="display: flex; align-items: center; gap: 8px; width: 100%">
-    <span>level: {{ props.node.level }}</span>
-    <span>{{ props.node.title ?? String(props.node.key) }}</span>
+  <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+    <span>level: {{ props.node.level }}; {{ props.node.title ?? String(props.node.key) }}</span>
     <button
       type="button"
       class="virt-list-btn virt-list-btn-secondary"

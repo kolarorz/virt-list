@@ -63,14 +63,14 @@ export interface VirtTreeProps {
 
   filterMethod?: (query: string, node: TreeNode) => boolean;
 
-  renderContent?: (node: TreeNode) => HTMLElement;
-  renderIcon?: (node: TreeNode, isExpanded: boolean) => HTMLElement;
-  renderNode?: (node: TreeNode, isExpanded: boolean) => HTMLElement;
-  renderEmpty?: () => HTMLElement;
-  renderStickyHeader?: () => HTMLElement;
-  renderStickyFooter?: () => HTMLElement;
-  renderHeader?: () => HTMLElement;
-  renderFooter?: () => HTMLElement;
+  renderContent?: (node: TreeNode, el: HTMLElement) => HTMLElement | void;
+  renderIcon?: (node: TreeNode, isExpanded: boolean, el: HTMLElement) => HTMLElement | void;
+  renderNode?: (node: TreeNode, isExpanded: boolean, el: HTMLElement) => HTMLElement | void;
+  renderEmpty?: (el: HTMLElement) => HTMLElement | void;
+  renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderFooter?: (el: HTMLElement) => HTMLElement | void;
 
   /** JSX 渲染函数，优先级高于 renderContent */
   content?: (props: { node: TreeNode }) => ReactNode;
@@ -95,8 +95,8 @@ export interface VirtTreeProps {
   onDragstart?: VirtTreeDOMEvents['dragstart'];
   onDragend?: VirtTreeDOMEvents['dragend'];
   onScroll?: (e: Event) => void;
-  onToTop?: (item: any) => void;
-  onToBottom?: (item: any) => void;
+  onToTop?: (item: TreeNode) => void;
+  onToBottom?: (item: TreeNode) => void;
   onItemResize?: (id: string, size: number) => void;
   onRangeUpdate?: (begin: number, end: number) => void;
 
@@ -128,7 +128,7 @@ export interface VirtTreeRef {
 }
 
 /**
- * React 虚拟树组件的内部实现。
+ * React 虚拟树形组件的内部实现。
  *
  * VirtTree 在 useEffect([]) 中创建一次。事件通过 eventsRef 间接引用，
  * 避免 effect 重建。list 引用变化时通过 render 阶段的 ref 比较触发 setList。
@@ -144,19 +144,21 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
 
   const reactRootsRef = useRef(new Map<string, Root>());
 
-  /**
-   * 将 ReactNode 渲染到独立 DOM 容器中，供 VirtTree 使用。
-   * 同一 mountKey 的旧 root 会先被卸载，避免内存泄漏。
-   */
-  function mountReact(mountKey: string, node: ReactNode): HTMLElement {
+  /** 将 ReactNode 直接渲染到目标 el 中，无额外包裹层 */
+  function mountReact(mountKey: string, node: ReactNode, el: HTMLElement): void {
     const old = reactRootsRef.current.get(mountKey);
-    if (old) old.unmount();
-    const container = document.createElement('div');
-    container.style.display = 'contents';
-    const root = createRoot(container);
-    flushSync(() => root.render(node));
+    if (old) {
+      // 渲染期间同步卸载组件问题
+      queueMicrotask(() => {
+        old.unmount();
+      })
+    }
+    const root = createRoot(el);
+    // 生命周期内调用 flushSync 问题
+    queueMicrotask(() => {
+      flushSync(() => root.render(node));
+    })
     reactRootsRef.current.set(mountKey, root);
-    return container;
   }
 
   useEffect(() => {
@@ -204,33 +206,44 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
     };
 
     if (p.content) {
-      options.renderContent = (node: TreeNode) =>
-        mountReact(`content:${node.key}`, eventsRef.current.content!({ node }));
+      options.renderContent = (node: TreeNode, el: HTMLElement) => {
+        mountReact(`content:${node.key}`, eventsRef.current.content!({ node }), el);
+      };
     }
     if (p.icon) {
-      options.renderIcon = (node: TreeNode, isExpanded: boolean) =>
-        mountReact(`icon:${node.key}`, eventsRef.current.icon!({ node, isExpanded }));
+      options.renderIcon = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
+        mountReact(`icon:${node.key}`, eventsRef.current.icon!({ node, isExpanded }), el);
+      };
     }
     if (p.nodeRender) {
-      options.renderNode = (node: TreeNode, isExpanded: boolean) =>
-        mountReact(`node:${node.key}`, eventsRef.current.nodeRender!({ node, isExpanded }));
+      options.renderNode = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
+        mountReact(`node:${node.key}`, eventsRef.current.nodeRender!({ node, isExpanded }), el);
+      };
     }
     if (p.empty) {
-      options.renderEmpty = () => mountReact('empty', eventsRef.current.empty!());
+      options.renderEmpty = (el: HTMLElement) => {
+        mountReact('empty', eventsRef.current.empty!(), el);
+      };
     }
     if (p.header) {
-      options.renderHeader = () => mountReact('header', eventsRef.current.header!());
+      options.renderHeader = (el: HTMLElement) => {
+        mountReact('header', eventsRef.current.header!(), el);
+      };
     }
     if (p.footer) {
-      options.renderFooter = () => mountReact('footer', eventsRef.current.footer!());
+      options.renderFooter = (el: HTMLElement) => {
+        mountReact('footer', eventsRef.current.footer!(), el);
+      };
     }
     if (p.stickyHeader) {
-      options.renderStickyHeader = () =>
-        mountReact('stickyHeader', eventsRef.current.stickyHeader!());
+      options.renderStickyHeader = (el: HTMLElement) => {
+        mountReact('stickyHeader', eventsRef.current.stickyHeader!(), el);
+      };
     }
     if (p.stickyFooter) {
-      options.renderStickyFooter = () =>
-        mountReact('stickyFooter', eventsRef.current.stickyFooter!());
+      options.renderStickyFooter = (el: HTMLElement) => {
+        mountReact('stickyFooter', eventsRef.current.stickyFooter!(), el);
+      };
     }
 
     const events: VirtTreeDOMEvents = {
@@ -254,8 +267,8 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       reactRootsRef.current.forEach((root) => root.unmount());
       reactRootsRef.current.clear();
     };
-  // Only recreate on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Only recreate on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const prevListRef = useRef(props.list);

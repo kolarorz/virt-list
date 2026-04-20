@@ -6,10 +6,11 @@ import {
   ref,
   watch,
   h,
+  Fragment,
   render as vueRender,
   type PropType,
   type VNode,
-} from 'vue-demi';
+} from 'vue';
 import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
   TreeNode,
@@ -23,7 +24,7 @@ import type {
 } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
 
-export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams };
+export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams, VirtTreeDOMEvents };
 
 /**
  * Vue 虚拟树组件。
@@ -42,17 +43,17 @@ export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, ISc
 export const VirtTree = defineComponent({
   name: 'VirtTree',
   emits: {
-    expand: (_keys: TreeNodeKey[], _data: any) => true,
+    expand: (_keys: TreeNodeKey[], _data: unknown) => true,
     'update:expandedKeys': (_keys: TreeNodeKey[]) => true,
-    select: (_keys: TreeNodeKey[], _data: any) => true,
+    select: (_keys: TreeNodeKey[], _data: unknown) => true,
     'update:selectedKeys': (_keys: TreeNodeKey[]) => true,
-    check: (_keys: TreeNodeKey[], _data: any) => true,
+    check: (_keys: TreeNodeKey[], _data: unknown) => true,
     'update:checkedKeys': (_keys: TreeNodeKey[]) => true,
-    dragstart: (_data: any) => true,
-    dragend: (_data: any) => true,
+    dragstart: (_data: unknown) => true,
+    dragend: (_data: unknown) => true,
     scroll: (_e: Event) => true,
-    toTop: (_item: any) => true,
-    toBottom: (_item: any) => true,
+    toTop: (_item: unknown) => true,
+    toBottom: (_item: unknown) => true,
     itemResize: (_id: string, _size: number) => true,
     rangeUpdate: (_begin: number, _end: number) => true,
   },
@@ -92,35 +93,29 @@ export const VirtTree = defineComponent({
 
     filterMethod: { type: Function as PropType<(query: string, node: TreeNode) => boolean>, default: undefined },
 
-    renderContent: { type: Function as PropType<(node: TreeNode) => HTMLElement>, default: undefined },
-    renderIcon: { type: Function as PropType<(node: TreeNode, isExpanded: boolean) => HTMLElement>, default: undefined },
-    renderNode: { type: Function as PropType<(node: TreeNode, isExpanded: boolean) => HTMLElement>, default: undefined },
-    renderEmpty: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderStickyHeader: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderStickyFooter: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderHeader: { type: Function as PropType<() => HTMLElement>, default: undefined },
-    renderFooter: { type: Function as PropType<() => HTMLElement>, default: undefined },
+    renderContent: { type: Function as PropType<(node: TreeNode, el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderIcon: { type: Function as PropType<(node: TreeNode, isExpanded: boolean, el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderNode: { type: Function as PropType<(node: TreeNode, isExpanded: boolean, el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderEmpty: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderStickyFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
   },
   setup(props, { emit, expose, slots }) {
     const containerRef = ref<HTMLElement | null>(null);
     let tree: VirtTreeVanilla | null = null;
 
-    /**
-     * 将 Vue slot 渲染到独立 DOM 容器中，供 VirtTree 使用。
-     * 同一 mountKey 的旧容器会先被卸载，避免内存泄漏。
-     */
     const _slotContainers = new Map<string, HTMLElement>();
-    function _mountSlot(mountKey: string, vnodes: VNode[]): HTMLElement {
+    /** 将 VNode 直接渲染到目标 el 中，无额外包裹层 */
+    function _mountSlot(mountKey: string, vnodes: VNode[], el: HTMLElement): void {
       const old = _slotContainers.get(mountKey);
-      if (old) vueRender(null, old);
-      const container = document.createElement('div');
-      container.style.display = 'contents';
-      vueRender(h('div', { style: 'display: contents' }, vnodes), container);
-      _slotContainers.set(mountKey, container);
-      return container;
+      if (old && old !== el) vueRender(null, old);
+      vueRender(h(Fragment, null, vnodes), el);
+      _slotContainers.set(mountKey, el);
     }
     function _cleanupSlots() {
-      _slotContainers.forEach((c) => vueRender(null, c));
+      _slotContainers.forEach((el) => vueRender(null, el));
       _slotContainers.clear();
     }
 
@@ -165,31 +160,34 @@ export const VirtTree = defineComponent({
       };
 
       if (slots.content) {
-        opts.renderContent = (node: TreeNode) =>
-          _mountSlot(`content:${node.key}`, slots.content!({ node }));
+        opts.renderContent = (node: TreeNode, el: HTMLElement) => {
+          _mountSlot(`content:${node.key}`, slots.content!({ node }), el);
+        };
       }
       if (slots.icon) {
-        opts.renderIcon = (node: TreeNode, isExpanded: boolean) =>
-          _mountSlot(`icon:${node.key}`, slots.icon!({ node, isExpanded }));
+        opts.renderIcon = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
+          _mountSlot(`icon:${node.key}`, slots.icon!({ node, isExpanded }), el);
+        };
       }
       if (slots.default) {
-        opts.renderNode = (node: TreeNode, isExpanded: boolean) =>
-          _mountSlot(`node:${node.key}`, slots.default!({ node, isExpanded }));
+        opts.renderNode = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
+          _mountSlot(`node:${node.key}`, slots.default!({ node, isExpanded }), el);
+        };
       }
       if (slots.empty) {
-        opts.renderEmpty = () => _mountSlot('empty', slots.empty!({}));
+        opts.renderEmpty = (el: HTMLElement) => { _mountSlot('empty', slots.empty!({}), el); };
       }
       if (slots.header) {
-        opts.renderHeader = () => _mountSlot('header', slots.header!({}));
+        opts.renderHeader = (el: HTMLElement) => { _mountSlot('header', slots.header!({}), el); };
       }
       if (slots.footer) {
-        opts.renderFooter = () => _mountSlot('footer', slots.footer!({}));
+        opts.renderFooter = (el: HTMLElement) => { _mountSlot('footer', slots.footer!({}), el); };
       }
       if (slots.stickyHeader) {
-        opts.renderStickyHeader = () => _mountSlot('stickyHeader', slots.stickyHeader!({}));
+        opts.renderStickyHeader = (el: HTMLElement) => { _mountSlot('stickyHeader', slots.stickyHeader!({}), el); };
       }
       if (slots.stickyFooter) {
-        opts.renderStickyFooter = () => _mountSlot('stickyFooter', slots.stickyFooter!({}));
+        opts.renderStickyFooter = (el: HTMLElement) => { _mountSlot('stickyFooter', slots.stickyFooter!({}), el); };
       }
 
       return opts;

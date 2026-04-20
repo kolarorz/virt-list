@@ -14,7 +14,7 @@ const { currentFramework, relativePath } = useFramework();
 
 const open = ref(false);
 
-const frameworks: Framework[] = ['vanilla', 'vue', 'react'];
+const frameworks: Framework[] = ['vanilla', 'vue', 'vue2', 'react', 'react-legacy'];
 
 function select(fw: Framework) {
   open.value = false;

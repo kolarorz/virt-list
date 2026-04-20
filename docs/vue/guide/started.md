@@ -5,27 +5,22 @@
 ::: code-group
 
 ```sh [npm]
-  $ npm install vue-virt-list
+  $ npm install @virt-list/vue
 ```
 
 ```sh [pnpm]
-  $ pnpm install vue-virt-list
+  $ pnpm install @virt-list/vue
 ```
 
 ```sh [yarn]
-  $ yarn add vue-virt-list
+  $ yarn add @virt-list/vue
 ```
 
 :::
 
 ## 依赖
 
-- `"vue": "^2.0.0 || >=3.0.0"`
-
-## vue版本说明
-
-`<=vue2.6` 需要自行安装 @vue/composition-api
-`>=vue2.7` 自带 composition-api，则无需处理
+- `"vue": ">=3.2.0"`
 
 ## 注意!!!
 
@@ -45,15 +40,8 @@
   </div>
 </template>
 
-<script>
-  import { VirtList } from 'vue-virt-list';
-  export default {
-    components: { VirtList },
-    data() {
-      return {
-        list: [{ id: 0, text: 'text' }],
-      };
-    },
-  };
+<script setup>
+  import { VirtList } from '@virt-list/vue';
+  const list = [{ id: 0, text: 'text' }];
 </script>
 ```

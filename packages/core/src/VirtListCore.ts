@@ -350,6 +350,7 @@ export class VirtListCore<T extends Record<string, any>> {
     this._calcListTotalSize();
     this._updateTotalVirtualSize();
     this._updateRange(this.state.inViewBegin);
+    this._notify();
   }
 
   getReactiveData(): ReactiveData {

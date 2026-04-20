@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { VirtList } from './VirtList';
-import type { VirtListEvents } from '@virt-list/core';
+import { normalizeStyle } from './utils';
+import type { StyleValue, VirtListEvents } from '@virt-list/core';
 
 /**
  * 网格布局配置项。
@@ -21,21 +22,21 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   /** 渲染缓冲行数 */
   buffer?: number;
   /** 行的自定义 style */
-  itemStyle?: string;
+  itemStyle?: StyleValue;
   /** 单元格渲染函数 */
   renderCell: (item: T, index: number, rowIndex: number) => HTMLElement;
-  renderStickyHeader?: () => HTMLElement;
-  renderStickyFooter?: () => HTMLElement;
-  renderHeader?: () => HTMLElement;
-  renderFooter?: () => HTMLElement;
-  renderEmpty?: () => HTMLElement;
-  stickyHeaderStyle?: string;
+  renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderEmpty?: (el: HTMLElement) => HTMLElement | void;
+  stickyHeaderStyle?: StyleValue;
 }
 
-export interface VirtGridEvents<_T extends Record<string, any> = Record<string, any>> {
+export interface VirtGridEvents<T extends Record<string, any> = Record<string, any>> {
   scroll?: (e: Event) => void;
-  toTop?: (item: any) => void;
-  toBottom?: (item: any) => void;
+  toTop?: (item: GridRow<T>) => void;
+  toBottom?: (item: GridRow<T>) => void;
   itemResize?: (id: string, newSize: number) => void;
   rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
 }
@@ -44,7 +45,7 @@ export interface VirtGridEvents<_T extends Record<string, any> = Record<string, 
  * 内部行数据结构。
  * _id 为该行在扁平数组中的起始索引，也作为虚拟列表的 itemKey。
  */
-interface GridRow<T> {
+export interface GridRow<T> {
   _id: number;
   children: T[];
   [key: string]: any;
@@ -91,20 +92,16 @@ export class VirtGrid<T extends Record<string, any>> {
         itemGap: options.itemGap,
         fixed: options.fixed,
         buffer: options.buffer,
-        itemStyle: `display:flex;min-width:min-content;${options.itemStyle ?? ''}`,
-        renderItem: (rowData: GridRow<T>, rowIndex: number) => {
-          // 使用 display:contents 使子元素直接参与 flex 布局
-          const wrapper = document.createElement('div');
-          wrapper.style.display = 'contents';
+        itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
+        renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {
             const cellEl = this._options.renderCell(
               rowData.children[i]!,
               rowData._id + i,
               rowIndex,
             );
-            wrapper.appendChild(cellEl);
+            el.appendChild(cellEl);
           }
-          return wrapper;
         },
         renderStickyHeader: options.renderStickyHeader,
         renderStickyFooter: options.renderStickyFooter,

@@ -10,27 +10,28 @@ import {
   type ReactElement,
 } from 'react';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
+import type { StyleValue } from '@virt-list/core';
 
-export interface VirtGridProps {
-  list: any[];
+export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
+  list: T[];
   gridItems: number;
   itemKey: string;
   itemPreSize?: number;
   itemGap?: number;
   fixed?: boolean;
   buffer?: number;
-  itemStyle?: string;
-  renderCell: (item: any, index: number, rowIndex: number) => HTMLElement;
-  renderStickyHeader?: () => HTMLElement;
-  renderStickyFooter?: () => HTMLElement;
-  renderHeader?: () => HTMLElement;
-  renderFooter?: () => HTMLElement;
-  renderEmpty?: () => HTMLElement;
-  stickyHeaderStyle?: string;
+  itemStyle?: StyleValue;
+  renderCell: (item: T, index: number, rowIndex: number) => HTMLElement;
+  renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderEmpty?: (el: HTMLElement) => HTMLElement | void;
+  stickyHeaderStyle?: StyleValue;
 
   onScroll?: (e: Event) => void;
-  onToTop?: (item: any) => void;
-  onToBottom?: (item: any) => void;
+  onToTop?: (item: unknown) => void;
+  onToBottom?: (item: unknown) => void;
   onItemResize?: (id: string, size: number) => void;
   onRangeUpdate?: (begin: number, end: number) => void;
 
@@ -39,7 +40,7 @@ export interface VirtGridProps {
 }
 
 export interface VirtGridRef {
-  setList: (list: any[]) => void;
+  setList: (list: Record<string, any>[]) => void;
   setGridItems: (n: number) => void;
   scrollToIndex: (i: number) => void;
   scrollIntoView: (i: number) => void;
@@ -73,7 +74,7 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         itemPreSize: props.itemPreSize ?? 50,
         itemGap: props.itemGap,
         fixed: props.fixed,
-        buffer: props.buffer,
+        buffer: props.buffer ?? 2,
         itemStyle: props.itemStyle,
         renderCell: props.renderCell,
         renderStickyHeader: props.renderStickyHeader,

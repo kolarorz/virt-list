@@ -1,54 +1,26 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   defineComponent,
   onMounted,
   onBeforeUnmount,
-  onActivated,
-  shallowRef,
   ref,
   watch,
-  type ShallowReactive,
-  type ShallowRef,
+  h,
+  Fragment,
+  render as vueRender,
+  type PropType,
   type VNode,
-  type SetupContext,
-} from 'vue-demi';
-import { VirtListCore } from '@virt-list/core';
+} from 'vue';
+import { VirtList as VirtListVanilla } from '@virt-list/vanilla';
 import type {
+  StyleValue,
   ReactiveData,
   SlotSize,
-  VirtListOptions,
+  VirtListDOMOptions,
   VirtListEvents,
 } from '@virt-list/core';
-import { _h, _hChild, getSlot, mergeStyles } from './utils';
-import { ObserverItem } from './ObserverItem';
 
-// ======================== useVirtList (composable) ========================
-// Vue Composition API 封装。Core 自管理内部状态，
-// 通过 update 事件将 renderList 和 state 同步到 Vue 响应式对象，驱动重渲染。
-
-const defaultProps = {
-  itemGap: 0,
-  fixed: false,
-  buffer: 0,
-  bufferTop: 0,
-  bufferBottom: 0,
-  scrollDistance: 0,
-  horizontal: false,
-  fixSelection: false,
-  start: 0,
-  offset: 0,
-  listStyle: '',
-  listClass: '',
-  itemStyle: '',
-  itemClass: '',
-  headerClass: '',
-  headerStyle: '',
-  footerClass: '',
-  footerStyle: '',
-  stickyHeaderClass: '',
-  stickyHeaderStyle: '',
-  stickyFooterClass: '',
-  stickyFooterStyle: '',
-};
+// ======================== Types ========================
 
 export interface EmitFunction<T> {
   scroll?: (e: Event) => void;
@@ -60,15 +32,8 @@ export interface EmitFunction<T> {
 }
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
-  props: VirtListOptions<T>;
-  renderList: ShallowRef<T[]>;
-  clientRefEl: ReturnType<typeof ref<HTMLElement | null>>;
-  listRefEl: ReturnType<typeof ref<HTMLElement | null>>;
-  headerRefEl: ReturnType<typeof ref<HTMLElement | null>>;
-  footerRefEl: ReturnType<typeof ref<HTMLElement | null>>;
-  stickyHeaderRefEl: ReturnType<typeof ref<HTMLElement | null>>;
-  stickyFooterRefEl: ReturnType<typeof ref<HTMLElement | null>>;
-  reactiveData: ShallowReactive<ReactiveData>;
+  containerRef: ReturnType<typeof ref<HTMLElement | null>>;
+  reactiveData: ReactiveData;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
@@ -90,26 +55,17 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
     index: number,
   ) => { top: number; current: number; bottom: number };
   forceUpdate: () => void;
+  setList: (list: T[]) => void;
 }
 
+// ======================== useVirtList (composable) ========================
+
 export function useVirtList<T extends Record<string, any>>(
-  userProps: ShallowReactive<VirtListOptions<T>>,
+  options: VirtListDOMOptions<T>,
   emitFunction?: EmitFunction<T>,
 ): UseVirtListReturn<T> {
-  // 合并默认值
-  const props = {
-    ...defaultProps,
-    ...userProps,
-  }
-  const clientRefEl = ref<HTMLElement | null>(null);
-  const listRefEl = ref<HTMLElement | null>(null);
-  const headerRefEl = ref<HTMLElement | null>(null);
-  const footerRefEl = ref<HTMLElement | null>(null);
-  const stickyHeaderRefEl = ref<HTMLElement | null>(null);
-  const stickyFooterRefEl = ref<HTMLElement | null>(null);
-
-  // for rendering
-  const renderList: ShallowRef<T[]> = shallowRef([]);
+  const containerRef = ref<HTMLElement | null>(null);
+  let vl: VirtListVanilla<T> | null = null;
 
   const events: VirtListEvents<T> = {
     scroll: (e) => emitFunction?.scroll?.(e),
@@ -117,98 +73,59 @@ export function useVirtList<T extends Record<string, any>>(
     toBottom: (item) => emitFunction?.toBottom?.(item),
     itemResize: (id, size) => emitFunction?.itemResize?.(id, size),
     rangeUpdate: (begin, end) => emitFunction?.rangeUpdate?.(begin, end),
-    update: (list, state) => {
-      renderList.value = list;
-      emitFunction?.update?.(list, state);
-    },
+    update: (list, state) => emitFunction?.update?.(list, state),
   };
 
-  // Core owns its own state; update event syncs to Vue reactive objects.
-  const core = new VirtListCore<T>(props, events);
-
-  watch(
-    () => userProps.list,
-    () => {
-      core.updateOptions({ list: userProps.list });
-    },
-  );
-
   onMounted(() => {
-    if (clientRefEl.value) {
-      core.bindDOM(clientRefEl.value);
+    if (containerRef.value) {
+      vl = new VirtListVanilla<T>(containerRef.value, options, events);
     }
-    if (stickyHeaderRefEl.value) core.observeSlotEl(stickyHeaderRefEl.value);
-    if (stickyFooterRefEl.value) core.observeSlotEl(stickyFooterRefEl.value);
-    if (headerRefEl.value) core.observeSlotEl(headerRefEl.value);
-    if (footerRefEl.value) core.observeSlotEl(footerRefEl.value);
   });
 
   onBeforeUnmount(() => {
-    if (stickyHeaderRefEl.value) core.unobserveSlotEl(stickyHeaderRefEl.value);
-    if (stickyFooterRefEl.value) core.unobserveSlotEl(stickyFooterRefEl.value);
-    if (headerRefEl.value) core.unobserveSlotEl(headerRefEl.value);
-    if (footerRefEl.value) core.unobserveSlotEl(footerRefEl.value);
-    core.destroy();
+    vl?.destroy();
+    vl = null;
   });
 
-  onActivated(() => {
-    core.resume();
-  });
+  const getVL = () => vl!;
 
   return {
-    props,
-    renderList,
-    clientRefEl,
-    listRefEl,
-    headerRefEl,
-    footerRefEl,
-    stickyHeaderRefEl,
-    stickyFooterRefEl,
-    reactiveData: core.state,
-    slotSize: core.slotSize,
-    sizesMap: core.sizesMap,
-    resizeObserver: core.resizeObserver,
-    getReactiveData: () => core.getReactiveData(),
-    getOffset: () => core.getOffset(),
-    getSlotSize: () => core.getSlotSize(),
-    reset: () => core.reset(),
-    scrollToIndex: (i) => core.scrollToIndex(i),
-    scrollIntoView: (i) => core.scrollIntoView(i),
-    scrollToTop: () => core.scrollToTop(),
-    scrollToBottom: () => core.scrollToBottom(),
-    scrollToOffset: (o) => core.scrollToOffset(o),
-    manualRender: (b, e) => {
-      core.manualRender(b, e);
-    },
-    getItemSize: (k) => core.getItemSize(k),
-    deleteItemSize: (k) => core.deleteItemSize(k),
-    deletedList2Top: (l) => {
-      core.deletedList2Top(l);
-    },
-    addedList2Top: (l) => {
-      core.addedList2Top(l);
-    },
-    getItemPosByIndex: (i) => core.getItemPosByIndex(i),
-    forceUpdate: () => {
-      core.forceUpdate();
-    },
+    containerRef,
+    get reactiveData() { return getVL().state; },
+    get slotSize() { return getVL().core.slotSize; },
+    get sizesMap() { return getVL().core.sizesMap; },
+    get resizeObserver() { return getVL().core.resizeObserver; },
+    getReactiveData: () => getVL().state,
+    getOffset: () => getVL().core.getOffset(),
+    getSlotSize: () => getVL().core.getSlotSize(),
+    reset: () => vl?.reset(),
+    scrollToIndex: (i) => vl?.scrollToIndex(i),
+    scrollIntoView: (i) => vl?.scrollIntoView(i),
+    scrollToTop: () => vl?.scrollToTop(),
+    scrollToBottom: () => vl?.scrollToBottom(),
+    scrollToOffset: (o) => vl?.scrollToOffset(o),
+    manualRender: (b, e) => vl?.core.manualRender(b, e),
+    getItemSize: (k) => getVL().core.getItemSize(k),
+    deleteItemSize: (k) => getVL().core.deleteItemSize(k),
+    deletedList2Top: (l) => vl?.deletedList2Top(l),
+    addedList2Top: (l) => vl?.addedList2Top(l),
+    getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
+    forceUpdate: () => vl?.forceUpdate(),
+    setList: (l) => vl?.setList(l),
   };
 }
 
 // ======================== VirtList (Vue component) ========================
-// Vue 虚拟列表组件，基于 useVirtList composable 实现。
-// 通过插槽（default/header/footer/stickyHeader/stickyFooter/empty）渲染内容。
-// 每个列表项由 ObserverItem 包裹以监听尺寸变化。
 
 export const VirtList = defineComponent({
   name: 'VirtList',
   emits: {
     scroll: (e: Event) => e,
-    toTop: (firstItem: any) => firstItem,
-    toBottom: (lastItem: any) => lastItem,
+    toTop: (firstItem: unknown) => firstItem,
+    toBottom: (lastItem: unknown) => lastItem,
     itemResize: (_id: string, _newSize: number) => true,
     rangeUpdate: (_inViewBegin: number, _inViewEnd: number) => true,
-    update: (_renderList: any[], _state: ReactiveData) => true,
+    update: (_renderList: unknown[], _state: ReactiveData) => true,
   },
   props: {
     list: { type: Array as () => any[], default: () => [] },
@@ -225,211 +142,171 @@ export const VirtList = defineComponent({
     fixSelection: { type: Boolean, default: false },
     start: { type: Number, default: 0 },
     offset: { type: Number, default: 0 },
-    listStyle: { type: [String, Array, Object], default: '' },
-    listClass: { type: [String, Array, Object], default: '' },
-    itemStyle: { type: [String, Array, Object, Function], default: '' },
-    itemClass: { type: [String, Array, Object, Function], default: '' },
-    headerClass: { type: [String, Array, Object], default: '' },
-    headerStyle: { type: [String, Array, Object], default: '' },
-    footerClass: { type: [String, Array, Object], default: '' },
-    footerStyle: { type: [String, Array, Object], default: '' },
-    stickyHeaderClass: { type: [String, Array, Object], default: '' },
-    stickyHeaderStyle: { type: [String, Array, Object], default: '' },
-    stickyFooterClass: { type: [String, Array, Object], default: '' },
-    stickyFooterStyle: { type: [String, Array, Object], default: '' },
+    listStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
+    listClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    itemStyle: { type: [String, Object, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
+    itemClass: { type: [String, Array, Object, Function] as PropType<string | ((item: any, index: number) => string)>, default: '' },
+    headerClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    headerStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
+    footerClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    footerStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
+    stickyHeaderClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    stickyHeaderStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
+    stickyFooterClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    stickyFooterStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
+    renderItem: { type: Function as PropType<(item: any, index: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
   },
-  setup(props: any, context: SetupContext) {
-    const emitFn: EmitFunction<any> = {
-      scroll: (e) => context.emit('scroll', e),
-      toTop: (item) => context.emit('toTop', item),
-      toBottom: (item) => context.emit('toBottom', item),
-      itemResize: (id, size) => context.emit('itemResize', id, size),
-      rangeUpdate: (begin, end) => context.emit('rangeUpdate', begin, end),
-      update: (list, state) => context.emit('update', list, state),
-    };
-    return useVirtList(
-      props,
-      emitFn,
-    );
-  },
-  render() {
-    const { renderList, reactiveData, resizeObserver } = this;
-    const {
-      itemGap,
-      itemKey,
-      horizontal,
-      listStyle,
-      listClass,
-      itemStyle,
-      itemClass,
-      headerClass,
-      headerStyle,
-      footerClass,
-      footerStyle,
-      stickyHeaderClass,
-      stickyHeaderStyle,
-      stickyFooterClass,
-      stickyFooterStyle,
-    } = this.$props;
+  setup(props, { emit, expose, slots }) {
+    const containerRef = ref<HTMLElement | null>(null);
+    let vl: VirtListVanilla<any> | null = null;
 
-    const renderStickyHeaderSlot = (): VNode | null =>
-      getSlot(this, 'stickyHeader')
-        ? _h(
-          'div',
-          {
-            key: 'slot-sticky-header',
-            class: stickyHeaderClass,
-            style: mergeStyles(
-              'position: sticky; z-index: 10;',
-              horizontal ? 'left: 0' : 'top: 0;',
-              stickyHeaderStyle as string,
-            ),
-            ref: 'stickyHeaderRefEl',
-            attrs: { 'data-id': 'stickyHeader' },
-          },
-          [getSlot(this, 'stickyHeader')?.()],
-        )
-        : null;
+    const _slotContainers = new Map<string, HTMLElement>();
+    /** 将 VNode 直接渲染到目标 el 中，无额外包裹层 */
+    function _mountSlot(mountKey: string, vNodes: VNode[], el: HTMLElement): void {
+      const old = _slotContainers.get(mountKey);
+      if (old && old !== el) vueRender(null, old);
+      vueRender(h(Fragment, null, vNodes), el);
+      _slotContainers.set(mountKey, el);
+    }
+    function _cleanupSlots() {
+      _slotContainers.forEach((el) => vueRender(null, el));
+      _slotContainers.clear();
+    }
 
-    const renderStickyFooterSlot = (): VNode | null =>
-      getSlot(this, 'stickyFooter')
-        ? _h(
-          'div',
-          {
-            key: 'slot-sticky-footer',
-            class: stickyFooterClass,
-            style: mergeStyles(
-              'position: sticky; z-index: 10;',
-              horizontal ? 'right: 0' : 'bottom: 0;',
-              stickyFooterStyle as string,
-            ),
-            ref: 'stickyFooterRefEl',
-            attrs: { 'data-id': 'stickyFooter' },
-          },
-          [getSlot(this, 'stickyFooter')?.()],
-        )
-        : null;
+    function buildOptions(): VirtListDOMOptions<any> {
+      const opts: VirtListDOMOptions<any> = {
+        list: props.list,
+        itemKey: String(props.itemKey),
+        itemPreSize: props.itemPreSize!,
+        itemGap: props.itemGap,
+        fixed: props.fixed,
+        buffer: props.buffer,
+        bufferTop: props.bufferTop,
+        bufferBottom: props.bufferBottom,
+        scrollDistance: props.scrollDistance,
+        horizontal: props.horizontal,
+        start: props.start,
+        offset: props.offset,
+        renderControl: props.renderControl as any,
+        listStyle: props.listStyle,
+        listClass: props.listClass as string,
+        itemStyle: props.itemStyle as any,
+        itemClass: props.itemClass as any,
+        headerClass: props.headerClass as string,
+        headerStyle: props.headerStyle,
+        footerClass: props.footerClass as string,
+        footerStyle: props.footerStyle,
+        stickyHeaderClass: props.stickyHeaderClass as string,
+        stickyHeaderStyle: props.stickyHeaderStyle,
+        stickyFooterClass: props.stickyFooterClass as string,
+        stickyFooterStyle: props.stickyFooterStyle,
+        renderItem: props.renderItem ?? ((item: any, index: number, el: HTMLElement) => {
+          if (slots.default) {
+            _mountSlot(`item:${item[props.itemKey]}`, slots.default({ itemData: item, index }), el);
+          }
+        }),
+      };
 
-    const renderHeaderSlot = (): VNode | null =>
-      getSlot(this, 'header')
-        ? _h(
-          'div',
-          {
-            key: 'slot-header',
-            class: headerClass,
-            style: headerStyle,
-            ref: 'headerRefEl',
-            attrs: { 'data-id': 'header' },
-          },
-          [getSlot(this, 'header')?.()],
-        )
-        : null;
-
-    const renderFooterSlot = (): VNode | null =>
-      getSlot(this, 'footer')
-        ? _h(
-          'div',
-          {
-            key: 'slot-footer',
-            class: footerClass,
-            style: footerStyle,
-            ref: 'footerRefEl',
-            attrs: { 'data-id': 'footer' },
-          },
-          [getSlot(this, 'footer')?.()],
-        )
-        : null;
-
-    const { listTotalSize, virtualSize, renderBegin } = reactiveData;
-
-    const renderMainList = (): VNode | null => {
-      const mainList: VNode[] = [];
-      for (let index = 0; index < renderList.length; index += 1) {
-        const currentItem = renderList[index];
-        mainList.push(
-          _hChild(
-            ObserverItem,
-            {
-              key: currentItem[itemKey],
-              class:
-                typeof itemClass === 'function'
-                  ? itemClass(currentItem, index)
-                  : itemClass,
-              style: mergeStyles(
-                itemGap > 0
-                  ? horizontal
-                    ? `padding: 0 ${itemGap / 2}px;`
-                    : `padding: ${itemGap / 2}px 0;`
-                  : '',
-                typeof itemStyle === 'function'
-                  ? itemStyle(currentItem, index)
-                  : itemStyle,
-              ),
-              attrs: {
-                id: currentItem[itemKey],
-                resizeObserver: resizeObserver,
-              },
-            },
-            getSlot(
-              this,
-              'default',
-            )?.({
-              itemData: currentItem,
-              index: renderBegin + index,
-            }),
-          ),
-        );
+      if (slots.header) {
+        opts.renderHeader = (el: HTMLElement) => { _mountSlot('header', slots.header!({}), el); };
+      }
+      if (slots.footer) {
+        opts.renderFooter = (el: HTMLElement) => { _mountSlot('footer', slots.footer!({}), el); };
+      }
+      if (slots.stickyHeader) {
+        opts.renderStickyHeader = (el: HTMLElement) => { _mountSlot('stickyHeader', slots.stickyHeader!({}), el); };
+      }
+      if (slots.stickyFooter) {
+        opts.renderStickyFooter = (el: HTMLElement) => { _mountSlot('stickyFooter', slots.stickyFooter!({}), el); };
+      }
+      if (slots.empty) {
+        opts.renderEmpty = (el: HTMLElement) => { _mountSlot('empty', slots.empty!({}), el); };
       }
 
-      if (mainList.length === 0 && getSlot(this, 'empty')) {
-        mainList.push(
-          _h(
-            'div',
-            {
-              key: `slot-empty`,
-              style: `width: 100%; height: 100%; position: absolute; top: 0; left: 0;`,
-            },
-            [getSlot(this, 'empty')?.()],
-          ),
-        );
-      }
+      return opts;
+    }
 
-      const dynamicListStyle = horizontal
-        ? `will-change: width; min-width: ${listTotalSize}px; display: flex; ${listStyle}`
-        : `will-change: height; min-height: ${listTotalSize}px; ${listStyle}`;
-      const virtualStyle = horizontal
-        ? `width: ${virtualSize}px; will-change: width;`
-        : `height: ${virtualSize}px; will-change: height;`;
+    function buildEvents(): VirtListEvents<any> {
+      return {
+        scroll: (e) => emit('scroll', e),
+        toTop: (item) => emit('toTop', item),
+        toBottom: (item) => emit('toBottom', item),
+        itemResize: (id, size) => emit('itemResize', id, size),
+        rangeUpdate: (begin, end) => emit('rangeUpdate', begin, end),
+        update: (renderList, state) => emit('update', renderList, state),
+      };
+    }
 
-      return _h(
-        'div',
-        {
-          ref: 'listRefEl',
-          class: listClass,
-          style: dynamicListStyle,
-        },
-        [
-          _h('div', { style: virtualStyle }),
-          mainList,
-        ],
-      );
-    };
+    onMounted(() => {
+      if (!containerRef.value) return;
+      vl = new VirtListVanilla(containerRef.value, buildOptions(), buildEvents());
+    });
 
-    return _h(
-      'div',
-      {
-        ref: 'clientRefEl',
-        class: 'virt-list__client',
-        style: 'width: 100%; height: 100%; overflow: auto; position: relative;',
-        attrs: { 'data-id': 'client' },
+    onBeforeUnmount(() => {
+      vl?.destroy();
+      vl = null;
+      _cleanupSlots();
+    });
+
+    watch(() => props.list.length, () => {
+      vl?.setList(props.list);
+      vl?.forceUpdate();
+    });
+
+    const api = {
+      reactiveData: undefined as unknown as ReactiveData,
+      slotSize: undefined as unknown as SlotSize,
+      sizesMap: undefined as unknown as Map<string, number>,
+      resizeObserver: undefined as ResizeObserver | undefined,
+      getReactiveData: () => vl!.state,
+      getOffset: () => vl!.core.getOffset(),
+      getSlotSize: () => vl!.core.getSlotSize(),
+      reset: () => vl?.reset(),
+      scrollToIndex: (index: number) => vl?.scrollToIndex(index),
+      scrollIntoView: (index: number) => vl?.scrollIntoView(index),
+      scrollToTop: () => vl?.scrollToTop(),
+      scrollToBottom: () => vl?.scrollToBottom(),
+      scrollToOffset: (offset: number) => vl?.scrollToOffset(offset),
+      manualRender: (begin: number, end: number) => vl?.core.manualRender(begin, end),
+      getItemSize: (itemKey: string) => vl!.core.getItemSize(itemKey),
+      deleteItemSize: (itemKey: string) => vl!.core.deleteItemSize(itemKey),
+      deletedList2Top: (list: any[]) => {
+        vl?.setList(props.list);
+        vl?.deletedList2Top(list);
       },
-      [
-        renderStickyHeaderSlot(),
-        renderHeaderSlot(),
-        renderMainList(),
-        renderFooterSlot(),
-        renderStickyFooterSlot(),
-      ],
-    );
+      addedList2Top: (list: any[]) => {
+        vl?.setList(props.list);
+        vl?.addedList2Top(list);
+      },
+      getItemPosByIndex: (index: number) => vl!.core.getItemPosByIndex(index),
+      forceUpdate: () => {
+        vl?.forceUpdate();
+      },
+      setList: (list: any[]) => vl?.setList(list),
+    };
+
+    Object.defineProperty(api, 'reactiveData', {
+      get: () => vl?.state,
+      enumerable: true,
+    });
+    Object.defineProperty(api, 'slotSize', {
+      get: () => vl?.core.slotSize,
+      enumerable: true,
+    });
+    Object.defineProperty(api, 'sizesMap', {
+      get: () => vl?.core.sizesMap,
+      enumerable: true,
+    });
+    Object.defineProperty(api, 'resizeObserver', {
+      get: () => vl?.core.resizeObserver,
+      enumerable: true,
+    });
+
+    expose(api);
+
+    return () => h('div', {
+      ref: containerRef,
+      style: 'width: 100%; height: 100%;',
+    });
   },
 });

@@ -1,0 +1,109 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  defineComponent,
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  watch,
+  h,
+  type PropType,
+} from 'vue';
+import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
+import type { StyleValue } from '@virt-list/core';
+
+/**
+ * Vue 2 虚拟网格组件。
+ *
+ * VirtGrid 不涉及 slot 挂载（renderCell 直接返回 HTMLElement），
+ * 因此 Vue 2/3 之间无 render/Fragment 差异，仅 import 来源不同。
+ *
+ * 注意：Vue 2.7 内置 Composition API，可直接 import from 'vue'。
+ * 若使用 Vue 2.6，需将 import 来源替换为 '@vue/composition-api'，
+ * 或通过构建工具 alias 处理。
+ */
+export const VirtGrid = defineComponent({
+  name: 'VirtGrid',
+  props: {
+    list: { type: Array as PropType<any[]>, required: true },
+    gridItems: { type: Number, required: true },
+    itemKey: { type: String, required: true },
+    itemPreSize: { type: Number, default: 50 },
+    itemGap: { type: Number, default: 0 },
+    fixed: { type: Boolean, default: false },
+    buffer: { type: Number, default: 2 },
+    itemStyle: { type: [String, Object] as PropType<StyleValue>, default: undefined },
+    renderCell: { type: Function as PropType<(item: any, index: number, rowIndex: number) => HTMLElement>, required: true },
+    renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderStickyFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderEmpty: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
+    stickyHeaderStyle: { type: [String, Object] as PropType<StyleValue>, default: undefined },
+  },
+  setup(props, { emit, expose }) {
+    const containerRef = ref<HTMLElement | null>(null);
+    let grid: VirtGridVanilla<any> | null = null;
+
+    onMounted(() => {
+      if (!containerRef.value) return;
+      grid = new VirtGridVanilla(
+        containerRef.value,
+        {
+          list: props.list,
+          gridItems: props.gridItems,
+          itemKey: props.itemKey,
+          itemPreSize: props.itemPreSize,
+          itemGap: props.itemGap,
+          fixed: props.fixed,
+          buffer: props.buffer,
+          itemStyle: props.itemStyle,
+          renderCell: props.renderCell,
+          renderStickyHeader: props.renderStickyHeader,
+          renderStickyFooter: props.renderStickyFooter,
+          renderHeader: props.renderHeader,
+          renderFooter: props.renderFooter,
+          renderEmpty: props.renderEmpty,
+          stickyHeaderStyle: props.stickyHeaderStyle,
+        },
+        {
+          scroll: (e) => emit('scroll', e),
+          toTop: (item) => emit('toTop', item),
+          toBottom: (item) => emit('toBottom', item),
+          itemResize: (id, size) => emit('itemResize', id, size),
+          rangeUpdate: (begin, end) => emit('rangeUpdate', begin, end),
+        },
+      );
+    });
+
+    onBeforeUnmount(() => {
+      grid?.destroy();
+      grid = null;
+    });
+
+    watch(() => props.list, (newList) => {
+      grid?.setList(newList);
+    });
+
+    watch(() => props.gridItems, (n) => {
+      if (n > 0) grid?.setGridItems(n);
+    });
+
+    const api = {
+      setList: (list: any[]) => grid?.setList(list),
+      setGridItems: (n: number) => grid?.setGridItems(n),
+      scrollToIndex: (i: number) => grid?.scrollToIndex(i),
+      scrollIntoView: (i: number) => grid?.scrollIntoView(i),
+      scrollToTop: () => grid?.scrollToTop(),
+      scrollToBottom: () => grid?.scrollToBottom(),
+      scrollToOffset: (o: number) => grid?.scrollToOffset(o),
+      forceUpdate: () => grid?.forceUpdate(),
+    };
+
+    expose(api);
+
+    return () => h('div', {
+      ref: containerRef,
+      style: 'width: 100%; height: 100%;',
+    });
+  },
+});

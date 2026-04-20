@@ -8,9 +8,8 @@ export default function TreeFocusItem({
   onFocus: (key: TreeNode['key']) => void;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-      <span>level: {node.level}</span>
-      <span>{node.title ?? ''}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+      <span>level: {node.level}; {node.title ?? ''}</span>
       <button
         type="button"
         className="virt-list-btn virt-list-btn-secondary"

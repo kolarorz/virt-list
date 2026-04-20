@@ -1,8 +1,12 @@
 .virt-list-btn {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
   border: none;
-  padding: 8px 16px;
+  padding: 0 16px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
@@ -463,7 +467,8 @@
 }
 
 .demo-block__pre code {
-  font-family: 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
+  font-family:
+    'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
   font-size: 13px;
   line-height: 1.6;
   color: #d4d4d4;
@@ -498,4 +503,8 @@
   border: 1px solid #ddd;
   border-radius: 8px;
   overflow: hidden;
+}
+
+.virt-tree-node.is-focused {
+  background: #4c88ff !important;
 }

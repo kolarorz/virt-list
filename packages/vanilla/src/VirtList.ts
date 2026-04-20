@@ -4,7 +4,7 @@ import type {
   VirtListDOMOptions,
   VirtListEvents,
 } from '@virt-list/core';
-import { mergeStyles, applyStyle } from './utils';
+import { mergeStyles, applyStyle, normalizeStyle } from './utils';
 
 /**
  * 虚拟列表的 DOM 层实现。
@@ -212,7 +212,8 @@ export class VirtList<T extends Record<string, any>> {
           this._options.stickyHeaderStyle,
         ),
       );
-      this._stickyHeaderEl.appendChild(this._options.renderStickyHeader());
+      const sh = this._options.renderStickyHeader(this._stickyHeaderEl);
+      if (sh) this._stickyHeaderEl.appendChild(sh);
       this._clientEl.appendChild(this._stickyHeaderEl);
     }
 
@@ -225,7 +226,8 @@ export class VirtList<T extends Record<string, any>> {
       if (this._options.headerStyle) {
         applyStyle(this._headerEl, this._options.headerStyle);
       }
-      this._headerEl.appendChild(this._options.renderHeader());
+      const hd = this._options.renderHeader(this._headerEl);
+      if (hd) this._headerEl.appendChild(hd);
       this._clientEl.appendChild(this._headerEl);
     }
 
@@ -248,7 +250,8 @@ export class VirtList<T extends Record<string, any>> {
       if (this._options.footerStyle) {
         applyStyle(this._footerEl, this._options.footerStyle);
       }
-      this._footerEl.appendChild(this._options.renderFooter());
+      const ft = this._options.renderFooter(this._footerEl);
+      if (ft) this._footerEl.appendChild(ft);
       this._clientEl.appendChild(this._footerEl);
     }
 
@@ -266,7 +269,8 @@ export class VirtList<T extends Record<string, any>> {
           this._options.stickyFooterStyle,
         ),
       );
-      this._stickyFooterEl.appendChild(this._options.renderStickyFooter());
+      const sf = this._options.renderStickyFooter(this._stickyFooterEl);
+      if (sf) this._stickyFooterEl.appendChild(sf);
       this._clientEl.appendChild(this._stickyFooterEl);
     }
 
@@ -289,9 +293,10 @@ export class VirtList<T extends Record<string, any>> {
     const { itemKey, horizontal, listStyle, itemGap } = this._options;
     const { listTotalSize, virtualSize, renderBegin } = reactiveData;
 
+    const listStyleCSS = listStyle ? normalizeStyle(listStyle) : '';
     const dynamicListStyle = horizontal
-      ? `will-change: width; min-width: ${listTotalSize}px; display: flex; ${listStyle ?? ''}`
-      : `will-change: height; min-height: ${listTotalSize}px; ${listStyle ?? ''}`;
+      ? `will-change: width; min-width: ${listTotalSize}px; display: flex; ${listStyleCSS}`
+      : `will-change: height; min-height: ${listTotalSize}px; ${listStyleCSS}`;
     applyStyle(this._listEl, dynamicListStyle);
 
     const virtualStyle = horizontal
@@ -323,7 +328,8 @@ export class VirtList<T extends Record<string, any>> {
       if (this._options.renderEmpty && !this._emptyEl) {
         this._emptyEl = document.createElement('div');
         applyStyle(this._emptyEl, `width: 100%; height: 100%; position: absolute; top: 0; left: 0;`);
-        this._emptyEl.appendChild(this._options.renderEmpty());
+        const emp = this._options.renderEmpty(this._emptyEl);
+        if (emp) this._emptyEl.appendChild(emp);
         this._listEl.appendChild(this._emptyEl);
       }
       this._renderedKeys = [];
@@ -348,11 +354,11 @@ export class VirtList<T extends Record<string, any>> {
 
         const gap = itemGap ?? 0;
         const baseStyle = gap > 0 ? `padding: ${gap / 2}px 0;` : '';
-        const customStyle =
+        const rawItemStyle =
           typeof this._options.itemStyle === 'function'
             ? this._options.itemStyle(item, renderBegin + i)
             : this._options.itemStyle ?? '';
-        applyStyle(el, baseStyle + customStyle);
+        applyStyle(el, baseStyle + normalizeStyle(rawItemStyle));
 
         const customClass =
           typeof this._options.itemClass === 'function'
@@ -360,7 +366,8 @@ export class VirtList<T extends Record<string, any>> {
             : this._options.itemClass ?? '';
         if (customClass) el.className = customClass;
 
-        el.appendChild(this._options.renderItem(item, renderBegin + i));
+        const child = this._options.renderItem(item, renderBegin + i, el);
+        if (child) el.appendChild(child);
         this._core.resizeObserver?.observe(el);
         this._options.onItemMounted?.(el);
         this._itemPool.set(key, el);

@@ -30,7 +30,7 @@ const DEFAULT_FIELD_NAMES: Required<TreeFieldNames> = {
 };
 
 /**
- * 虚拟树的 DOM 实现。
+ * 虚拟树形的 DOM 实现。
  *
  * 核心流程：
  * 1. 将树形数据扁平化为 TreeNode[]，建立 treeNodesMap 等索引
@@ -274,16 +274,30 @@ export class VirtTree {
     this._updateRenderedNodeStates();
   }
 
+  // checkAll(checked: boolean): void {
+  //   if (!checked) {
+  //     this._checkedKeysSet.clear();
+  //     this._indeterminateKeysSet.clear();
+  //   } else {
+  //     const keys = this._treeInfo.allNodeKeys.filter((k) => {
+  //       const n = this.getTreeNode(k);
+  //       return n && !n.disableCheckbox;
+  //     });
+  //     this._checkedKeysSet = new Set(keys);
+  //   }
+  //   this._updateRenderedNodeStates();
+  // }
+
   checkAll(checked: boolean): void {
-    if (!checked) {
-      this._checkedKeysSet.clear();
-      this._indeterminateKeysSet.clear();
-    } else {
+    this._checkedKeysSet.clear();
+    this._indeterminateKeysSet.clear();
+    if (checked) {
       const keys = this._treeInfo.allNodeKeys.filter((k) => {
         const n = this.getTreeNode(k);
         return n && !n.disableCheckbox;
       });
       this._checkedKeysSet = new Set(keys);
+      this._updateCheckedKeys();
     }
     this._updateRenderedNodeStates();
   }
@@ -764,7 +778,8 @@ export class VirtTree {
           if (opts.itemClass) classes.push(opts.itemClass);
           return classes.join(' ');
         },
-        renderItem: (node: TreeNode) => this._renderTreeNode(node),
+        renderItem: (node: TreeNode, _index: number, el: HTMLElement) =>
+          this._renderTreeNode(node, el),
         renderStickyHeader: opts.renderStickyHeader,
         renderStickyFooter: opts.renderStickyFooter,
         renderHeader: opts.renderHeader,
@@ -799,7 +814,7 @@ export class VirtTree {
    *   ├─ .virt-tree-checkbox-wrapper (可选，复选框)
    *   └─ .virt-tree-node-content (标题/自定义内容)
    */
-  private _renderTreeNode(node: TreeNode): HTMLElement {
+  private _renderTreeNode(node: TreeNode, itemEl: HTMLElement): HTMLElement | void {
     const opts = this._options;
     const defaultSize = opts.itemPreSize ?? 32;
     const indent = opts.indent ?? 16;
@@ -818,9 +833,10 @@ export class VirtTree {
     const hiddenExpandIcon = this._isForceHiddenExpandIcon(node);
 
     if (opts.renderNode) {
-      const el = opts.renderNode(node, isExpanded);
-      this._nodeElMap.set(String(node.key), el);
-      return el;
+      const child = opts.renderNode(node, isExpanded, itemEl);
+      if (child) itemEl.appendChild(child);
+      this._nodeElMap.set(String(node.key), itemEl);
+      return;
     }
 
     const wrapper = document.createElement('div');
@@ -893,7 +909,8 @@ export class VirtTree {
     });
 
     if (opts.renderIcon) {
-      iconEl.appendChild(opts.renderIcon(node, isExpanded));
+      const iconChild = opts.renderIcon(node, isExpanded, iconEl);
+      if (iconChild) iconEl.appendChild(iconChild);
     } else {
       iconEl.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.5632 7.72544L10.539 13.2587C10.2728 13.6247 9.72696 13.6247 9.46073 13.2587L5.43658 7.72544C5.11611 7.28479 5.43088 6.66666 5.97573 6.66666L14.024 6.66666C14.5689 6.66666 14.8837 7.28479 14.5632 7.72544Z" fill="var(--virt-tree-color-icon)"/></svg>`;
     }
@@ -929,7 +946,8 @@ export class VirtTree {
     });
 
     if (opts.renderContent) {
-      content.appendChild(opts.renderContent(node));
+      const contentChild = opts.renderContent(node, content);
+      if (contentChild) content.appendChild(contentChild);
     } else {
       content.textContent = node.title ?? '';
     }

@@ -6,7 +6,7 @@ import {
   nextTick,
   ref,
   type Ref,
-} from 'vue-demi';
+} from 'vue';
 import { VirtList } from '../src/index';
 
 interface ListItem {

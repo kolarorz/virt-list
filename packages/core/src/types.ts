@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
+ * CSS 样式值：支持字符串（CSS 文本）或对象（键值对，camelCase 自动转 kebab-case）。
+ */
+export type StyleValue = string | Record<string, string | number>;
+
+/**
  * 虚拟列表的响应式状态数据，驱动渲染与滚动定位。
  */
 export interface ReactiveData {
@@ -96,38 +101,57 @@ export interface VirtListEvents<T extends Record<string, any>> {
  */
 export interface VirtListDOMOptions<T extends Record<string, any>>
   extends VirtListOptions<T> {
-  /** 列表项渲染函数，返回该项的 DOM 元素 */
-  renderItem: (item: T, index: number) => HTMLElement;
-  /** 列表头部渲染函数（参与滚动） */
-  renderHeader?: () => HTMLElement;
-  /** 列表底部渲染函数（参与滚动） */
-  renderFooter?: () => HTMLElement;
-  /** 吸顶区域渲染函数 */
-  renderStickyHeader?: () => HTMLElement;
-  /** 吸底区域渲染函数 */
-  renderStickyFooter?: () => HTMLElement;
-  /** 空状态渲染函数 */
-  renderEmpty?: () => HTMLElement;
+  /**
+   * 列表项渲染函数。
+   * - 返回 HTMLElement：自动 appendChild 到 item wrapper 中
+   * - 返回 void：可直接操作第三个参数 el（item wrapper），减少一层 DOM 嵌套
+   */
+  renderItem: (item: T, index: number, el: HTMLElement) => HTMLElement | void;
+  /**
+   * 列表头部渲染函数（参与滚动）。
+   * 同 renderItem，可返回元素或直接操作 el。
+   */
+  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  /**
+   * 列表底部渲染函数（参与滚动）。
+   * 同 renderItem，可返回元素或直接操作 el。
+   */
+  renderFooter?: (el: HTMLElement) => HTMLElement | void;
+  /**
+   * 吸顶区域渲染函数。
+   * 同 renderItem，可返回元素或直接操作 el。
+   */
+  renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
+  /**
+   * 吸底区域渲染函数。
+   * 同 renderItem，可返回元素或直接操作 el。
+   */
+  renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
+  /**
+   * 空状态渲染函数。
+   * 同 renderItem，可返回元素或直接操作 el。
+   */
+  renderEmpty?: (el: HTMLElement) => HTMLElement | void;
   /** 列表项 DOM 挂载后回调 */
   onItemMounted?: (el: HTMLElement) => void;
   /** 列表项 DOM 卸载后回调 */
   onItemUnmounted?: (el: HTMLElement) => void;
   /** 列表容器的自定义 style */
-  listStyle?: string;
+  listStyle?: StyleValue;
   /** 列表容器的自定义 class */
   listClass?: string;
   /** 列表项的自定义 style（可为函数） */
-  itemStyle?: string | ((item: T, index: number) => string);
+  itemStyle?: StyleValue | ((item: T, index: number) => StyleValue);
   /** 列表项的自定义 class（可为函数） */
   itemClass?: string | ((item: T, index: number) => string);
   headerClass?: string;
-  headerStyle?: string;
+  headerStyle?: StyleValue;
   footerClass?: string;
-  footerStyle?: string;
+  footerStyle?: StyleValue;
   stickyHeaderClass?: string;
-  stickyHeaderStyle?: string;
+  stickyHeaderStyle?: StyleValue;
   stickyFooterClass?: string;
-  stickyFooterStyle?: string;
+  stickyFooterStyle?: StyleValue;
 }
 
 /** 虚拟列表选项的默认值 */

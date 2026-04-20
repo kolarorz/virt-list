@@ -1,0 +1,43 @@
+{
+  "name": "@virt-list/react-legacy",
+  "version": "0.0.1",
+  "description": "React 16-17 virtual list, grid and tree components",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0"
+  },
+  "dependencies": {
+    "@virt-list/core": "workspace:*",
+    "@virt-list/vanilla": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0 <19.0.0",
+    "react-dom": ">=16.8.0 <19.0.0"
+  },
+  "keywords": ["react", "react16", "react17", "virtual-list", "virtual-tree", "virtual-grid"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicepkg/virt-list",
+    "directory": "packages/react-legacy"
+  },
+  "sideEffects": false
+}

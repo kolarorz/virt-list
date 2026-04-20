@@ -1,0 +1,23 @@
+{
+  "name": "vue2",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host --port 7104 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.3.0",
+    "vue": "^2.7.16"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@vitejs/plugin-vue2": "^2.3.3",
+    "@vitejs/plugin-vue2-jsx": "^1.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-qiankun": "^1.0.15"
+  }
+}

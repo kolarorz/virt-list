@@ -151,17 +151,29 @@ export interface VirtTreeDOMOptions {
   /** 过滤方法 */
   filterMethod?: (query: string, node: TreeNode) => boolean;
 
-  /** 自定义整个节点的渲染（替代默认的 node 结构） */
-  renderNode?: (node: TreeNode, isExpanded: boolean) => HTMLElement;
-  /** 自定义节点内容区域的渲染 */
-  renderContent?: (node: TreeNode) => HTMLElement;
-  /** 自定义展开/折叠图标的渲染 */
-  renderIcon?: (node: TreeNode, isExpanded: boolean) => HTMLElement;
-  renderStickyHeader?: () => HTMLElement;
-  renderStickyFooter?: () => HTMLElement;
-  renderHeader?: () => HTMLElement;
-  renderFooter?: () => HTMLElement;
-  renderEmpty?: () => HTMLElement;
+  /**
+   * 自定义整个节点的渲染（替代默认的 node 结构）。
+   * - 返回 HTMLElement：自动 appendChild 到 item wrapper
+   * - 返回 void：可直接操作第三个参数 el，减少一层 DOM 嵌套
+   */
+  renderNode?: (node: TreeNode, isExpanded: boolean, el: HTMLElement) => HTMLElement | void;
+  /**
+   * 自定义节点内容区域的渲染。
+   * - 返回 HTMLElement：自动 appendChild 到 content 容器
+   * - 返回 void：可直接操作第三个参数 el（content 容器）
+   */
+  renderContent?: (node: TreeNode, el: HTMLElement) => HTMLElement | void;
+  /**
+   * 自定义展开/折叠图标的渲染。
+   * - 返回 HTMLElement：自动 appendChild 到 icon 容器
+   * - 返回 void：可直接操作第三个参数 el（icon 容器）
+   */
+  renderIcon?: (node: TreeNode, isExpanded: boolean, el: HTMLElement) => HTMLElement | void;
+  renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderEmpty?: (el: HTMLElement) => HTMLElement | void;
 }
 
 /**
@@ -169,8 +181,8 @@ export interface VirtTreeDOMOptions {
  */
 export interface VirtTreeDOMEvents {
   scroll?: (e: Event) => void;
-  toTop?: (item: any) => void;
-  toBottom?: (item: any) => void;
+  toTop?: (item: TreeNode) => void;
+  toBottom?: (item: TreeNode) => void;
   itemResize?: (id: string, newSize: number) => void;
   rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
 
