@@ -1,6 +1,6 @@
 {
   "name": "@virt-list/react",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "React virtual list, grid and tree components",
   "type": "module",
   "main": "./dist/index.js",

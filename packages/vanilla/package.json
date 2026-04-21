@@ -1,6 +1,6 @@
 {
   "name": "@virt-list/vanilla",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "DOM-based virtual list, grid and tree implementations",
   "type": "module",
   "main": "./dist/index.js",
