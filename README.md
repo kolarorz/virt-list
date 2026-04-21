@@ -1,5 +1,16 @@
 # virt-list
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core.svg?sanitize=true" alt="Version"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/vanilla"><img src="https://img.shields.io/npm/v/@virt-list/vanilla.svg?sanitize=true" alt="Version"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/vue"><img src="https://img.shields.io/npm/v/@virt-list/vue.svg?sanitize=true" alt="Version"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/vue2"><img src="https://img.shields.io/npm/v/@virt-list/vue2.svg?sanitize=true" alt="Version"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/react"><img src="https://img.shields.io/npm/v/@virt-list/react.svg?sanitize=true" alt="Version"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/react-legacy"><img src="https://img.shields.io/npm/v/@virt-list/react-legacy.svg?sanitize=true" alt="Version"></a>
+</p>
+
+本项目基于 [vue-virt-list](https://github.com/kolarorz/vue-virt-list) 改造而来。基于纯 JS 重构，配合框架层适配。
+
 ## 运行
 
 ```sh
@@ -66,7 +77,7 @@ packages/
 ```text
 @virt-list/core        ← 零依赖，纯算法
     ↑
-@virt-list/vanilla         ← 依赖 core，面向无框架 / 纯 JS 用户
+@virt-list/vanilla     ← 依赖 core，面向无框架 / 纯 JS 用户
     ↑
 @virt-list/react       ← 依赖 core + dom，peerDep: react ≥18, react-dom ≥18
 @virt-list/vue         ← 依赖 core + dom，peerDep: vue ≥3.2
@@ -83,9 +94,9 @@ pnpm test              # 运行自动化测试
 
 ### 面向用户的使用方式
 
-| 用户类型       | 推荐包               | 导入示例                                           |
-| -------------- | -------------------- | -------------------------------------------------- |
-| Vue 用户       | `@virt-list/vue`     | `import { VirtList } from '@virt-list/vue'`        |
-| React 用户     | `@virt-list/react`   | `import { VirtList } from '@virt-list/react'`      |
-| 纯 JS / 无框架 | `@virt-list/vanilla` | `import { VirtList } from '@virt-list/vanilla'` |
-| 高级自定义     | `@virt-list/core`    | `import { VirtListCore } from '@virt-list/core'`   |
+| 用户类型       | 推荐包               | 导入示例                                         |
+| -------------- | -------------------- | ------------------------------------------------ |
+| Vue 用户       | `@virt-list/vue`     | `import { VirtList } from '@virt-list/vue'`      |
+| React 用户     | `@virt-list/react`   | `import { VirtList } from '@virt-list/react'`    |
+| 纯 JS / 无框架 | `@virt-list/vanilla` | `import { VirtList } from '@virt-list/vanilla'`  |
+| 高级自定义     | `@virt-list/core`    | `import { VirtListCore } from '@virt-list/core'` |

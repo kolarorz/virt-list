@@ -25,7 +25,7 @@
     "@virt-list/vanilla": "workspace:*"
   },
   "peerDependencies": {
-    "vue": ">=3.2.0"
+    "vue": ">=3"
   },
   "keywords": [
     "vue",

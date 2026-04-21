@@ -95,6 +95,12 @@ export default defineConfig({
   title: 'VirtList',
   description: 'A high-performance virtual list component for JavaScript',
   themeConfig: {
+    socialLinks: [
+      {
+        icon: 'github',
+        link: 'https://github.com/kolarorz/virt-list',
+      },
+    ],
     logo: '/logo.svg',
     search: {
       provider: 'local',

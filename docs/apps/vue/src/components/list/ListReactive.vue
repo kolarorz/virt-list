@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, onUnmounted } from 'vue';
+import { ref, onUnmounted, type ComponentPublicInstance } from 'vue';
 import { VirtList } from '@virt-list/vue';
 import '../../demo.css';
 
@@ -84,7 +84,11 @@ function createRows(count: number): Row[] {
   }));
 }
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+type VirtListExpose = {
+  forceUpdate: () => void;
+};
+
+const virtListRef = ref<(ComponentPublicInstance & VirtListExpose) | null>(null);
 const interval = ref(1000);
 const rowCount = ref(1000);
 const tick = ref(0);
@@ -111,9 +115,9 @@ function doTick() {
     row.value = Math.floor(Math.random() * 1000);
     row.updatedAt = time;
   });
+  virtListRef.value?.forceUpdate();
 
   tick.value += 1;
-  virtListRef.value?.forceUpdate();
 }
 
 function start() {
