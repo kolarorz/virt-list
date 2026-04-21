@@ -1,12 +1,24 @@
 # virt-list
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core.svg?sanitize=true" alt="Version"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/vanilla"><img src="https://img.shields.io/npm/v/@virt-list/vanilla.svg?sanitize=true" alt="Version"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/vue"><img src="https://img.shields.io/npm/v/@virt-list/vue.svg?sanitize=true" alt="Version"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/vue2"><img src="https://img.shields.io/npm/v/@virt-list/vue2.svg?sanitize=true" alt="Version"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/react"><img src="https://img.shields.io/npm/v/@virt-list/react.svg?sanitize=true" alt="Version"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/react-legacy"><img src="https://img.shields.io/npm/v/@virt-list/react-legacy.svg?sanitize=true" alt="Version"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/core">
+    <img src="https://img.shields.io/npm/v/@virt-list/core.svg?sanitize=true&label=@virt-list/core" alt="Version">
+  </a>
+  <a href="https://www.npmjs.com/package/@virt-list/vanilla">
+    <img src="https://img.shields.io/npm/v/@virt-list/vanilla.svg?sanitize=true&label=@virt-list/vanilla" alt="Version">
+  </a>
+  <a href="https://www.npmjs.com/package/@virt-list/vue">
+    <img src="https://img.shields.io/npm/v/@virt-list/vue.svg?sanitize=true&label=@virt-list/vue" alt="Version">
+  </a>
+  <a href="https://www.npmjs.com/package/@virt-list/vue2">
+    <img src="https://img.shields.io/npm/v/@virt-list/vue2.svg?sanitize=true&label=@virt-list/vue3" alt="Version">
+  </a>
+  <a href="https://www.npmjs.com/package/@virt-list/react">
+    <img src="https://img.shields.io/npm/v/@virt-list/react.svg?sanitize=true&label=@virt-list/react" alt="Version">
+  </a>
+  <a href="https://www.npmjs.com/package/@virt-list/react-legacy">
+    <img src="https://img.shields.io/npm/v/@virt-list/react-legacy.svg?sanitize=true&label=@virt-list/react-legacy" alt="Version">
+  </a>
 </p>
 
 本项目基于 [vue-virt-list](https://github.com/kolarorz/vue-virt-list) 改造而来。基于纯 JS 重构，配合框架层适配。
