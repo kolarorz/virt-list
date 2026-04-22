@@ -13,8 +13,9 @@ import {
 } from 'vue';
 import { VirtList as VirtListVanilla } from '@virt-list/vanilla';
 import type {
+  ClassValue,
   StyleValue,
-  ReactiveData,
+  ListState,
   SlotSize,
   VirtListDOMOptions,
   VirtListEvents,
@@ -27,17 +28,16 @@ export interface EmitFunction<T> {
   toTop?: (item: T) => void;
   toBottom?: (item: T) => void;
   itemResize?: (id: string, newSize: number) => void;
-  rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
-  update?: (renderList: T[], state: ReactiveData) => void;
+  update?: (renderList: T[], state: ListState) => void;
 }
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
   containerRef: ReturnType<typeof ref<HTMLElement | null>>;
-  reactiveData: ReactiveData;
+  reactiveData: ListState;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
-  getReactiveData: () => ReactiveData;
+  getState: () => ListState;
   getOffset: () => number;
   getSlotSize: () => number;
   reset: () => void;
@@ -72,7 +72,6 @@ export function useVirtList<T extends Record<string, any>>(
     toTop: (item) => emitFunction?.toTop?.(item),
     toBottom: (item) => emitFunction?.toBottom?.(item),
     itemResize: (id, size) => emitFunction?.itemResize?.(id, size),
-    rangeUpdate: (begin, end) => emitFunction?.rangeUpdate?.(begin, end),
     update: (list, state) => emitFunction?.update?.(list, state),
   };
 
@@ -95,7 +94,7 @@ export function useVirtList<T extends Record<string, any>>(
     get slotSize() { return getVL().core.slotSize; },
     get sizesMap() { return getVL().core.sizesMap; },
     get resizeObserver() { return getVL().core.resizeObserver; },
-    getReactiveData: () => getVL().state,
+    getState: () => getVL().state,
     getOffset: () => getVL().core.getOffset(),
     getSlotSize: () => getVL().core.getSlotSize(),
     reset: () => vl?.reset(),
@@ -124,8 +123,7 @@ export const VirtList = defineComponent({
     toTop: (firstItem: unknown) => firstItem,
     toBottom: (lastItem: unknown) => lastItem,
     itemResize: (_id: string, _newSize: number) => true,
-    rangeUpdate: (_inViewBegin: number, _inViewEnd: number) => true,
-    update: (_renderList: unknown[], _state: ReactiveData) => true,
+    update: (_renderList: unknown[], _state: ListState) => true,
   },
   props: {
     list: { type: Array as () => any[], default: () => [] },
@@ -139,20 +137,19 @@ export const VirtList = defineComponent({
     bufferBottom: { type: Number, default: 0 },
     scrollDistance: { type: Number, default: 0 },
     horizontal: { type: Boolean, default: false },
-    fixSelection: { type: Boolean, default: false },
     start: { type: Number, default: 0 },
     offset: { type: Number, default: 0 },
-    listStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
-    listClass: { type: [String, Array, Object] as PropType<string>, default: '' },
-    itemStyle: { type: [String, Object, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
-    itemClass: { type: [String, Array, Object, Function] as PropType<string | ((item: any, index: number) => string)>, default: '' },
-    headerClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
+    listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
+    itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
+    itemClass: { type: [String, Array, Object, Function] as PropType<ClassValue | ((item: any, index: number) => ClassValue)>, default: '' },
+    headerClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     headerStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
-    footerClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    footerClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     footerStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
-    stickyHeaderClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    stickyHeaderClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     stickyHeaderStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
-    stickyFooterClass: { type: [String, Array, Object] as PropType<string>, default: '' },
+    stickyFooterClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     stickyFooterStyle: { type: [String, Object] as PropType<StyleValue>, default: '' },
     renderItem: { type: Function as PropType<(item: any, index: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
   },
@@ -189,16 +186,16 @@ export const VirtList = defineComponent({
         offset: props.offset,
         renderControl: props.renderControl as any,
         listStyle: props.listStyle,
-        listClass: props.listClass as string,
+        listClass: props.listClass,
         itemStyle: props.itemStyle as any,
         itemClass: props.itemClass as any,
-        headerClass: props.headerClass as string,
+        headerClass: props.headerClass,
         headerStyle: props.headerStyle,
-        footerClass: props.footerClass as string,
+        footerClass: props.footerClass,
         footerStyle: props.footerStyle,
-        stickyHeaderClass: props.stickyHeaderClass as string,
+        stickyHeaderClass: props.stickyHeaderClass,
         stickyHeaderStyle: props.stickyHeaderStyle,
-        stickyFooterClass: props.stickyFooterClass as string,
+        stickyFooterClass: props.stickyFooterClass,
         stickyFooterStyle: props.stickyFooterStyle,
         renderItem: props.renderItem ?? ((item: any, index: number, el: HTMLElement) => {
           if (slots.default) {
@@ -232,7 +229,6 @@ export const VirtList = defineComponent({
         toTop: (item) => emit('toTop', item),
         toBottom: (item) => emit('toBottom', item),
         itemResize: (id, size) => emit('itemResize', id, size),
-        rangeUpdate: (begin, end) => emit('rangeUpdate', begin, end),
         update: (renderList, state) => emit('update', renderList, state),
       };
     }
@@ -254,11 +250,11 @@ export const VirtList = defineComponent({
     });
 
     const api = {
-      reactiveData: undefined as unknown as ReactiveData,
+      reactiveData: undefined as unknown as ListState,
       slotSize: undefined as unknown as SlotSize,
       sizesMap: undefined as unknown as Map<string, number>,
       resizeObserver: undefined as ResizeObserver | undefined,
-      getReactiveData: () => vl!.state,
+      getState: () => vl!.state,
       getOffset: () => vl!.core.getOffset(),
       getSlotSize: () => vl!.core.getSlotSize(),
       reset: () => vl?.reset(),

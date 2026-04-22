@@ -1,14 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/** 样式对象（键值对，camelCase 会被转换为 kebab-case） */
+export type StyleObject = Record<string, string | number | null | undefined>;
+
 /**
- * CSS 样式值：支持字符串（CSS 文本）或对象（键值对，camelCase 自动转 kebab-case）。
+ * CSS 样式值：
+ * - string: CSS 文本
+ * - object: 样式对象
+ * - array: 样式数组（可嵌套）
  */
-export type StyleValue = string | Record<string, string | number>;
+export type StyleValue = string | StyleObject | StyleValue[];
+
+/**
+ * class 值：
+ * - string: class 文本
+ * - object: `{ className: boolean }`
+ * - array: class 数组（可嵌套）
+ */
+export type ClassValue =
+  | string
+  | Record<string, boolean | null | undefined>
+  | ClassValue[];
 
 /**
  * 虚拟列表的响应式状态数据，驱动渲染与滚动定位。
  */
-export interface ReactiveData {
+export interface ListState {
   /** 所有列表项的尺寸总和（不含 slot） */
   listTotalSize: number;
   /** renderBegin 之前所有项的累计尺寸，用于虚拟占位 */
@@ -90,10 +107,8 @@ export interface VirtListEvents<T extends Record<string, any>> {
   toBottom?: (item: T) => void;
   /** 某项尺寸变化时触发 */
   itemResize?: (id: string, newSize: number) => void;
-  /** 可视区间变化时触发 */
-  rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
-  /** 渲染列表更新时触发（内部 patch 使用） */
-  update?: (renderList: T[], state: ReactiveData) => void;
+  /** 渲染列表（可视区间）更新时触发 */
+  update?: (renderList: T[], state: ListState) => void;
 }
 
 /**
@@ -139,18 +154,18 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
   /** 列表容器的自定义 style */
   listStyle?: StyleValue;
   /** 列表容器的自定义 class */
-  listClass?: string;
+  listClass?: ClassValue;
   /** 列表项的自定义 style（可为函数） */
   itemStyle?: StyleValue | ((item: T, index: number) => StyleValue);
   /** 列表项的自定义 class（可为函数） */
-  itemClass?: string | ((item: T, index: number) => string);
-  headerClass?: string;
+  itemClass?: ClassValue | ((item: T, index: number) => ClassValue);
+  headerClass?: ClassValue;
   headerStyle?: StyleValue;
-  footerClass?: string;
+  footerClass?: ClassValue;
   footerStyle?: StyleValue;
-  stickyHeaderClass?: string;
+  stickyHeaderClass?: ClassValue;
   stickyHeaderStyle?: StyleValue;
-  stickyFooterClass?: string;
+  stickyFooterClass?: ClassValue;
   stickyFooterStyle?: StyleValue;
 }
 

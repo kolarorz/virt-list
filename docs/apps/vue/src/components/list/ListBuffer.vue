@@ -69,7 +69,7 @@ function generateList(count: number, startIndex = 0) {
 
 type Item = ReturnType<typeof generateList>[number];
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const addCount = ref(1000);
 const autoTimer = ref<ReturnType<typeof setInterval> | null>(null);

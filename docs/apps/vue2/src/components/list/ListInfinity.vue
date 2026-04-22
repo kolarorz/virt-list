@@ -54,7 +54,7 @@ function generateList(count: number, startIndex = 0, delay = 0) {
 
 type Item = Awaited<ReturnType<typeof generateList>>[number];
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const list = ref<Item[]>([]);
 const loading = ref(false);

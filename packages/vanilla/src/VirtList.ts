@@ -1,10 +1,10 @@
 import { VirtListCore } from '@virt-list/core';
 import type {
-  ReactiveData,
+  ListState,
   VirtListDOMOptions,
   VirtListEvents,
 } from '@virt-list/core';
-import { mergeStyles, applyStyle, normalizeStyle } from './utils';
+import { mergeStyles, applyClass, applyStyle, normalizeStyle } from './utils';
 
 /**
  * 虚拟列表的 DOM 层实现。
@@ -45,7 +45,7 @@ export class VirtList<T extends Record<string, any>> {
     return this._core;
   }
 
-  get state(): ReactiveData {
+  get state(): ListState {
     return this._core.state;
   }
 
@@ -71,7 +71,6 @@ export class VirtList<T extends Record<string, any>> {
       toTop: (item) => externalEvents?.toTop?.(item),
       toBottom: (item) => externalEvents?.toBottom?.(item),
       itemResize: (id, size) => externalEvents?.itemResize?.(id, size),
-      rangeUpdate: (begin, end) => externalEvents?.rangeUpdate?.(begin, end),
       update: (renderList, state) => {
         if (this._domReady) {
           this._patch(renderList, state);
@@ -202,7 +201,7 @@ export class VirtList<T extends Record<string, any>> {
       this._stickyHeaderEl = document.createElement('div');
       this._stickyHeaderEl.dataset.id = 'stickyHeader';
       if (this._options.stickyHeaderClass) {
-        this._stickyHeaderEl.className = this._options.stickyHeaderClass;
+        applyClass(this._stickyHeaderEl, this._options.stickyHeaderClass);
       }
       applyStyle(
         this._stickyHeaderEl,
@@ -221,7 +220,7 @@ export class VirtList<T extends Record<string, any>> {
       this._headerEl = document.createElement('div');
       this._headerEl.dataset.id = 'header';
       if (this._options.headerClass) {
-        this._headerEl.className = this._options.headerClass;
+        applyClass(this._headerEl, this._options.headerClass);
       }
       if (this._options.headerStyle) {
         applyStyle(this._headerEl, this._options.headerStyle);
@@ -233,7 +232,7 @@ export class VirtList<T extends Record<string, any>> {
 
     this._listEl = document.createElement('div');
     if (this._options.listClass) {
-      this._listEl.className = this._options.listClass;
+      applyClass(this._listEl, this._options.listClass);
     }
 
     this._virtualEl = document.createElement('div');
@@ -245,7 +244,7 @@ export class VirtList<T extends Record<string, any>> {
       this._footerEl = document.createElement('div');
       this._footerEl.dataset.id = 'footer';
       if (this._options.footerClass) {
-        this._footerEl.className = this._options.footerClass;
+        applyClass(this._footerEl, this._options.footerClass);
       }
       if (this._options.footerStyle) {
         applyStyle(this._footerEl, this._options.footerStyle);
@@ -259,7 +258,7 @@ export class VirtList<T extends Record<string, any>> {
       this._stickyFooterEl = document.createElement('div');
       this._stickyFooterEl.dataset.id = 'stickyFooter';
       if (this._options.stickyFooterClass) {
-        this._stickyFooterEl.className = this._options.stickyFooterClass;
+        applyClass(this._stickyFooterEl, this._options.stickyFooterClass);
       }
       applyStyle(
         this._stickyFooterEl,
@@ -289,7 +288,7 @@ export class VirtList<T extends Record<string, any>> {
    * 这意味着如果同一 key 对应的数据内容变了（如 grid 的 row children），
    * 需要先 clearItemPool() 才能获得正确渲染。
    */
-  private _patch(renderList: T[], reactiveData: ReactiveData): void {
+  private _patch(renderList: T[], reactiveData: ListState): void {
     const { itemKey, horizontal, listStyle, itemGap } = this._options;
     const { listTotalSize, virtualSize, renderBegin } = reactiveData;
 
@@ -364,7 +363,7 @@ export class VirtList<T extends Record<string, any>> {
           typeof this._options.itemClass === 'function'
             ? this._options.itemClass(item, renderBegin + i)
             : this._options.itemClass ?? '';
-        if (customClass) el.className = customClass;
+        if (customClass) applyClass(el, customClass);
 
         const child = this._options.renderItem(item, renderBegin + i, el);
         if (child) el.appendChild(child);

@@ -8,9 +8,11 @@ import {
   type ForwardedRef,
   type Ref,
   type ReactElement,
+  type ReactNode,
 } from 'react';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
-import type { StyleValue } from '@virt-list/core';
+import type { ListState, StyleValue } from '@virt-list/core';
+import { createReactMounter } from './compat';
 
 export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
   list: T[];
@@ -21,7 +23,8 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   fixed?: boolean;
   buffer?: number;
   itemStyle?: StyleValue;
-  renderCell: (item: T, index: number, rowIndex: number) => HTMLElement;
+  children?: (props: { itemData: T; index: number; rowIndex: number }) => ReactNode;
+  renderItem?: (item: T, index: number, rowIndex: number, el: HTMLElement) => HTMLElement | void;
   renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
   renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
@@ -33,7 +36,7 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   onToTop?: (item: unknown) => void;
   onToBottom?: (item: unknown) => void;
   onItemResize?: (id: string, size: number) => void;
-  onRangeUpdate?: (begin: number, end: number) => void;
+  onUpdate?: (renderList: unknown[], state: ListState) => void;
 
   style?: React.CSSProperties;
   className?: string;
@@ -53,14 +56,15 @@ export interface VirtGridRef {
 /**
  * React 16-17 虚拟网格组件。
  *
- * VirtGrid 的 renderCell 直接返回 HTMLElement，不涉及 React 节点挂载，
- * 因此 React 16-17 与 18+ 无 API 差异。
+ * 默认通过 children 渲染单元格；也可用 renderItem 走底层 DOM 回调。
  */
 function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<VirtGridVanilla<any> | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
+  const mountedElsRef = useRef(new Set<HTMLElement>());
+  const { mountReact, cleanupAllRoots } = createReactMounter(mountedElsRef);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -76,7 +80,15 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         fixed: props.fixed,
         buffer: props.buffer ?? 2,
         itemStyle: props.itemStyle,
-        renderCell: props.renderCell,
+        renderItem: props.renderItem ?? ((item: any, index: number, rowIndex: number, el: HTMLElement) => {
+          if (eventsRef.current.children) {
+            mountReact(
+              `grid:item:${String(item?.[props.itemKey] ?? index)}`,
+              eventsRef.current.children({ itemData: item, index, rowIndex }),
+              el,
+            );
+          }
+        }),
         renderStickyHeader: props.renderStickyHeader,
         renderStickyFooter: props.renderStickyFooter,
         renderHeader: props.renderHeader,
@@ -89,13 +101,14 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         toTop: (item) => eventsRef.current.onToTop?.(item),
         toBottom: (item) => eventsRef.current.onToBottom?.(item),
         itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
-        rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
+        update: (renderList, state) => eventsRef.current.onUpdate?.(renderList, state),
       },
     );
 
     return () => {
       gridRef.current?.destroy();
       gridRef.current = null;
+      cleanupAllRoots();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

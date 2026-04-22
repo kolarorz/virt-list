@@ -1,3 +1,5 @@
+import type { ListState } from '@virt-list/core';
+
 /** 树节点原始数据（用户传入的未加工数据） */
 export type TreeNodeData = Record<string, any>;
 /** 树节点唯一标识 */
@@ -180,12 +182,11 @@ export interface VirtTreeDOMOptions {
  * 虚拟树事件回调。
  */
 export interface VirtTreeDOMEvents {
+  update?: (renderList: TreeNode[], state: ListState) => void;
   scroll?: (e: Event) => void;
   toTop?: (item: TreeNode) => void;
   toBottom?: (item: TreeNode) => void;
   itemResize?: (id: string, newSize: number) => void;
-  rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
-
   click?: (data: TreeNodeData, node: TreeNode, e: MouseEvent) => void;
 
   /** 展开/折叠状态变化时触发 */

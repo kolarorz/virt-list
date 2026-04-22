@@ -66,7 +66,7 @@ function generateList(count: number, startIndex = 0) {
 
 type ListItem = ReturnType<typeof generateList>[number];
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('总数: 0');
 const isEmpty = ref(true);
 const list = ref<ListItem[]>([]);

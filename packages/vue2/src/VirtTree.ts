@@ -10,6 +10,7 @@ import {
 } from 'vue';
 import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
+  ListState,
   TreeNode,
   TreeNodeKey,
   TreeData,
@@ -189,7 +190,7 @@ export const VirtTree = defineComponent({
         toTop: (item) => emit('toTop', item),
         toBottom: (item) => emit('toBottom', item),
         itemResize: (id, size) => emit('itemResize', id, size),
-        rangeUpdate: (begin, end) => emit('rangeUpdate', begin, end),
+        update: (renderList, state) => emit('update', renderList, state),
       };
     }
 

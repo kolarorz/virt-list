@@ -9,13 +9,13 @@ import {
   type PropType,
 } from 'vue';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
-import type { StyleValue } from '@virt-list/core';
+import type { ListState, StyleValue } from '@virt-list/core';
+import { createSlotMounter } from './compat';
 
 /**
  * Vue 2 虚拟网格组件。
  *
- * VirtGrid 不涉及 slot 挂载（renderCell 直接返回 HTMLElement），
- * 因此 Vue 2/3 之间无 render/Fragment 差异，仅 import 来源不同。
+ * renderItem 通过 Vue 渲染器挂载到网格单元格容器。
  *
  * 注意：Vue 2.7 内置 Composition API，可直接 import from 'vue'。
  * 若使用 Vue 2.6，需将 import 来源替换为 '@vue/composition-api'，
@@ -31,18 +31,19 @@ export const VirtGrid = defineComponent({
     itemGap: { type: Number, default: 0 },
     fixed: { type: Boolean, default: false },
     buffer: { type: Number, default: 2 },
-    itemStyle: { type: [String, Object] as PropType<StyleValue>, default: undefined },
-    renderCell: { type: Function as PropType<(item: any, index: number, rowIndex: number) => HTMLElement>, required: true },
+    itemStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: undefined },
+    renderItem: { type: Function as PropType<(item: any, index: number, rowIndex: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderEmpty: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
-    stickyHeaderStyle: { type: [String, Object] as PropType<StyleValue>, default: undefined },
+    stickyHeaderStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: undefined },
   },
-  setup(props, { emit, expose }) {
+  setup(props, { emit, expose, slots }) {
     const containerRef = ref<HTMLElement | null>(null);
     let grid: VirtGridVanilla<any> | null = null;
+    const { mountSlot, cleanupSlots } = createSlotMounter();
 
     onMounted(() => {
       if (!containerRef.value) return;
@@ -57,7 +58,15 @@ export const VirtGrid = defineComponent({
           fixed: props.fixed,
           buffer: props.buffer,
           itemStyle: props.itemStyle,
-          renderCell: props.renderCell,
+          renderItem: props.renderItem ?? ((item, index, rowIndex, el) => {
+            if (slots.default) {
+              mountSlot(
+                `grid:item:${String(item?.[props.itemKey] ?? index)}`,
+                () => slots.default!({ itemData: item, index, rowIndex }),
+                el,
+              );
+            }
+          }),
           renderStickyHeader: props.renderStickyHeader,
           renderStickyFooter: props.renderStickyFooter,
           renderHeader: props.renderHeader,
@@ -70,7 +79,7 @@ export const VirtGrid = defineComponent({
           toTop: (item) => emit('toTop', item),
           toBottom: (item) => emit('toBottom', item),
           itemResize: (id, size) => emit('itemResize', id, size),
-          rangeUpdate: (begin, end) => emit('rangeUpdate', begin, end),
+          update: (renderList, state) => emit('update', renderList, state),
         },
       );
     });
@@ -78,6 +87,7 @@ export const VirtGrid = defineComponent({
     onBeforeUnmount(() => {
       grid?.destroy();
       grid = null;
+      cleanupSlots();
     });
 
     watch(() => props.list, (newList) => {

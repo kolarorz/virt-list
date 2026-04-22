@@ -1,56 +1,22 @@
 # VirtGrid API
 
-VirtGrid 为虚拟网格列表。**不提供插槽**：单元格等内容通过 **`renderCell`** 渲染函数返回原生 `HTMLElement`（非 Vue VNode）。
+适用于 **Vue 2**。VirtGrid 基于 VirtList 封装：**与 VirtList 相同的 props / 事件保持一致即可，不重复列出**。
 
-## StyleValue
+## 仅 VirtGrid 特有属性
 
-部分样式属性的类型为 **`StyleValue`**，定义为：
-
-`string | Record<string, string | number>`
-
-## 属性
-
-| 参数               | 说明                                                             | 类型                                                                                | 默认值                                                                 | 是否必须                     |
-| ------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------- |
-| list               | 数据列表                                                         | `T[]`                                                                               | -                                                                      | <font color="#f00">是</font> |
-| gridItems          | 每行展示个数                                                     | `Number`                                                                            | -（无默认值，必须传入）                                                | <font color="#f00">是</font> |
-| itemKey            | 项的唯一标识                                                     | `String`                                                                            | -                                                                      | <font color="#f00">是</font> |
-| renderCell         | 单元格渲染函数，返回 `HTMLElement`                               | `(item: T, index: number, rowIndex: number) => HTMLElement`                       | -                                                                      | <font color="#f00">是</font> |
-| itemPreSize        | 预估行高（px）                                                   | `Number`                                                                            | `50`                                                                   | -                            |
-| itemGap            | 行间距                                                           | `Number`                                                                            | `0`                                                                    | -                            |
-| fixed              | 是否固定高度                                                     | `Boolean`                                                                           | `false`                                                                | -                            |
-| buffer             | buffer 行数                                                      | `Number`                                                                            | `2`                                                                    | -                            |
-| itemStyle          | 单元格容器样式                                                   | `StyleValue`                                                                        | `undefined`                                                            | -                            |
-| stickyHeaderStyle  | 悬浮头部区域样式                                                 | `StyleValue`                                                                        | `undefined`                                                            | -                            |
-| renderStickyHeader | 悬浮头部渲染                                                     | `(el: HTMLElement) => HTMLElement \| void`                                          | `undefined`                                                            | -                            |
-| renderStickyFooter | 悬浮底部渲染                                                     | `(el: HTMLElement) => HTMLElement \| void`                                          | `undefined`                                                            | -                            |
-| renderHeader       | 头部渲染                                                         | `(el: HTMLElement) => HTMLElement \| void`                                          | `undefined`                                                            | -                            |
-| renderFooter       | 底部渲染                                                         | `(el: HTMLElement) => HTMLElement \| void`                                          | `undefined`                                                            | -                            |
-| renderEmpty        | 空数据渲染                                                       | `(el: HTMLElement) => HTMLElement \| void`                                          | `undefined`                                                            | -                            |
-
-Vue 2 中通常不会像 Vue 3 那样使用 `emits` 选项声明事件，但 **`@scroll`、`@toTop` 等事件名称与 Vue 3 一致，均可正常使用**。
+| 参数           | 说明              | 类型                                                                                 | 是否必须                     |
+| -------------- | ----------------- | ------------------------------------------------------------------------------------ | ---------------------------- |
+| `gridItems`    | 每行展示个数      | `number`                                                                             | <font color="#f00">是</font> |
+| `default` 插槽 | 插槽              | `#default="{ itemData, index, rowIndex }"`                                           | 推荐                         |
+| `renderItem`   | 低阶 DOM 渲染回调 | `(item: T, index: number, rowIndex: number, el: HTMLElement) => HTMLElement \| void` | 可选                         |
 
 ## 事件
 
-| 事件名       | 说明           | 参数                                                         |
-| ------------ | -------------- | ------------------------------------------------------------ |
-| scroll       | 滚动回调       | `(e: Event)`                                                 |
-| toTop        | 触顶回调       | `(item: unknown)` — 通常为列表首项相关数据                   |
-| toBottom     | 触底回调       | `(item: unknown)` — 通常为列表末项相关数据                   |
-| itemResize   | Item 尺寸变化  | `(id: string, size: number)`                                 |
-| rangeUpdate  | 可视区范围变更 | `(begin: number, end: number)`                               |
+- 同 VirtList 事件即可（`scroll` / `toTop` / `toBottom` / `itemResize` / `update`）
+- `update` 签名：`(renderList: unknown[], state: ListState)`
 
 ## 暴露方法
 
-在 **Vue 2.7+** 等支持组合式 / `expose` 的用法中，通过 **`expose`** 暴露，父组件用 `ref` 调用（与 Vue 3 能力对齐）：
-
-| 方法名          | 说明                                                 | 参数           |
-| --------------- | ---------------------------------------------------- | -------------- |
-| setList         | 设置新数据列表                                       | `list: T[]`    |
-| setGridItems    | 设置每行展示个数                                     | `n: number`    |
-| scrollToIndex   | 滚动到指定下标                                       | `index`        |
-| scrollIntoView  | 滚动到指定下标（若不在可视范围内）                   | `index`        |
-| scrollToTop     | 滚动到顶部                                           | -              |
-| scrollToBottom  | 滚动到底部                                           | -              |
-| scrollToOffset  | 滚动到指定偏移量（px）                               | `offset`       |
-| forceUpdate     | 强制更新                                             | -              |
+- 同 VirtList 的滚动方法即可（`scrollToIndex` / `scrollIntoView` / `scrollToTop` / `scrollToBottom` / `scrollToOffset`）
+- 列表管理：`setList`、`forceUpdate`
+- 网格专属：`setGridItems(n: number)`

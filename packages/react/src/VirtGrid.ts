@@ -8,9 +8,12 @@ import {
   type ForwardedRef,
   type Ref,
   type ReactElement,
+  type ReactNode,
 } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
-import type { StyleValue } from '@virt-list/core';
+import type { ListState, StyleValue } from '@virt-list/core';
 
 export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
   list: T[];
@@ -21,7 +24,8 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   fixed?: boolean;
   buffer?: number;
   itemStyle?: StyleValue;
-  renderCell: (item: T, index: number, rowIndex: number) => HTMLElement;
+  children?: (props: { itemData: T; index: number; rowIndex: number }) => ReactNode;
+  renderItem?: (item: T, index: number, rowIndex: number, el: HTMLElement) => HTMLElement | void;
   renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
   renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
@@ -33,7 +37,7 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   onToTop?: (item: unknown) => void;
   onToBottom?: (item: unknown) => void;
   onItemResize?: (id: string, size: number) => void;
-  onRangeUpdate?: (begin: number, end: number) => void;
+  onUpdate?: (renderList: unknown[], state: ListState) => void;
 
   style?: React.CSSProperties;
   className?: string;
@@ -61,9 +65,33 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   const gridRef = useRef<VirtGridVanilla<any> | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
+  const reactRootsRef = useRef(new Map<string, Root>());
+
+  function mountReact(mountKey: string, node: ReactNode, el: HTMLElement): void {
+    const old = reactRootsRef.current.get(mountKey);
+    if (old) {
+      queueMicrotask(() => {
+        old.unmount();
+      });
+    }
+    const root = createRoot(el);
+    queueMicrotask(() => {
+      flushSync(() => root.render(node));
+    });
+    reactRootsRef.current.set(mountKey, root);
+  }
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    const events = {
+      scroll: (e: Event) => eventsRef.current.onScroll?.(e),
+      toTop: (item: unknown) => eventsRef.current.onToTop?.(item),
+      toBottom: (item: unknown) => eventsRef.current.onToBottom?.(item),
+      itemResize: (id: string, size: number) => eventsRef.current.onItemResize?.(id, size),
+      update: (renderList: unknown[], state: ListState) =>
+        eventsRef.current.onUpdate?.(renderList, state),
+    } as any;
 
     gridRef.current = new VirtGridVanilla(
       containerRef.current,
@@ -76,7 +104,15 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         fixed: props.fixed,
         buffer: props.buffer ?? 2,
         itemStyle: props.itemStyle,
-        renderCell: props.renderCell,
+        renderItem: props.renderItem ?? ((item: any, index: number, rowIndex: number, el: HTMLElement) => {
+          if (eventsRef.current.children) {
+            mountReact(
+              `grid:item:${String(item?.[props.itemKey] ?? index)}`,
+              eventsRef.current.children({ itemData: item, index, rowIndex }),
+              el,
+            );
+          }
+        }),
         renderStickyHeader: props.renderStickyHeader,
         renderStickyFooter: props.renderStickyFooter,
         renderHeader: props.renderHeader,
@@ -84,18 +120,14 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         renderEmpty: props.renderEmpty,
         stickyHeaderStyle: props.stickyHeaderStyle,
       },
-      {
-        scroll: (e) => eventsRef.current.onScroll?.(e),
-        toTop: (item) => eventsRef.current.onToTop?.(item),
-        toBottom: (item) => eventsRef.current.onToBottom?.(item),
-        itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
-        rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
-      },
+      events,
     );
 
     return () => {
       gridRef.current?.destroy();
       gridRef.current = null;
+      reactRootsRef.current.forEach((root) => root.unmount());
+      reactRootsRef.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -38,7 +38,7 @@ export function bootstrapGridBasic(root) {
     gridItems: 2,
     itemKey: 'id',
     itemPreSize: 70,
-    renderCell: (item, index, rowIndex) => {
+    renderItem: (item, index, rowIndex) => {
       const cell = document.createElement('div');
       cell.className = 'grid-cell';
       cell.innerHTML = `

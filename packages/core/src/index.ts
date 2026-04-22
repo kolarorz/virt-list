@@ -1,7 +1,9 @@
 export { VirtListCore } from './VirtListCore';
 export type {
+  ClassValue,
   StyleValue,
-  ReactiveData,
+  StyleObject,
+  ListState,
   SlotSize,
   VirtListOptions,
   VirtListEvents,

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { VirtList } from './VirtList';
 import { normalizeStyle } from './utils';
-import type { StyleValue, VirtListEvents } from '@virt-list/core';
+import type { ListState, StyleValue, VirtListEvents } from '@virt-list/core';
 
 /**
  * 网格布局配置项。
@@ -23,8 +23,13 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   buffer?: number;
   /** 行的自定义 style */
   itemStyle?: StyleValue;
-  /** 单元格渲染函数 */
-  renderCell: (item: T, index: number, rowIndex: number) => HTMLElement;
+  /** 单元格渲染函数（可返回 HTMLElement，或直接渲染到传入 el） */
+  renderItem: (
+    item: T,
+    index: number,
+    rowIndex: number,
+    el: HTMLElement,
+  ) => HTMLElement | void;
   renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
   renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
@@ -38,7 +43,7 @@ export interface VirtGridEvents<T extends Record<string, any> = Record<string, a
   toTop?: (item: GridRow<T>) => void;
   toBottom?: (item: GridRow<T>) => void;
   itemResize?: (id: string, newSize: number) => void;
-  rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
+  update?: (renderList: GridRow<T>[], state: ListState) => void;
 }
 
 /**
@@ -55,7 +60,7 @@ export interface GridRow<T> {
  * 虚拟网格布局的 DOM 实现。
  *
  * 原理：将扁平的 list 按 gridItems 分组为 GridRow[]（每行包含 gridItems 个子项），
- * 然后交给 VirtList 进行虚拟滚动。每行的 renderItem 内部调用 renderCell 渲染各个单元格。
+ * 然后交给 VirtList 进行虚拟滚动。每行的 renderItem 内部调用外部 renderItem 渲染各个单元格。
  *
  * 注意：GridRow 的 _id 是扁平数组的起始索引。当 gridItems 变化时，
  * 新旧行的 _id 可能重叠（如 gridItems=2 的 row[0,2,4...] 和 gridItems=3 的 row[0,3,6...]）。
@@ -80,7 +85,7 @@ export class VirtGrid<T extends Record<string, any>> {
       toTop: (item) => events?.toTop?.(item),
       toBottom: (item) => events?.toBottom?.(item),
       itemResize: (id, size) => events?.itemResize?.(id, size),
-      rangeUpdate: (begin, end) => events?.rangeUpdate?.(begin, end),
+      update: (renderList, state) => events?.update?.(renderList, state),
     };
 
     this._virtListDOM = new VirtList<GridRow<T>>(
@@ -95,12 +100,14 @@ export class VirtGrid<T extends Record<string, any>> {
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {
-            const cellEl = this._options.renderCell(
+            const mountEl = document.createElement('div');
+            const cellEl = this._options.renderItem(
               rowData.children[i]!,
               rowData._id + i,
               rowIndex,
+              mountEl,
             );
-            el.appendChild(cellEl);
+            el.appendChild(cellEl ?? mountEl);
           }
         },
         renderStickyHeader: options.renderStickyHeader,

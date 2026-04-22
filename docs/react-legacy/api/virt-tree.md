@@ -128,7 +128,7 @@
 | onToTop      | 触顶               | **`(item: TreeNode) => void`**            |
 | onToBottom   | 触底               | **`(item: TreeNode) => void`**            |
 | onItemResize | Item 尺寸变化      | **`(id: string, size: number) => void`**    |
-| onRangeUpdate | 可视区范围变更    | **`(begin: number, end: number) => void`** |
+| onUpdate | 渲染列表更新      | **`(renderList: TreeNode[], state: ListState) => void`** |
 
 受控用法：通过 **`expandedKeys` / `selectedKeys` / `checkedKeys`** 与 **`onExpand` / `onSelect` / `onCheck`** 同步状态（回调首参或 **`data`** 中带最新 key 集合，可按项目约定自行封装）。
 

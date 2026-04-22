@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { faker } from '@faker-js/faker';
 import { VirtGrid as VirtGridRoot, type VirtGridRef } from '@virt-list/react';
+import { GridItem } from './GridItem';
 import '../../demo.css';
 
 function generateData(count: number) {
@@ -43,37 +44,28 @@ export default function VirtGrid() {
           onToTop={() => {
             setStatus('已滚动到顶部');
           }}
-          renderCell={(item: (typeof list)[number], index: number, rowIndex: number) => {
-            const cell = document.createElement('div');
-            cell.className = 'grid-cell';
-            cell.innerHTML = `
-        <div>
-          <div style="font-size:12px;color:#999;">row:${rowIndex} - item:${index}</div>
-          <div style="display:flex;align-items:center;">
-            <img src="${item.avatar}" style="width:40px;height:40px;border-radius:50%;" />
-            <span style="margin-left:6px;">${item.name}</span>
-          </div>
-        </div>
-        <button class="grid-delete-btn" data-id="${item.id}">delete</button>
-      `;
-
-            const deleteBtn = cell.querySelector('.grid-delete-btn');
-            deleteBtn?.addEventListener('click', () => {
-              const id = item.id;
-              setList((prev) => {
-                const idx = prev.findIndex((v) => v.id === id);
-                if (idx > -1) {
-                  const next = prev.slice();
-                  next.splice(idx, 1);
-                  setStatus(`已删除 item ${index}，剩余 ${next.length} 项`);
-                  return next;
-                }
-                return prev;
-              });
-            });
-            return cell;
-          }}
-        />
+        >
+          {({ itemData, index, rowIndex }) => (
+            <GridItem
+              item={itemData as (typeof list)[number]}
+              index={index}
+              rowIndex={rowIndex}
+              onDelete={() => {
+                const id = itemData.id;
+                setList((prev) => {
+                  const idx = prev.findIndex((v) => v.id === id);
+                  if (idx > -1) {
+                    const next = prev.slice();
+                    next.splice(idx, 1);
+                    setStatus(`已删除 item ${index}，剩余 ${next.length} 项`);
+                    return next;
+                  }
+                  return prev;
+                });
+              }}
+            />
+          )}
+        </VirtGridRoot>
       </div>
     </div>
   );

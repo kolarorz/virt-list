@@ -13,6 +13,7 @@ import {
 } from 'vue';
 import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
+  ListState,
   TreeNode,
   TreeNodeKey,
   TreeData,
@@ -55,7 +56,7 @@ export const VirtTree = defineComponent({
     toTop: (_item: unknown) => true,
     toBottom: (_item: unknown) => true,
     itemResize: (_id: string, _size: number) => true,
-    rangeUpdate: (_begin: number, _end: number) => true,
+    update: (_renderList: TreeNode[], _state: ListState) => true,
   },
   props: {
     list: { type: Array as PropType<TreeData>, required: true },
@@ -213,7 +214,7 @@ export const VirtTree = defineComponent({
         toTop: (item) => emit('toTop', item),
         toBottom: (item) => emit('toBottom', item),
         itemResize: (id, size) => emit('itemResize', id, size),
-        rangeUpdate: (begin, end) => emit('rangeUpdate', begin, end),
+        update: (renderList, state) => emit('update', renderList, state),
       };
     }
 

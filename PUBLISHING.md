@@ -186,8 +186,6 @@ pnpm --filter @virt-list/core publish --access public
 pnpm --filter @virt-list/vanilla publish --access public
 pnpm --filter @virt-list/vue publish --access public
 pnpm --filter @virt-list/react publish --access public
-pnpm --filter @virt-list/vue2 publish --access public
-pnpm --filter @virt-list/react-legacy publish --access public
 
 # 4. 创建 git tag
 git tag v1.1.0

@@ -84,7 +84,7 @@ function createRows(count: number): Row[] {
   }));
 }
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const interval = ref(1000);
 const rowCount = ref(1000);
 const tick = ref(0);

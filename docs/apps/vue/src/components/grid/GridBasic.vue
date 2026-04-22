@@ -16,9 +16,17 @@
         :grid-items="gridItems"
         item-key="id"
         :item-pre-size="70"
-        :render-cell="renderCell"
         @to-top="onToTop"
-      />
+      >
+        <template #default="{ itemData, index, rowIndex }">
+          <GridItem
+            :item="itemData"
+            :index="index"
+            :row-index="rowIndex"
+            @delete="handleDelete(itemData, index)"
+          />
+        </template>
+      </VirtGrid>
     </div>
   </div>
 </template>
@@ -27,6 +35,7 @@
 import { ref } from 'vue';
 import { faker } from '@faker-js/faker';
 import { VirtGrid } from '@virt-list/vue';
+import GridItem from './GridItem.vue';
 import type { VirtGridRef } from '../_virtRefTypes';
 import '../../demo.css';
 
@@ -46,30 +55,12 @@ const statusText = ref('');
 const gridItems = ref(2);
 const gridList = ref<GridItem[]>(generateData(1000));
 
-function renderCell(item: GridItem, index: number, rowIndex: number) {
-  const cell = document.createElement('div');
-  cell.className = 'grid-cell';
-  cell.innerHTML = `
-        <div>
-          <div style="font-size:12px;color:#999;">row:${rowIndex} - item:${index}</div>
-          <div style="display:flex;align-items:center;">
-            <img src="${item.avatar}" style="width:40px;height:40px;border-radius:50%;" />
-            <span style="margin-left:6px;">${item.name}</span>
-          </div>
-        </div>
-        <button class="grid-delete-btn" data-id="${item.id}">delete</button>
-      `;
-
-  const deleteBtn = cell.querySelector('.grid-delete-btn');
-  deleteBtn?.addEventListener('click', () => {
-    const idx = gridList.value.findIndex((v) => v.id === item.id);
-    if (idx > -1) {
-      gridList.value = gridList.value.filter((v) => v.id !== item.id);
-      gridRef.value?.setList(gridList.value);
-      statusText.value = `已删除 item ${index}，剩余 ${gridList.value.length} 项`;
-    }
-  });
-  return cell;
+function handleDelete(item: GridItem, index: number) {
+  const idx = gridList.value.findIndex((v) => v.id === item.id);
+  if (idx > -1) {
+    gridList.value = gridList.value.filter((v) => v.id !== item.id);
+    statusText.value = `已删除 item ${index}，剩余 ${gridList.value.length} 项`;
+  }
 }
 
 statusText.value = '网格示例已就绪：1000 项数据，2 列';

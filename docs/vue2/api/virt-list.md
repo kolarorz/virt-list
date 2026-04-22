@@ -3,14 +3,14 @@
 适用于 **Vue 2**。通过 **插槽** 自定义区域内容，使用 **`v-on` / `@`** 监听事件，通过 **`ref`** 调用组件暴露的方法。
 
 **与 Vue 3 的差异：** Vue 2 没有 `emits` 选项，事件仍可通过 **`@scroll`、`@toTop`** 等正常使用。  
-**`fixSelection`**：仅在 **Vue 2** 下需要且生效，用于修复滚动导致选区丢失的问题。
-
 1. `list.item[itemKey]` <font color="#f00">必须唯一!!!</font>
 2. item 元素之间不能使用 <font color="#f00">margin!!!</font>
 
-## StyleValue
+## StyleValue / ClassValue
 
-列表中与样式相关的字段使用 **`StyleValue`** 类型，等价于 **`string | Record<string, string | number>`**：既可传入 **CSS 类名字符串**，也可传入 **样式对象**。
+列表中与样式相关的字段使用 **`StyleValue`** 类型，等价于 **`string | Record<string, string | number | null | undefined> | StyleValue[]`**，支持字符串、对象与数组嵌套形式。
+
+列表中与类名相关的字段使用 **`ClassValue`** 类型，等价于 **`string | Record<string, boolean | null | undefined> | ClassValue[]`**，支持字符串、对象与数组嵌套形式。
 
 ## 属性
 
@@ -26,20 +26,19 @@
 | bufferBottom       | 底部 buffer 个数                                                                         | `Number`                                                                                     | `0`     | -                            |
 | horizontal         | 是否水平滚动                                                                             | `Boolean`                                                                                    | `false` | -                            |
 | scrollDistance     | 滚动阈值（提前触发 toTop / toBottom），单位：px                                          | `Number`                                                                                     | `0`     | -                            |
-| fixSelection       | 是否修复滚动导致 selection 丢失（**仅 Vue 2 生效**）                                   | `Boolean`                                                                                    | `false` | -                            |
 | start              | 起始渲染下标                                                                             | `Number`                                                                                     | `0`     | -                            |
 | offset             | 起始渲染偏移量                                                                           | `Number`                                                                                     | `0`     | -                            |
 | listStyle          | 列表容器样式                                                                             | `StyleValue`                                                                                 | `''`    | -                            |
-| listClass          | 列表容器类名                                                                             | `string`                                                                                     | `''`    | -                            |
+| listClass          | 列表容器类名                                                                             | `ClassValue`                                                                                 | `''`    | -                            |
 | itemStyle          | item 容器样式；可为函数 `(item, index) => StyleValue`                                    | `StyleValue \| (item, index) => StyleValue`                                                  | `''`    | -                            |
-| itemClass          | item 容器类名；可为函数 `(item, index) => string`                                        | `string \| (item, index) => string`                                                          | `''`    | -                            |
-| headerClass        | header 类名                                                                              | `string`                                                                                     | `''`    | -                            |
+| itemClass          | item 容器类名；可为函数 `(item, index) => ClassValue`                                   | `ClassValue \| (item, index) => ClassValue`                                                  | `''`    | -                            |
+| headerClass        | header 类名                                                                              | `ClassValue`                                                                                 | `''`    | -                            |
 | headerStyle        | header 样式                                                                              | `StyleValue`                                                                                 | `''`    | -                            |
-| footerClass        | footer 类名                                                                              | `string`                                                                                     | `''`    | -                            |
+| footerClass        | footer 类名                                                                              | `ClassValue`                                                                                 | `''`    | -                            |
 | footerStyle        | footer 样式                                                                              | `StyleValue`                                                                                 | `''`    | -                            |
-| stickyHeaderClass  | stickyHeader 类名                                                                        | `string`                                                                                     | `''`    | -                            |
+| stickyHeaderClass  | stickyHeader 类名                                                                        | `ClassValue`                                                                                 | `''`    | -                            |
 | stickyHeaderStyle  | stickyHeader 样式                                                                        | `StyleValue`                                                                                 | `''`    | -                            |
-| stickyFooterClass  | stickyFooter 类名                                                                        | `string`                                                                                     | `''`    | -                            |
+| stickyFooterClass  | stickyFooter 类名                                                                        | `ClassValue`                                                                                 | `''`    | -                            |
 | stickyFooterStyle  | stickyFooter 样式                                                                        | `StyleValue`                                                                                 | `''`    | -                            |
 | renderControl      | 渲染控制器                                                                               | `(begin: number, end: number) => { begin: number; end: number }`                           | -       | -                            |
 | renderItem         | 自定义渲染（优先级高于默认插槽）；返回 `HTMLElement` 或 `void`                         | `(item: T, index: number, el: HTMLElement) => HTMLElement \| void`                         | -       | -                            |
@@ -63,8 +62,7 @@
 | toTop        | 触顶               | `(firstItem: T)`                                                |
 | toBottom     | 触底               | `(lastItem: T)`                                                 |
 | itemResize   | Item 尺寸变化      | `(id: string, newSize: number)`                                 |
-| rangeUpdate  | 可视区范围变更     | `(inViewBegin: number, inViewEnd: number)`                      |
-| update       | 渲染列表更新       | `(renderList: T[], state: ReactiveData)`                         |
+| update  | 渲染列表更新       | `(renderList: T[], state: ListState)`                        |
 
 ## 暴露方法（ref）
 
@@ -85,12 +83,12 @@
 | deletedList2Top    | 删除顶部数据（分页场景）                                                       | `(list: T[]) => void`                                                                 |
 | addedList2Top      | 添加顶部数据（分页场景）                                                       | `(list: T[]) => void`                                                                 |
 | manualRender       | 手动控制渲染范围                                                               | `(begin: number, end: number) => void`                                                |
-| getReactiveData    | 获取响应式数据                                                                 | `() => ReactiveData`                                                                  |
+| getState    | 获取响应式数据                                                                 | `() => ListState`                                                                  |
 | setList            | 设置新的数据列表                                                               | `(list: T[]) => void`                                                                 |
 
-## ReactiveData
+## ListState
 
-`getReactiveData()` 或 **`update`** 回调中的 `state` 字段类型为 **`ReactiveData`**：
+`getState()` 或 **`update`** 回调中的 `state` 字段类型为 **`ListState`**：
 
 | 属性           | 类型     | 说明                                       |
 | -------------- | -------- | ------------------------------------------ |
@@ -98,8 +96,8 @@
 | virtualSize    | `number` | 虚拟占位尺寸（0 到 renderBegin）           |
 | inViewBegin    | `number` | 可视区起始下标                             |
 | inViewEnd      | `number` | 可视区结束下标                             |
-| renderBegin    | `number` | 实际渲染起始下标                           |
-| renderEnd      | `number` | 实际渲染结束下标                           |
+| renderBegin    | `number` | 实际渲染起始下标(包含buffer)                           |
+| renderEnd      | `number` | 实际渲染结束下标(包含buffer)                           |
 
 ### SlotSize
 

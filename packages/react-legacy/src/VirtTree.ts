@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
+  ListState,
   TreeNode,
   TreeNodeKey,
   TreeData,
@@ -89,7 +90,7 @@ export interface VirtTreeProps {
   onToTop?: (item: TreeNode) => void;
   onToBottom?: (item: TreeNode) => void;
   onItemResize?: (id: string, size: number) => void;
-  onRangeUpdate?: (begin: number, end: number) => void;
+  onUpdate?: (renderList: TreeNode[], state: ListState) => void;
 
   style?: React.CSSProperties;
   className?: string;
@@ -230,7 +231,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       toTop: (item) => eventsRef.current.onToTop?.(item),
       toBottom: (item) => eventsRef.current.onToBottom?.(item),
       itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
-      rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
+      update: (renderList, state) => eventsRef.current.onUpdate?.(renderList, state),
     };
 
     treeRef.current = new VirtTreeVanilla(containerRef.current, options, events);

@@ -125,8 +125,8 @@ function generateProducts(count: number) {
 type User = ReturnType<typeof generateUsers>[number];
 type Product = ReturnType<typeof generateProducts>[number];
 
-const userListRef = ref<InstanceType<typeof VirtList> | null>(null);
-const productListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const userListRef = ref<typeof VirtList | null>(null);
+const productListRef = ref<typeof VirtList | null>(null);
 const activeTab = ref<'users' | 'products'>('users');
 const users = ref<User[]>(generateUsers(2000));
 const products = ref<Product[]>(generateProducts(2000));

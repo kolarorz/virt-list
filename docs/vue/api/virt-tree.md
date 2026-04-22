@@ -138,7 +138,7 @@
 | toTop        | 触顶               | **`(item: TreeNode)`**                        |
 | toBottom     | 触底               | **`(item: TreeNode)`**                        |
 | itemResize   | Item 尺寸变化      | **`(id: string, size: number)`**             |
-| rangeUpdate  | 可视区范围变更     | **`(begin: number, end: number)`**           |
+| update  | 渲染列表更新       | **`(renderList: TreeNode[], state: ListState)`**           |
 
 ## 暴露方法（ref）
 

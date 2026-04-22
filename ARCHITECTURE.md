@@ -49,7 +49,7 @@ packages/
 
 **不触碰任何 DOM**，所有浏览器 API 调用由 vanilla 层代理。
 
-主要导出：`VirtListCore`、`ReactiveData`、`SlotSize`、`VirtListOptions`、`VirtListEvents`
+主要导出：`VirtListCore`、`ListState`、`SlotSize`、`VirtListOptions`、`VirtListEvents`
 
 ### @virt-list/vanilla
 
@@ -286,7 +286,7 @@ npm install @virt-list/react-legacy
 ```
 scrollToIndex(index) / scrollIntoView(index) / scrollToTop() / scrollToBottom()
 scrollToOffset(offset) / forceUpdate() / reset() / setList(list)
-getReactiveData() / getOffset() / getSlotSize() / getItemSize(key)
+getState() / getOffset() / getSlotSize() / getItemSize(key)
 ```
 
 Tree 专有方法：`expandAll() / expandNode() / toggleExpand() / checkAll() / filter() / ...`

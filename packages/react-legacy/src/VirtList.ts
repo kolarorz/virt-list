@@ -12,8 +12,9 @@ import {
 } from 'react';
 import { VirtList as VirtListVanilla } from '@virt-list/vanilla';
 import type {
+  ClassValue,
   StyleValue,
-  ReactiveData,
+  ListState,
   SlotSize,
   VirtListDOMOptions,
   VirtListEvents,
@@ -27,17 +28,16 @@ export interface EmitFunction<T> {
   toTop?: (item: T) => void;
   toBottom?: (item: T) => void;
   itemResize?: (id: string, newSize: number) => void;
-  rangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
-  update?: (renderList: T[], state: ReactiveData) => void;
+  update?: (renderList: T[], state: ListState) => void;
 }
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
   containerRef: React.RefObject<HTMLElement | null>;
-  reactiveData: ReactiveData;
+  reactiveData: ListState;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
-  getReactiveData: () => ReactiveData;
+  getState: () => ListState;
   getOffset: () => number;
   getSlotSize: () => number;
   reset: () => void;
@@ -77,7 +77,6 @@ export function useVirtList<T extends Record<string, any>>(
       toTop: (item) => emitRef.current?.toTop?.(item),
       toBottom: (item) => emitRef.current?.toBottom?.(item),
       itemResize: (id, size) => emitRef.current?.itemResize?.(id, size),
-      rangeUpdate: (begin, end) => emitRef.current?.rangeUpdate?.(begin, end),
       update: (list, state) => emitRef.current?.update?.(list, state),
     };
 
@@ -97,7 +96,7 @@ export function useVirtList<T extends Record<string, any>>(
     get slotSize() { return getVL().core.slotSize; },
     get sizesMap() { return getVL().core.sizesMap; },
     get resizeObserver() { return getVL().core.resizeObserver; },
-    getReactiveData: () => getVL().state,
+    getState: () => getVL().state,
     getOffset: () => getVL().core.getOffset(),
     getSlotSize: () => getVL().core.getSlotSize(),
     reset: () => vlRef.current?.reset(),
@@ -134,20 +133,19 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   bufferBottom?: number;
   scrollDistance?: number;
   horizontal?: boolean;
-  fixSelection?: boolean;
   start?: number;
   offset?: number;
   listStyle?: StyleValue;
-  listClass?: string;
+  listClass?: ClassValue;
   itemStyle?: StyleValue | ((item: T, index: number) => StyleValue);
-  itemClass?: string | ((item: T, index: number) => string);
-  headerClass?: string;
+  itemClass?: ClassValue | ((item: T, index: number) => ClassValue);
+  headerClass?: ClassValue;
   headerStyle?: StyleValue;
-  footerClass?: string;
+  footerClass?: ClassValue;
   footerStyle?: StyleValue;
-  stickyHeaderClass?: string;
+  stickyHeaderClass?: ClassValue;
   stickyHeaderStyle?: StyleValue;
-  stickyFooterClass?: string;
+  stickyFooterClass?: ClassValue;
   stickyFooterStyle?: StyleValue;
 
   children?: (props: { itemData: T; index: number }) => ReactNode;
@@ -162,19 +160,18 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   onToTop?: (item: T) => void;
   onToBottom?: (item: T) => void;
   onItemResize?: (id: string, newSize: number) => void;
-  onRangeUpdate?: (inViewBegin: number, inViewEnd: number) => void;
-  onUpdate?: (renderList: T[], state: ReactiveData) => void;
+  onUpdate?: (renderList: T[], state: ListState) => void;
 
   style?: React.CSSProperties;
   className?: string;
 }
 
 export interface VirtListRef<T extends Record<string, any> = Record<string, any>> {
-  reactiveData: ReactiveData;
+  reactiveData: ListState;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
-  getReactiveData: () => ReactiveData;
+  getState: () => ListState;
   getOffset: () => number;
   getSlotSize: () => number;
   reset: () => void;
@@ -280,7 +277,6 @@ function VirtListInner(
       toTop: (item) => eventsRef.current.onToTop?.(item),
       toBottom: (item) => eventsRef.current.onToBottom?.(item),
       itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
-      rangeUpdate: (begin, end) => eventsRef.current.onRangeUpdate?.(begin, end),
       update: (list, state) => eventsRef.current.onUpdate?.(list, state),
     };
 
@@ -305,7 +301,7 @@ function VirtListInner(
     get slotSize() { return vlRef.current!.core.slotSize; },
     get sizesMap() { return vlRef.current!.core.sizesMap; },
     get resizeObserver() { return vlRef.current!.core.resizeObserver; },
-    getReactiveData: () => vlRef.current!.state,
+    getState: () => vlRef.current!.state,
     getOffset: () => vlRef.current!.core.getOffset(),
     getSlotSize: () => vlRef.current!.core.getSlotSize(),
     reset: () => vlRef.current?.reset(),

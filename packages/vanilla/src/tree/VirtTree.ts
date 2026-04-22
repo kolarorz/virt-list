@@ -797,7 +797,7 @@ export class VirtTree {
         toTop: (item) => this._events.toTop?.(item),
         toBottom: (item) => this._events.toBottom?.(item),
         itemResize: (id, size) => this._events.itemResize?.(id, size),
-        rangeUpdate: (begin, end) => this._events.rangeUpdate?.(begin, end),
+        update: (renderList, state) => this._events.update?.(renderList, state),
       },
     );
 

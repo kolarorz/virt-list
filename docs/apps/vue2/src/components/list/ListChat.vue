@@ -70,7 +70,7 @@ function asyncGeneratePage(page: number, pageSize: number) {
 
 type Item = ReturnType<typeof generatePage>[number];
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const page = ref(5);
 const list = ref<Item[]>(generatePage(page.value, PAGE_SIZE));

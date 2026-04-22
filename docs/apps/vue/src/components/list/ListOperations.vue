@@ -84,7 +84,7 @@ function generateList(count: number) {
 
 type Item = ReturnType<typeof generateList>[number];
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const offsetInput = ref(1000);
 const indexInput = ref(500);

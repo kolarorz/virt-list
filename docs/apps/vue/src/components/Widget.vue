@@ -83,7 +83,7 @@ interface DemoItem {
   content: string;
 }
 
-const virtListRef = ref<InstanceType<typeof VirtList> | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 
 const list: DemoItem[] = Array.from({ length: 1000 }, (_, i) => ({
   id: i,

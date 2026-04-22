@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
-  ReactiveData,
+  ListState,
   SlotSize,
   VirtListOptions,
   VirtListEvents,
@@ -21,7 +21,7 @@ import { DEFAULT_OPTIONS } from './types';
  */
 export class VirtListCore<T extends Record<string, any>> {
   /** 响应式状态，驱动上层渲染 */
-  readonly state: ReactiveData;
+  readonly state: ListState;
   /** 各插槽区域的尺寸 */
   readonly slotSize: SlotSize;
   /** 列表项 key → 实测尺寸 的映射，未测量项回退到 itemPreSize + itemGap */
@@ -353,7 +353,7 @@ export class VirtListCore<T extends Record<string, any>> {
     this._notify();
   }
 
-  getReactiveData(): ReactiveData {
+  getState(): ListState {
     return this.state;
   }
 
@@ -566,7 +566,6 @@ export class VirtListCore<T extends Record<string, any>> {
 
     this.state.inViewBegin = start;
     this.state.inViewEnd = this._calculateViewEnd(start);
-    this._events.rangeUpdate?.(this.state.inViewBegin, this.state.inViewEnd);
     this._updateRenderRange();
   }
 
