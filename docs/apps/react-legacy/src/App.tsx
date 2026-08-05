@@ -55,7 +55,7 @@ interface AppProps {
   onEvent?: (message: string) => void;
 }
 
-const demoRenderMap: Record<string, () => JSX.Element> = {
+const demoRenderMap: Record<string, () => any> = {
   'list-literal': () => <Literal />,
   'list-widget': () => <Widget />,
   'list-basic': () => <DemoBlock source={src('./components/list/ListBasic.tsx')}><ListBasic /></DemoBlock>,

@@ -1429,6 +1429,10 @@ export class VirtListCore<T extends Record<string, any>> {
   private _onScroll(evt: Event): void {
     this._events.scroll?.(evt);
 
+    // 程序化写入 scrollTop / scrollLeft 后，浏览器会异步回送一次 scroll 事件。
+    // 这类事件不应被当成用户操作，也不需要重算边界/锚点：写入时已经同步过。
+    if (this._programmaticScroll) return;
+
     const offset = this.getOffset();
     if (offset === this._offset) return;
 

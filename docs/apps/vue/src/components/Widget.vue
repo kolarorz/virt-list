@@ -94,6 +94,6 @@ const scrollToTop = () => (virtListRef.value as any)?.scrollToTop();
 const scrollToBottom = () => (virtListRef.value as any)?.scrollToBottom();
 const scrollToIndex = (index: number) =>
   (virtListRef.value as any)?.scrollToIndex(index);
-const onToTop = (item: DemoItem) => console.log('到达顶部', item);
-const onToBottom = (item: DemoItem) => console.log('到达底部', item);
+const onToTop = (item: unknown) => console.log('到达顶部', item as DemoItem);
+const onToBottom = (item: unknown) => console.log('到达底部', item as DemoItem);
 </script>

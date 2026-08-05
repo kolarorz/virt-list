@@ -90,8 +90,9 @@ const treeRef = ref<VirtTreeRef | null>(null);
 const treeData = ref<TreeRow[]>(generateTreeData());
 const statusText = ref('拖拽树示例已就绪（支持跨层级拖拽）');
 
-function onDragStart(data: { sourceNode: TreeNode }) {
-  statusText.value = `开始拖拽: ${data.sourceNode.title ?? data.sourceNode.data?.id}`;
+function onDragStart(data: unknown) {
+  const payload = data as { sourceNode: TreeNode };
+  statusText.value = `开始拖拽: ${payload.sourceNode.title ?? payload.sourceNode.data?.id}`;
 }
 
 function onDragEnd(data: unknown) {

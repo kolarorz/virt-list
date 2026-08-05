@@ -58,7 +58,7 @@ function generateTreeData() {
   }));
 }
 
-const initialExpanded = ['0-0'] as const;
+const initialExpanded: TreeNodeKey[] = ['0-0'];
 
 const treeRef = ref<VirtTreeRef | null>(null);
 const treeData = ref(generateTreeData());

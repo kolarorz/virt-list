@@ -8,7 +8,6 @@
     <div class="demo-stats">{{ statsText }}</div>
     <div class="demo-list-container">
       <VirtList
-        ref="virtListRef"
         :list="list"
         item-key="id"
         :item-pre-size="40"
@@ -65,7 +64,6 @@ function generateList(count: number, startIndex = 0) {
 
 type ListItem = ReturnType<typeof generateList>[number];
 
-const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('总数: 0');
 const isEmpty = ref(true);
 const list = ref<ListItem[]>([]);

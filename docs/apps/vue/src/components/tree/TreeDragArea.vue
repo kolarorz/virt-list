@@ -65,8 +65,8 @@ const treeData = ref([
   { id: 'drag-3', title: '测试', children: [] },
 ]);
 
-function onDragStart(data: { sourceNode: TreeNode }) {
-  console.log('dragstart', data);
+function onDragStart(data: unknown) {
+  console.log('dragstart', data as { sourceNode: TreeNode });
 }
 
 function onDragEnd(data: unknown) {

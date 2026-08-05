@@ -66,7 +66,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const demoRenderMap: Record<string, () => JSX.Element> = {
+    const demoRenderMap: Record<string, () => any> = {
       'list-literal': () => <Literal />,
       'list-widget': () => <Widget />,
       'list-basic': () => <DemoBlock source={src('./components/list/ListBasic.vue')}><ListBasic /></DemoBlock>,
@@ -107,8 +107,10 @@ export default defineComponent({
     };
 
     const renderCurrentDemo = () => {
-      const renderer =
-        demoRenderMap[props.exampleId as keyof typeof demoRenderMap] ?? demoRenderMap['list-literal'];
+      const renderer = (
+        demoRenderMap[props.exampleId as keyof typeof demoRenderMap]
+        ?? demoRenderMap['list-literal']
+      ) as () => any;
       return renderer();
     };
 
