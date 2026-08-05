@@ -1,6 +1,6 @@
 {
   "name": "@virt-list/react-legacy",
-  "version": "0.0.3",
+  "version": "0.0.1",
   "description": "React 16-17 virtual list, grid and tree components",
   "type": "module",
   "main": "./dist/index.js",

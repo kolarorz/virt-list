@@ -15,9 +15,12 @@ import type {
   ClassValue,
   StyleValue,
   ListState,
+  LoadState,
+  LoadDirection,
   SlotSize,
   VirtListDOMOptions,
   VirtListEvents,
+  VirtScrollOptions,
 } from '@virt-list/core';
 import { createReactMounter } from './compat';
 
@@ -29,6 +32,7 @@ export interface EmitFunction<T> {
   toBottom?: (item: T) => void;
   itemResize?: (id: string, newSize: number) => void;
   update?: (renderList: T[], state: ListState) => void;
+  loadStateChange?: (loadState: LoadState) => void;
 }
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
@@ -41,11 +45,12 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   getOffset: () => number;
   getSlotSize: () => number;
   reset: () => void;
-  scrollToIndex: (index: number) => void;
-  scrollIntoView: (index: number) => void;
-  scrollToTop: () => void;
-  scrollToBottom: () => void;
-  scrollToOffset: (offset: number) => void;
+  scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
+  scrollIntoView: (index: number, options?: VirtScrollOptions) => void;
+  scrollToTop: (options?: VirtScrollOptions) => void;
+  scrollToBottom: (options?: VirtScrollOptions) => void;
+  scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
+  cancelScroll: () => void;
   manualRender: (begin: number, end: number) => void;
   getItemSize: (itemKey: string) => number;
   deleteItemSize: (itemKey: string) => void;
@@ -56,6 +61,7 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   ) => { top: number; current: number; bottom: number };
   forceUpdate: () => void;
   setList: (list: T[]) => void;
+  getLoadState: () => LoadState;
 }
 
 // ======================== useVirtList (hook) ========================
@@ -78,6 +84,8 @@ export function useVirtList<T extends Record<string, any>>(
       toBottom: (item) => emitRef.current?.toBottom?.(item),
       itemResize: (id, size) => emitRef.current?.itemResize?.(id, size),
       update: (list, state) => emitRef.current?.update?.(list, state),
+      loadStateChange: (loadState) =>
+        emitRef.current?.loadStateChange?.(loadState),
     };
 
     vlRef.current = new VirtListVanilla<T>(containerRef.current, options, events);
@@ -100,11 +108,12 @@ export function useVirtList<T extends Record<string, any>>(
     getOffset: () => getVL().core.getOffset(),
     getSlotSize: () => getVL().core.getSlotSize(),
     reset: () => vlRef.current?.reset(),
-    scrollToIndex: (i) => vlRef.current?.scrollToIndex(i),
-    scrollIntoView: (i) => vlRef.current?.scrollIntoView(i),
-    scrollToTop: () => vlRef.current?.scrollToTop(),
-    scrollToBottom: () => vlRef.current?.scrollToBottom(),
-    scrollToOffset: (o) => vlRef.current?.scrollToOffset(o),
+    scrollToIndex: (i, opts) => vlRef.current?.scrollToIndex(i, opts),
+    scrollIntoView: (i, opts) => vlRef.current?.scrollIntoView(i, opts),
+    scrollToTop: (opts) => vlRef.current?.scrollToTop(opts),
+    scrollToBottom: (opts) => vlRef.current?.scrollToBottom(opts),
+    scrollToOffset: (o, opts) => vlRef.current?.scrollToOffset(o, opts),
+    cancelScroll: () => vlRef.current?.cancelScroll(),
     manualRender: (b, e) => vlRef.current?.core.manualRender(b, e),
     getItemSize: (k) => getVL().core.getItemSize(k),
     deleteItemSize: (k) => getVL().core.deleteItemSize(k),
@@ -113,6 +122,7 @@ export function useVirtList<T extends Record<string, any>>(
     getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
     forceUpdate: () => vlRef.current?.forceUpdate(),
     setList: (l) => vlRef.current?.setList(l),
+    getLoadState: () => getVL().getLoadState(),
   };
 }
 
@@ -132,9 +142,19 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   bufferTop?: number;
   bufferBottom?: number;
   scrollDistance?: number;
+  scrollDuration?: number;
+  smoothMaxDistance?: number;
   horizontal?: boolean;
   start?: number;
   offset?: number;
+  loadMore?: (
+    direction: LoadDirection,
+  ) => boolean | void | Promise<boolean | void>;
+  hasMoreTop?: boolean;
+  hasMoreBottom?: boolean;
+  initialPosition?: 'top' | 'bottom';
+  stickyBottom?: boolean;
+  stickyThreshold?: number;
   listStyle?: StyleValue;
   listClass?: ClassValue;
   itemStyle?: StyleValue | ((item: T, index: number) => StyleValue);
@@ -150,8 +170,9 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
 
   children?: (props: { itemData: T; index: number }) => ReactNode;
   renderItem?: (item: T, index: number, el: HTMLElement) => HTMLElement | void;
-  renderHeader?: () => ReactNode;
-  renderFooter?: () => ReactNode;
+  /** 加载状态作为参数传入，加载提示条直接据此渲染；状态变化时会重新调用 */
+  renderHeader?: (loadState: LoadState) => ReactNode;
+  renderFooter?: (loadState: LoadState) => ReactNode;
   renderStickyHeader?: () => ReactNode;
   renderStickyFooter?: () => ReactNode;
   renderEmpty?: () => ReactNode;
@@ -161,6 +182,7 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   onToBottom?: (item: T) => void;
   onItemResize?: (id: string, newSize: number) => void;
   onUpdate?: (renderList: T[], state: ListState) => void;
+  onLoadStateChange?: (loadState: LoadState) => void;
 
   style?: React.CSSProperties;
   className?: string;
@@ -175,11 +197,12 @@ export interface VirtListRef<T extends Record<string, any> = Record<string, any>
   getOffset: () => number;
   getSlotSize: () => number;
   reset: () => void;
-  scrollToIndex: (index: number) => void;
-  scrollIntoView: (index: number) => void;
-  scrollToTop: () => void;
-  scrollToBottom: () => void;
-  scrollToOffset: (offset: number) => void;
+  scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
+  scrollIntoView: (index: number, options?: VirtScrollOptions) => void;
+  scrollToTop: (options?: VirtScrollOptions) => void;
+  scrollToBottom: (options?: VirtScrollOptions) => void;
+  scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
+  cancelScroll: () => void;
   manualRender: (begin: number, end: number) => void;
   getItemSize: (itemKey: string) => number;
   deleteItemSize: (itemKey: string) => void;
@@ -190,6 +213,7 @@ export interface VirtListRef<T extends Record<string, any> = Record<string, any>
   ) => { top: number; current: number; bottom: number };
   forceUpdate: () => void;
   setList: (list: T[]) => void;
+  getLoadState: () => LoadState;
 }
 
 function VirtListInner(
@@ -219,9 +243,20 @@ function VirtListInner(
       bufferTop: props.bufferTop,
       bufferBottom: props.bufferBottom,
       scrollDistance: props.scrollDistance,
+      scrollDuration: props.scrollDuration,
+      smoothMaxDistance: props.smoothMaxDistance,
       horizontal: props.horizontal,
       start: props.start,
       offset: props.offset,
+      // 通过 ref 读，使用方每次渲染传新的箭头函数也能拿到最新的那个
+      loadMore: props.loadMore
+        ? (dir) => eventsRef.current.loadMore!(dir)
+        : undefined,
+      hasMoreTop: props.hasMoreTop,
+      hasMoreBottom: props.hasMoreBottom,
+      initialPosition: props.initialPosition,
+      stickyBottom: props.stickyBottom,
+      stickyThreshold: props.stickyThreshold,
       renderControl: props.renderControl,
       listStyle: props.listStyle,
       listClass: props.listClass,
@@ -247,13 +282,13 @@ function VirtListInner(
     };
 
     if (p.renderHeader) {
-      options.renderHeader = (el: HTMLElement) => {
-        mountReact('header', eventsRef.current.renderHeader!(), el);
+      options.renderHeader = (el: HTMLElement, loadState) => {
+        mountReact('header', eventsRef.current.renderHeader!(loadState), el);
       };
     }
     if (p.renderFooter) {
-      options.renderFooter = (el: HTMLElement) => {
-        mountReact('footer', eventsRef.current.renderFooter!(), el);
+      options.renderFooter = (el: HTMLElement, loadState) => {
+        mountReact('footer', eventsRef.current.renderFooter!(loadState), el);
       };
     }
     if (p.renderStickyHeader) {
@@ -278,6 +313,8 @@ function VirtListInner(
       toBottom: (item) => eventsRef.current.onToBottom?.(item),
       itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
       update: (list, state) => eventsRef.current.onUpdate?.(list, state),
+      loadStateChange: (loadState) =>
+        eventsRef.current.onLoadStateChange?.(loadState),
     };
 
     vlRef.current = new VirtListVanilla(containerRef.current, options, events);
@@ -289,11 +326,38 @@ function VirtListInner(
     };
   }, []);
 
-  const prevListRef = useRef(props.list.length);
-  if (props.list.length !== prevListRef.current) {
-    prevListRef.current = props.list.length;
+  // 只盯 length 会漏掉「长度不变但结构变了」的场景：双向分页一次删一页又加一页，
+  // 长度前后相同，列表却整体位移了。引用比较覆盖了 React 惯用的不可变更新；
+  // length 比较兜住原地 mutate。setList 之后无需 forceUpdate——core 已在列表
+  // 变更中完成重算、位移补偿与通知
+  const prevListRef = useRef(props.list);
+  const prevListLenRef = useRef(props.list.length);
+  if (
+    props.list !== prevListRef.current ||
+    props.list.length !== prevListLenRef.current
+  ) {
+    prevListRef.current = props.list;
+    prevListLenRef.current = props.list.length;
     vlRef.current?.setList(props.list);
-    vlRef.current?.forceUpdate();
+  }
+
+  // hasMore 当受控属性用时要能改回来（例如切换会话后重新开放历史加载）
+  const prevHasMoreRef = useRef({
+    top: props.hasMoreTop,
+    bottom: props.hasMoreBottom,
+  });
+  if (
+    prevHasMoreRef.current.top !== props.hasMoreTop ||
+    prevHasMoreRef.current.bottom !== props.hasMoreBottom
+  ) {
+    prevHasMoreRef.current = {
+      top: props.hasMoreTop,
+      bottom: props.hasMoreBottom,
+    };
+    vlRef.current?.updateOptions({
+      hasMoreTop: props.hasMoreTop,
+      hasMoreBottom: props.hasMoreBottom,
+    });
   }
 
   useImperativeHandle(ref, () => ({
@@ -305,11 +369,12 @@ function VirtListInner(
     getOffset: () => vlRef.current!.core.getOffset(),
     getSlotSize: () => vlRef.current!.core.getSlotSize(),
     reset: () => vlRef.current?.reset(),
-    scrollToIndex: (i) => vlRef.current?.scrollToIndex(i),
-    scrollIntoView: (i) => vlRef.current?.scrollIntoView(i),
-    scrollToTop: () => vlRef.current?.scrollToTop(),
-    scrollToBottom: () => vlRef.current?.scrollToBottom(),
-    scrollToOffset: (o) => vlRef.current?.scrollToOffset(o),
+    scrollToIndex: (i, opts) => vlRef.current?.scrollToIndex(i, opts),
+    scrollIntoView: (i, opts) => vlRef.current?.scrollIntoView(i, opts),
+    scrollToTop: (opts) => vlRef.current?.scrollToTop(opts),
+    scrollToBottom: (opts) => vlRef.current?.scrollToBottom(opts),
+    scrollToOffset: (o, opts) => vlRef.current?.scrollToOffset(o, opts),
+    cancelScroll: () => vlRef.current?.cancelScroll(),
     manualRender: (b, e) => vlRef.current?.core.manualRender(b, e),
     getItemSize: (k) => vlRef.current!.core.getItemSize(k),
     deleteItemSize: (k) => vlRef.current!.core.deleteItemSize(k),
@@ -326,6 +391,7 @@ function VirtListInner(
       vlRef.current?.forceUpdate();
     },
     setList: (l) => vlRef.current?.setList(l),
+    getLoadState: () => vlRef.current!.getLoadState(),
   }));
 
   return createElement('div', {

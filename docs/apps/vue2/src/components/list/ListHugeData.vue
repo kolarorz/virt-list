@@ -9,18 +9,35 @@
       >
         生成 30w 数据
       </button>
-      <span style="font-size: 12px; color: #666">{{ loadStatus }}</span>
+      <button
+        type="button"
+        class="virt-list-btn"
+        :disabled="!loaded"
+        @click="virtListRef?.scrollToTop()"
+      >
+        scrollToTop
+      </button>
+      <button
+        type="button"
+        class="virt-list-btn"
+        :disabled="!loaded"
+        @click="virtListRef?.scrollToBottom()"
+      >
+        scrollToBottom
+      </button>
+      <span style="font-size: 12px; color: var(--demo-c-text-2)">{{ loadStatus }}</span>
     </div>
     <div class="demo-stats">{{ statsText }}</div>
     <div class="demo-list-container">
       <div
         v-if="!loaded"
-        style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999"
+        style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--demo-c-text-3)"
       >
         {{ emptyHint }}
       </div>
       <VirtList
         v-else
+        ref="virtListRef"
         :list="list"
         item-key="id"
         :item-pre-size="40"
@@ -40,7 +57,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 type Row = { id: number; index: number; text: string };
 
@@ -49,6 +65,7 @@ const loadStatus = ref('');
 const emptyHint = ref('点击按钮生成海量数据');
 const loaded = ref(false);
 const list = ref<Row[]>([]);
+const virtListRef = ref<typeof VirtList | null>(null);
 
 function onUpdate(_list: any[], state: any) {
   statsText.value = `总数: ${list.value.length.toLocaleString()} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;

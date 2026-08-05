@@ -1,6 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
-import '../../demo.css';
 
 const PAGE_SIZE = 20;
 const PAGE_MAX = 10;

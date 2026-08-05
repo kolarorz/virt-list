@@ -62,7 +62,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 const SENTENCES = [
   '使用 scrollToIndex 可以精确跳转到指定索引的位置。',

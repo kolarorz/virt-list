@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { VirtTree, type VirtTreeRef, type TreeNode } from '@virt-list/react';
 import TreeDragItem from './items/TreeDragItem';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 type TreeRow = {
   id: string;

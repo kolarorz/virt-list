@@ -1,7 +1,6 @@
 import { useRef, useState, useMemo } from 'react';
 import { VirtTree, type VirtTreeRef } from '@virt-list/react-legacy';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
@@ -70,7 +69,7 @@ export default function TreeCheckbox() {
           <input
             ref={nodeKeyInputRef}
             defaultValue="0"
-            style={{ width: 80, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
+            className="demo-input" style={{ width: 80 }}
           />
           <button
             type="button"

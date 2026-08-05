@@ -9,7 +9,7 @@ import {
   type PropType,
 } from 'vue';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
-import type { ListState, StyleValue } from '@virt-list/core';
+import type { ListState, StyleValue, VirtScrollOptions } from '@virt-list/core';
 import { createSlotMounter } from './compat';
 
 /**
@@ -31,8 +31,10 @@ export const VirtGrid = defineComponent({
     itemGap: { type: Number, default: 0 },
     fixed: { type: Boolean, default: false },
     buffer: { type: Number, default: 2 },
+    scrollDuration: { type: Number, default: 300 },
+    smoothMaxDistance: { type: Number, default: 0 },
     itemStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: undefined },
-    renderItem: { type: Function as PropType<(item: any, index: number, rowIndex: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
+    renderItem: { type: Function as PropType<(item: any, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyFooter: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
@@ -54,15 +56,17 @@ export const VirtGrid = defineComponent({
           gridItems: props.gridItems,
           itemKey: props.itemKey,
           itemPreSize: props.itemPreSize,
+          scrollDuration: props.scrollDuration,
+          smoothMaxDistance: props.smoothMaxDistance,
           itemGap: props.itemGap,
           fixed: props.fixed,
           buffer: props.buffer,
           itemStyle: props.itemStyle,
-          renderItem: props.renderItem ?? ((item, index, rowIndex, el) => {
+          renderItem: props.renderItem ?? ((item, rowIndex, listIndex, el) => {
             if (slots.default) {
               mountSlot(
-                `grid:item:${String(item?.[props.itemKey] ?? index)}`,
-                () => slots.default!({ itemData: item, index, rowIndex }),
+                `grid:item:${String(item?.[props.itemKey] ?? listIndex)}`,
+                () => slots.default!({ itemData: item, rowIndex, listIndex }),
                 el,
               );
             }
@@ -101,11 +105,16 @@ export const VirtGrid = defineComponent({
     const api = {
       setList: (list: any[]) => grid?.setList(list),
       setGridItems: (n: number) => grid?.setGridItems(n),
-      scrollToIndex: (i: number) => grid?.scrollToIndex(i),
-      scrollIntoView: (i: number) => grid?.scrollIntoView(i),
-      scrollToTop: () => grid?.scrollToTop(),
-      scrollToBottom: () => grid?.scrollToBottom(),
-      scrollToOffset: (o: number) => grid?.scrollToOffset(o),
+      scrollToIndex: (i: number, options?: VirtScrollOptions) =>
+        grid?.scrollToIndex(i, options),
+      scrollIntoView: (i: number, options?: VirtScrollOptions) =>
+        grid?.scrollIntoView(i, options),
+      scrollToTop: (options?: VirtScrollOptions) => grid?.scrollToTop(options),
+      scrollToBottom: (options?: VirtScrollOptions) =>
+        grid?.scrollToBottom(options),
+      scrollToOffset: (o: number, options?: VirtScrollOptions) =>
+        grid?.scrollToOffset(o, options),
+      cancelScroll: () => grid?.cancelScroll(),
       forceUpdate: () => grid?.forceUpdate(),
     };
 

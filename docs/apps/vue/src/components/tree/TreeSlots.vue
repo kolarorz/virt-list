@@ -44,7 +44,6 @@ import TreeHeader from './items/TreeHeader.vue';
 import TreeFooter from './items/TreeFooter.vue';
 import TreeStickyFooter from './items/TreeStickyFooter.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

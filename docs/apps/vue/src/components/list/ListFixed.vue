@@ -23,7 +23,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 function generateList(count: number) {
   return Array.from({ length: count }, (_, i) => ({

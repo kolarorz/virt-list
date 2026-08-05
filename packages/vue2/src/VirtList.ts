@@ -14,9 +14,12 @@ import type {
   ClassValue,
   StyleValue,
   ListState,
+  LoadState,
+  LoadDirection,
   SlotSize,
   VirtListDOMOptions,
   VirtListEvents,
+  VirtScrollOptions,
 } from '@virt-list/core';
 import { createSlotMounter } from './compat';
 
@@ -28,6 +31,7 @@ export interface EmitFunction<T> {
   toBottom?: (item: T) => void;
   itemResize?: (id: string, newSize: number) => void;
   update?: (renderList: T[], state: ListState) => void;
+  loadStateChange?: (loadState: LoadState) => void;
 }
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
@@ -40,11 +44,12 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   getOffset: () => number;
   getSlotSize: () => number;
   reset: () => void;
-  scrollToIndex: (index: number) => void;
-  scrollIntoView: (index: number) => void;
-  scrollToTop: () => void;
-  scrollToBottom: () => void;
-  scrollToOffset: (offset: number) => void;
+  scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
+  scrollIntoView: (index: number, options?: VirtScrollOptions) => void;
+  scrollToTop: (options?: VirtScrollOptions) => void;
+  scrollToBottom: (options?: VirtScrollOptions) => void;
+  scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
+  cancelScroll: () => void;
   manualRender: (begin: number, end: number) => void;
   getItemSize: (itemKey: string) => number;
   deleteItemSize: (itemKey: string) => void;
@@ -55,6 +60,7 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   ) => { top: number; current: number; bottom: number };
   forceUpdate: () => void;
   setList: (list: T[]) => void;
+  getLoadState: () => LoadState;
 }
 
 // ======================== useVirtList (composable) ========================
@@ -72,6 +78,8 @@ export function useVirtList<T extends Record<string, any>>(
     toBottom: (item) => emitFunction?.toBottom?.(item),
     itemResize: (id, size) => emitFunction?.itemResize?.(id, size),
     update: (list, state) => emitFunction?.update?.(list, state),
+    loadStateChange: (loadState) =>
+      emitFunction?.loadStateChange?.(loadState),
   };
 
   onMounted(() => {
@@ -97,11 +105,12 @@ export function useVirtList<T extends Record<string, any>>(
     getOffset: () => getVL().core.getOffset(),
     getSlotSize: () => getVL().core.getSlotSize(),
     reset: () => vl?.reset(),
-    scrollToIndex: (i) => vl?.scrollToIndex(i),
-    scrollIntoView: (i) => vl?.scrollIntoView(i),
-    scrollToTop: () => vl?.scrollToTop(),
-    scrollToBottom: () => vl?.scrollToBottom(),
-    scrollToOffset: (o) => vl?.scrollToOffset(o),
+    scrollToIndex: (i, opts) => vl?.scrollToIndex(i, opts),
+    scrollIntoView: (i, opts) => vl?.scrollIntoView(i, opts),
+    scrollToTop: (opts) => vl?.scrollToTop(opts),
+    scrollToBottom: (opts) => vl?.scrollToBottom(opts),
+    scrollToOffset: (o, opts) => vl?.scrollToOffset(o, opts),
+    cancelScroll: () => vl?.cancelScroll(),
     manualRender: (b, e) => vl?.core.manualRender(b, e),
     getItemSize: (k) => getVL().core.getItemSize(k),
     deleteItemSize: (k) => getVL().core.deleteItemSize(k),
@@ -110,6 +119,7 @@ export function useVirtList<T extends Record<string, any>>(
     getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
     forceUpdate: () => vl?.forceUpdate(),
     setList: (l) => vl?.setList(l),
+    getLoadState: () => getVL().getLoadState(),
   };
 }
 
@@ -128,9 +138,25 @@ export const VirtList = defineComponent({
     bufferTop: { type: Number, default: 0 },
     bufferBottom: { type: Number, default: 0 },
     scrollDistance: { type: Number, default: 0 },
+    scrollDuration: { type: Number, default: 300 },
+    smoothMaxDistance: { type: Number, default: 0 },
     horizontal: { type: Boolean, default: false },
     start: { type: Number, default: 0 },
     offset: { type: Number, default: 0 },
+    loadMore: {
+      type: Function as PropType<
+        (direction: LoadDirection) => boolean | void | Promise<boolean | void>
+      >,
+      default: undefined,
+    },
+    hasMoreTop: { type: Boolean, default: true },
+    hasMoreBottom: { type: Boolean, default: true },
+    initialPosition: {
+      type: String as PropType<'top' | 'bottom'>,
+      default: 'top',
+    },
+    stickyBottom: { type: Boolean, default: false },
+    stickyThreshold: { type: Number, default: 0 },
     listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
     listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
@@ -162,9 +188,17 @@ export const VirtList = defineComponent({
         bufferTop: props.bufferTop,
         bufferBottom: props.bufferBottom,
         scrollDistance: props.scrollDistance,
+        scrollDuration: props.scrollDuration,
+        smoothMaxDistance: props.smoothMaxDistance,
         horizontal: props.horizontal,
         start: props.start,
         offset: props.offset,
+        loadMore: props.loadMore,
+        hasMoreTop: props.hasMoreTop,
+        hasMoreBottom: props.hasMoreBottom,
+        initialPosition: props.initialPosition,
+        stickyBottom: props.stickyBottom,
+        stickyThreshold: props.stickyThreshold,
         renderControl: props.renderControl as any,
         listStyle: props.listStyle,
         listClass: props.listClass,
@@ -189,14 +223,15 @@ export const VirtList = defineComponent({
         }),
       };
 
+      // header / footer 拿到 loadState：加载提示条直接在插槽里按状态渲染
       if (slots.header) {
-        opts.renderHeader = (el: HTMLElement) => {
-          mountSlot('header', () => slots.header!({}), el);
+        opts.renderHeader = (el: HTMLElement, loadState) => {
+          mountSlot('header', () => slots.header!({ loadState }), el);
         };
       }
       if (slots.footer) {
-        opts.renderFooter = (el: HTMLElement) => {
-          mountSlot('footer', () => slots.footer!({}), el);
+        opts.renderFooter = (el: HTMLElement, loadState) => {
+          mountSlot('footer', () => slots.footer!({ loadState }), el);
         };
       }
       if (slots.stickyHeader) {
@@ -225,6 +260,7 @@ export const VirtList = defineComponent({
         toBottom: (item) => emit('toBottom', item),
         itemResize: (id, size) => emit('itemResize', id, size),
         update: (renderList, state) => emit('update', renderList, state),
+        loadStateChange: (loadState) => emit('loadStateChange', loadState),
       };
     }
 
@@ -239,9 +275,20 @@ export const VirtList = defineComponent({
       cleanupSlots();
     });
 
-    watch(() => props.list.length, () => {
+    // 只盯 length 会漏掉「长度不变但结构变了」的场景：双向分页一次删一页又加一页，
+    // 长度前后相同，列表却整体位移了。引用变化覆盖了这一类以及整体换数据源。
+    // setList 之后无需再 forceUpdate：core 已在列表变更中完成重算、位移补偿与通知
+    watch([() => props.list, () => props.list.length], () => {
       vl?.setList(props.list);
-      vl?.forceUpdate();
+    });
+
+    // hasMore 当受控属性用时要能改回来（例如切换会话后重新开放历史加载）
+    watch([() => props.hasMoreTop, () => props.hasMoreBottom], ([top, bottom]) => {
+      vl?.updateOptions({ hasMoreTop: top, hasMoreBottom: bottom });
+    });
+
+    watch(() => props.loadMore, (fn) => {
+      vl?.updateOptions({ loadMore: fn });
     });
 
     const api = {
@@ -253,11 +300,16 @@ export const VirtList = defineComponent({
       getOffset: () => vl!.core.getOffset(),
       getSlotSize: () => vl!.core.getSlotSize(),
       reset: () => vl?.reset(),
-      scrollToIndex: (index: number) => vl?.scrollToIndex(index),
-      scrollIntoView: (index: number) => vl?.scrollIntoView(index),
-      scrollToTop: () => vl?.scrollToTop(),
-      scrollToBottom: () => vl?.scrollToBottom(),
-      scrollToOffset: (offset: number) => vl?.scrollToOffset(offset),
+      scrollToIndex: (index: number, options?: VirtScrollOptions) =>
+        vl?.scrollToIndex(index, options),
+      scrollIntoView: (index: number, options?: VirtScrollOptions) =>
+        vl?.scrollIntoView(index, options),
+      scrollToTop: (options?: VirtScrollOptions) => vl?.scrollToTop(options),
+      scrollToBottom: (options?: VirtScrollOptions) =>
+        vl?.scrollToBottom(options),
+      scrollToOffset: (offset: number, options?: VirtScrollOptions) =>
+        vl?.scrollToOffset(offset, options),
+      cancelScroll: () => vl?.cancelScroll(),
       manualRender: (begin: number, end: number) => vl?.core.manualRender(begin, end),
       getItemSize: (itemKey: string) => vl!.core.getItemSize(itemKey),
       deleteItemSize: (itemKey: string) => vl!.core.deleteItemSize(itemKey),
@@ -274,6 +326,7 @@ export const VirtList = defineComponent({
         vl?.forceUpdate();
       },
       setList: (list: any[]) => vl?.setList(list),
+      getLoadState: () => vl!.getLoadState(),
     };
 
     Object.defineProperty(api, 'reactiveData', {

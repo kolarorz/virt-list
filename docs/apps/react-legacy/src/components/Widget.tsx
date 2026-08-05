@@ -46,7 +46,7 @@ function VirtListDemo() {
         style={{
           width: 400,
           height: 600,
-          border: '1px solid #000',
+          border: '1px solid var(--demo-c-border-strong)',
           margin: '0 auto',
         }}
       >
@@ -58,7 +58,7 @@ function VirtListDemo() {
           renderStickyHeader={() => (
             <div
               style={{
-                background: 'cyan',
+                background: 'var(--demo-c-brand-soft)',
                 padding: 10,
                 textAlign: 'center',
                 fontWeight: 'bold',
@@ -70,7 +70,7 @@ function VirtListDemo() {
           renderStickyFooter={() => (
             <div
               style={{
-                background: 'cyan',
+                background: 'var(--demo-c-brand-soft)',
                 padding: 10,
                 textAlign: 'center',
                 fontWeight: 'bold',
@@ -85,8 +85,8 @@ function VirtListDemo() {
           {({ itemData, index }) => (
             <div style={{ padding: 4 }}>
               <div style={{ fontWeight: 'bold' }}>Item {itemData.id}</div>
-              <div style={{ color: '#666', fontSize: 12 }}>{itemData.content}</div>
-              <div style={{ color: '#999', fontSize: 10 }}>
+              <div style={{ color: 'var(--demo-c-text-2)', fontSize: 12 }}>{itemData.content}</div>
+              <div style={{ color: 'var(--demo-c-text-3)', fontSize: 10 }}>
                 Index: {index} (@virt-list/react-legacy VirtList)
               </div>
             </div>

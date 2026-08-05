@@ -3,17 +3,18 @@
     <div class="demo-stats">{{ statsText }}</div>
     <div class="demo-list-container">
       <VirtList
-        ref="virtListRef"
         :list="list"
         item-key="id"
         :item-pre-size="60"
-        @to-top="onToTop"
-        @to-bottom="onToBottom"
-        @item-resize="onItemResize"
+        :load-more="onLoadMore"
+        initial-position="bottom"
+        @load-state-change="onLoadStateChange"
         @update="onUpdate"
       >
-        <template #header>
-          <div class="demo-loading-bar">{{ headerHint }}</div>
+        <template #header="{ loadState }">
+          <div class="demo-loading-bar">
+            {{ loadState.loadingTop ? '加载中...' : loadState.hasMoreTop ? '上拉加载...' : '没有更早的数据了' }}
+          </div>
         </template>
         <template #default="{ itemData }">
           <div class="demo-chat-message">
@@ -23,8 +24,10 @@
             </div>
           </div>
         </template>
-        <template #footer>
-          <div class="demo-loading-bar">{{ footerHint }}</div>
+        <template #footer="{ loadState }">
+          <div class="demo-loading-bar">
+            {{ loadState.loadingBottom ? '加载中...' : loadState.hasMoreBottom ? '下拉加载...' : '没有更新的数据了' }}
+          </div>
         </template>
       </VirtList>
     </div>
@@ -32,9 +35,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
+import type { LoadDirection, LoadState } from '@virt-list/vue';
 
 const PAGE_SIZE = 20;
 const PAGE_MAX = 10;
@@ -46,7 +49,7 @@ const PAGE_MSGS = [
   '这是一条普通长度的分页消息，展示双向分页加载的效果。',
   '向上滚动会加载更早的数据，向下滚动会加载更新的数据。同时，离开可视区域较远的数据会被移除，以控制内存中的数据量。',
   '分页已加载。',
-  '双向分页模式适用于消息列表、日志浏览等场景。用户可以在时间线上自由导航，而不需要一次性加载所有数据。这种模式通过 addedList2Top 和 deletedList2Top 两个 API 来实现数据的动态增删，同时保持滚动位置的稳定。',
+  '双向分页模式适用于消息列表、日志浏览等场景。用户可以在时间线上自由导航，而不需要一次性加载所有数据。数据的增删只需要照常改 list，滚动位置由组件自动补偿。',
   '翻到顶部或底部都可以触发新一页的加载。',
 ];
 
@@ -70,66 +73,48 @@ function asyncGeneratePage(page: number) {
 
 type Item = ReturnType<typeof generatePage>[number];
 
-const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const page = ref(PAGE_MAX);
 const list = ref<Item[]>([...generatePage(page.value - 1), ...generatePage(page.value)]);
-const loadingTop = ref(false);
-const loadingBottom = ref(false);
-const firstResize = ref(true);
+const loadState = ref<LoadState | null>(null);
 
-const headerHint = computed(() => (page.value > 2 ? '上拉加载...' : '没有更早的数据了'));
-const footerHint = computed(() => (page.value < PAGE_MAX ? '下拉加载...' : '没有更新的数据了'));
-
-function updateStats(state?: any) {
-  const extra = loadingTop.value || loadingBottom.value ? ' | 加载中...' : '';
-  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${extra}`;
-}
-
-updateStats();
-
-async function onToTop() {
-  if (loadingTop.value || page.value <= 2 || !virtListRef.value) return;
-  loadingTop.value = true;
-  updateStats();
-
-  const prevPageData = await asyncGeneratePage(page.value - 2);
-  page.value--;
-
-  list.value.splice(list.value.length - PAGE_SIZE, PAGE_SIZE);
-  list.value = prevPageData.concat(list.value);
-  virtListRef.value.addedList2Top(prevPageData);
-  virtListRef.value.forceUpdate();
-
-  loadingTop.value = false;
-  updateStats();
-}
-
-async function onToBottom() {
-  if (loadingBottom.value || page.value >= PAGE_MAX || !virtListRef.value) return;
-  loadingBottom.value = true;
-  updateStats();
-
-  const nextPageData = await asyncGeneratePage(page.value + 1);
-  page.value++;
-
-  const removed = list.value.splice(0, PAGE_SIZE);
-  list.value = list.value.concat(nextPageData);
-  virtListRef.value.deletedList2Top(removed);
-  virtListRef.value.forceUpdate();
-
-  loadingBottom.value = false;
-  updateStats();
-}
-
-function onItemResize() {
-  if (firstResize.value && virtListRef.value) {
-    firstResize.value = false;
-    virtListRef.value.scrollToBottom();
+/**
+ * 双向分页取数。
+ *
+ * 一端加一页、另一端裁一页——即使总长度不变，组件也能识别出头部的结构变化
+ * 并补偿滚动位置，不再需要 addedList2Top / deletedList2Top / forceUpdate。
+ */
+async function onLoadMore(direction: LoadDirection) {
+  if (direction === 'top') {
+    if (page.value <= 2) return false;
+    const prevPage = await asyncGeneratePage(page.value - 2);
+    page.value--;
+    list.value = prevPage.concat(list.value.slice(0, list.value.length - PAGE_SIZE));
+    return page.value > 2;
   }
+
+  if (page.value >= PAGE_MAX) return false;
+  const nextPage = await asyncGeneratePage(page.value + 1);
+  page.value++;
+  list.value = list.value.slice(PAGE_SIZE).concat(nextPage);
+  return page.value < PAGE_MAX;
+}
+
+function onLoadStateChange(state: LoadState) {
+  loadState.value = state;
+  updateStats();
 }
 
 function onUpdate(_list: any[], state: any) {
   updateStats(state);
 }
+
+function updateStats(state?: any) {
+  const loading = loadState.value?.loadingTop || loadState.value?.loadingBottom;
+  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
+    loading ? ' | 加载中...' : ''
+  }`;
+}
+
+updateStats();
 </script>

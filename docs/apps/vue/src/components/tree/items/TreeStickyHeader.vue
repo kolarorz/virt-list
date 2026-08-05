@@ -1,3 +1,3 @@
 <template>
-  <div style="background-color: #42b983; color: #fff; padding: 8px 12px">悬浮header</div>
+  <div style="background-color: var(--demo-c-success); color: var(--demo-c-on-accent); padding: 8px 12px">悬浮header</div>
 </template>

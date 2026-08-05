@@ -38,12 +38,12 @@ export function bootstrapGridBasic(root) {
     gridItems: 2,
     itemKey: 'id',
     itemPreSize: 70,
-    renderItem: (item, index, rowIndex) => {
+    renderItem: (item, rowIndex, listIndex) => {
       const cell = document.createElement('div');
       cell.className = 'grid-cell';
       cell.innerHTML = `
         <div>
-          <div style="font-size:12px;color:#999;">row:${rowIndex} - item:${index}</div>
+          <div style="font-size:12px;color:var(--demo-c-text-3);">row:${rowIndex} - item:${listIndex}</div>
           <div style="display:flex;align-items:center;">
             <img src="${item.avatar}" style="width:40px;height:40px;border-radius:50%;" />
             <span style="margin-left:6px;">${item.name}</span>

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
-import '../../demo.css';
 
 const WIDTHS = [60, 80, 100, 110, 130];
 
@@ -39,7 +38,7 @@ export default function Horizontal() {
               style={{ minWidth: itemData.width, width: itemData.width }}
             >
               <div style={{ fontWeight: 'bold' }}>{itemData.id}</div>
-              <div style={{ fontSize: 11, color: '#999' }}>w:{itemData.width}</div>
+              <div style={{ fontSize: 11, color: 'var(--demo-c-text-3)' }}>w:{itemData.width}</div>
             </div>
           )}
         </VirtList>

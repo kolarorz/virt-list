@@ -30,8 +30,8 @@ function createUserItem(user) {
     <div class="demo-ka-avatar">${user.name.charAt(0)}</div>
     <div class="demo-ka-info">
       <div style="font-weight:bold;">${user.name}</div>
-      <div style="font-size:11px;color:#888;">${user.email} | ${user.department}</div>
-      <div style="font-size:11px;color:#aaa;">入职: ${user.joinDate}</div>
+      <div style="font-size:11px;color:var(--demo-c-text-2);">${user.email} | ${user.department}</div>
+      <div style="font-size:11px;color:var(--demo-c-text-3);">入职: ${user.joinDate}</div>
     </div>
   `;
   return el;
@@ -41,11 +41,11 @@ function createProductItem(product) {
   const el = document.createElement('div');
   el.className = 'demo-ka-card';
   el.innerHTML = `
-    <div class="demo-ka-avatar" style="background:#f0ad4e;">${product.name.charAt(0)}</div>
+    <div class="demo-ka-avatar" style="background:var(--demo-c-warning);">${product.name.charAt(0)}</div>
     <div class="demo-ka-info">
-      <div style="font-weight:bold;">${product.name} <span style="color:#e74c3c;font-size:12px;">¥${product.price}</span></div>
-      <div style="font-size:11px;color:#888;">${product.category} | 库存: ${product.stock}</div>
-      <div style="font-size:11px;color:#aaa;">${product.description}</div>
+      <div style="font-weight:bold;">${product.name} <span style="color:var(--demo-c-danger-text);font-size:12px;">¥${product.price}</span></div>
+      <div style="font-size:11px;color:var(--demo-c-text-2);">${product.category} | 库存: ${product.stock}</div>
+      <div style="font-size:11px;color:var(--demo-c-text-3);">${product.description}</div>
     </div>
   `;
   return el;
@@ -95,7 +95,7 @@ export function bootstrapKeepAlive(root) {
         <button class="virt-list-btn virt-list-btn-warning" id="btnClearUser">清空列表</button>
         <button class="virt-list-btn virt-list-btn-success" id="btnTopUser">回到顶部</button>
         <button class="virt-list-btn virt-list-btn-secondary" id="btnBottomUser">滚动到底部</button>
-        <span style="font-size:12px;color:#888;margin-left:8px;">总数: ${users.length}</span>
+        <span style="font-size:12px;color:var(--demo-c-text-2);margin-left:8px;">总数: ${users.length}</span>
       `;
       currentVirtList = new VirtList(container, {
         list: users,
@@ -138,7 +138,7 @@ export function bootstrapKeepAlive(root) {
         <button class="virt-list-btn virt-list-btn-warning" id="btnClearProd">清空列表</button>
         <button class="virt-list-btn virt-list-btn-success" id="btnTopProd">回到顶部</button>
         <button class="virt-list-btn virt-list-btn-secondary" id="btnBottomProd">滚动到底部</button>
-        <span style="font-size:12px;color:#888;margin-left:8px;">总数: ${products.length}</span>
+        <span style="font-size:12px;color:var(--demo-c-text-2);margin-left:8px;">总数: ${products.length}</span>
       `;
       currentVirtList = new VirtList(container, {
         list: products,

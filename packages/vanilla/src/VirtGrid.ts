@@ -1,7 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { VirtList } from './VirtList';
 import { normalizeStyle } from './utils';
-import type { ListState, StyleValue, VirtListEvents } from '@virt-list/core';
+import type {
+  ListState,
+  StyleValue,
+  VirtListEvents,
+  VirtScrollOptions,
+} from '@virt-list/core';
 
 /**
  * 网格布局配置项。
@@ -21,13 +26,17 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   fixed?: boolean;
   /** 渲染缓冲行数 */
   buffer?: number;
+  /** smooth 滚动的默认动画时长（ms），默认 300 */
+  scrollDuration?: number;
+  /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
+  smoothMaxDistance?: number;
   /** 行的自定义 style */
   itemStyle?: StyleValue;
   /** 单元格渲染函数（可返回 HTMLElement，或直接渲染到传入 el） */
   renderItem: (
     item: T,
-    index: number,
     rowIndex: number,
+    listIndex: number,
     el: HTMLElement,
   ) => HTMLElement | void;
   renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
@@ -97,14 +106,16 @@ export class VirtGrid<T extends Record<string, any>> {
         itemGap: options.itemGap,
         fixed: options.fixed,
         buffer: options.buffer,
+        scrollDuration: options.scrollDuration,
+        smoothMaxDistance: options.smoothMaxDistance,
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {
             const mountEl = document.createElement('div');
             const cellEl = this._options.renderItem(
               rowData.children[i]!,
-              rowData._id + i,
               rowIndex,
+              rowData._id + i,
               mountEl,
             );
             el.appendChild(cellEl ?? mountEl);
@@ -170,26 +181,31 @@ export class VirtGrid<T extends Record<string, any>> {
   }
 
   /** 按扁平索引滚动（自动换算为行索引） */
-  scrollToIndex(index: number): void {
+  scrollToIndex(index: number, options?: VirtScrollOptions): void {
     const targetRowIndex = Math.floor(index / this._options.gridItems);
-    this._virtListDOM.scrollToIndex(targetRowIndex);
+    this._virtListDOM.scrollToIndex(targetRowIndex, options);
   }
 
-  scrollIntoView(index: number): void {
+  scrollIntoView(index: number, options?: VirtScrollOptions): void {
     const targetRowIndex = Math.floor(index / this._options.gridItems);
-    this._virtListDOM.scrollIntoView(targetRowIndex);
+    this._virtListDOM.scrollIntoView(targetRowIndex, options);
   }
 
-  scrollToTop(): void {
-    this._virtListDOM.scrollToTop();
+  scrollToTop(options?: VirtScrollOptions): void {
+    this._virtListDOM.scrollToTop(options);
   }
 
-  scrollToBottom(): void {
-    this._virtListDOM.scrollToBottom();
+  scrollToBottom(options?: VirtScrollOptions): void {
+    this._virtListDOM.scrollToBottom(options);
   }
 
-  scrollToOffset(offset: number): void {
-    this._virtListDOM.scrollToOffset(offset);
+  scrollToOffset(offset: number, options?: VirtScrollOptions): void {
+    this._virtListDOM.scrollToOffset(offset, options);
+  }
+
+  /** 取消进行中的平滑滚动动画 */
+  cancelScroll(): void {
+    this._virtListDOM.cancelScroll();
   }
 
   /** 强制刷新（重建行数据并更新列表） */

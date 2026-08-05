@@ -2,8 +2,9 @@ import { VirtTree } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
 
 /**
- * 聚焦态由库在 `.virt-tree-node` 上切换 `is-focused` class。
- * 可在业务样式中覆盖，例如：`.virt-tree-node.is-focused { outline: 2px solid #42b983; }`
+ * 聚焦态由库在 `.virt-tree-node` 上切换 `is-focused` class，
+ * 默认表现为一圈内描边环（亮/暗色自动适配）。
+ * 需要换色时覆盖变量即可：`.virt-tree-item { --virt-tree-color-node-ring-focused: #18a058; }`
  */
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

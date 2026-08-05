@@ -30,7 +30,6 @@ import type { TreeNode } from '@virt-list/vue';
 import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeDragItem from './items/TreeDragItem.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

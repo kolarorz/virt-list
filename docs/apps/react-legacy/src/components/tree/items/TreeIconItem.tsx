@@ -7,7 +7,7 @@ export default function TreeIconItem({ isExpanded }: { isExpanded: boolean }) {
         justifyContent: 'center',
         width: 20,
         height: 20,
-        color: '#333',
+        color: 'var(--demo-c-text-1)',
         transition: 'transform 0.15s ease',
         transform: isExpanded ? 'rotate(-90deg)' : 'rotate(0deg)',
       }}

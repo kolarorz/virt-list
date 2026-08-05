@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { VirtTree } from '@virt-list/react';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 function generateTreeData() {
   const data = Array.from({ length: 40 }, (_, i) => ({

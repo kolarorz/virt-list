@@ -38,7 +38,7 @@ export function bootstrapHorizontal(root) {
         col.style.width = `${item.width}px`;
         col.innerHTML = `
           <div style="font-weight:bold;">${item.id}</div>
-          <div style="font-size:11px;color:#999;">w:${item.width}</div>
+          <div style="font-size:11px;color:var(--demo-c-text-3);">w:${item.width}</div>
         `;
         return col;
       },

@@ -1,6 +1,5 @@
 import { useState, useMemo, type CSSProperties } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
-import '../../demo.css';
 
 const COLUMNS = [
   { key: 'id', title: 'ID', width: 60 },
@@ -62,7 +61,7 @@ export default function Advanced() {
 
   return (
     <div className="demo-panel">
-      <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+      <p style={{ fontSize: 12, color: 'var(--demo-c-text-2)', marginBottom: 8 }}>
         高阶用法：展示类似表格的渲染，包含 sticky 列头和多列数据。前两行进行了合并展示。
       </p>
       <div className="demo-stats">{stats}</div>
@@ -71,7 +70,7 @@ export default function Advanced() {
           list={list}
           itemKey="id"
           itemPreSize={40}
-          stickyHeaderStyle={{ background: '#f5f5f5' }}
+          stickyHeaderStyle={{ background: 'var(--demo-c-fill-2)' }}
           renderStickyHeader={() => (
             <div className="demo-table-row demo-table-header" style={{ minWidth: 'min-content' }}>
               {COLUMNS.map((col) => (
@@ -79,7 +78,7 @@ export default function Advanced() {
                   key={col.key}
                   text={col.title}
                   width={col.width}
-                  extra={{ fontWeight: 'bold', background: '#e8e8e8' }}
+                  extra={{ fontWeight: 'bold', background: 'var(--demo-c-fill-3)' }}
                 />
               ))}
             </div>
@@ -97,7 +96,7 @@ export default function Advanced() {
                     width={COLUMNS[0].width + COLUMNS[1].width}
                     extra={{
                       minWidth: COLUMNS[0].width + COLUMNS[1].width,
-                      background: '#fffbe6',
+                      background: 'var(--demo-c-warning-soft)',
                       fontWeight: 'bold',
                     }}
                   />
@@ -112,7 +111,7 @@ export default function Advanced() {
                     width={COLUMNS[0].width + COLUMNS[1].width}
                     extra={{
                       minWidth: COLUMNS[0].width + COLUMNS[1].width,
-                      background: '#fffbe6',
+                      background: 'var(--demo-c-warning-soft)',
                     }}
                   />
                   {COLUMNS.slice(2).map((col) => (

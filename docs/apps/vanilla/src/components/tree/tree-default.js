@@ -47,7 +47,7 @@ export function bootstrapTreeDefault(root) {
         el.style.height = '40px';
         el.style.display = 'flex';
         el.style.alignItems = 'center';
-        el.style.borderBottom = '1px solid #eee';
+        el.style.borderBottom = '1px solid var(--demo-c-divider)';
         el.style.boxSizing = 'border-box';
         el.style.paddingLeft = `${(node.level - 1) * indent}px`;
         el.textContent = `level: ${node.level}; -- title: ${node.title ?? ''}`;

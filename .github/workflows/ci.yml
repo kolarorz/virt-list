@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: ['master']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 同时跑用例与覆盖率阈值（阈值配在 vitest.config.ts）
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+
+      # 只构建 packages/*：docs 与示例应用另有既存类型错误，不在此设门禁
+      - name: Build packages
+        run: pnpm build:packages

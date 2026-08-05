@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { VirtTree, type VirtTreeRef } from '@virt-list/react-legacy';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
@@ -29,7 +28,7 @@ export default function TreeFilter() {
           <input
             ref={filterInputRef}
             defaultValue="Node-0"
-            style={{ width: 160, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
+            className="demo-input" style={{ width: 160 }}
           />
           <button
             type="button"

@@ -20,6 +20,9 @@ docs/apps/*/.vite
 # Logs
 *.log
 
+# Test coverage output
+coverage
+
 # Prevent tsc build artifacts from leaking into src/
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map

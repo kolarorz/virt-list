@@ -36,7 +36,6 @@
 import { ref, onUnmounted } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 import Item from '../Item.vue';
-import '../../demo.css';
 
 const SENTENCES = [
   '虚拟列表是一种高性能的列表渲染方案，只渲染可视区域内的元素。',

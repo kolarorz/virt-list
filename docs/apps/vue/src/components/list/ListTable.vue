@@ -6,14 +6,14 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        sticky-header-style="background:#f0f0f0;"
+        sticky-header-style="background:var(--demo-c-fill-2);"
         @update="onUpdate"
       >
         <template #stickyHeader>
           <div class="demo-table-row demo-table-header">
             <div
               class="demo-table-cell"
-              :style="{ ...stickyLeft, width: '80px', minWidth: '80px', background: '#e0e0e0' }"
+              :style="{ ...stickyLeft, width: '80px', minWidth: '80px', background: 'var(--demo-c-fill-3)' }"
             >
               ID
             </div>
@@ -22,7 +22,7 @@
             <div class="demo-table-cell" style="width: 600px; min-width: 600px">描述2</div>
             <div
               class="demo-table-cell"
-              :style="{ ...stickyRight, width: '80px', minWidth: '80px', background: '#e0e0e0' }"
+              :style="{ ...stickyRight, width: '80px', minWidth: '80px', background: 'var(--demo-c-fill-3)' }"
             >
               操作
             </div>
@@ -54,7 +54,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 function generateList(count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -72,13 +71,13 @@ const stickyLeft: Record<string, string> = {
   position: 'sticky',
   left: '0',
   zIndex: '1',
-  background: '#fff',
+  background: 'var(--demo-c-bg-elv)',
 };
 const stickyRight: Record<string, string> = {
   position: 'sticky',
   right: '0',
   zIndex: '1',
-  background: '#fff',
+  background: 'var(--demo-c-bg-elv)',
 };
 
 const statsText = ref('');

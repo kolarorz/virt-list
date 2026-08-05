@@ -62,7 +62,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, onUnmounted } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 interface Row {
   id: number;

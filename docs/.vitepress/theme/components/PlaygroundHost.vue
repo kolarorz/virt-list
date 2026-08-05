@@ -40,11 +40,11 @@ const isDev = (import.meta as ImportMeta & { env: { DEV: boolean } }).env.DEV;
 
 const base = (import.meta as any).env.BASE_URL || '/';
 const appEntries: Record<FrameworkKind, string> = {
-  vanilla: isDev ? 'http://localhost:7101/' : `${base}micro-apps/vanilla/`,
-  vue: isDev ? 'http://localhost:7102/' : `${base}micro-apps/vue/`,
-  react: isDev ? 'http://localhost:7103/' : `${base}micro-apps/react/`,
-  vue2: isDev ? 'http://localhost:7104/' : `${base}micro-apps/vue2/`,
-  'react-legacy': isDev ? 'http://localhost:7105/' : `${base}micro-apps/react-legacy/`,
+  vanilla: isDev ? 'http://localhost:7801/' : `${base}micro-apps/vanilla/`,
+  vue: isDev ? 'http://localhost:7802/' : `${base}micro-apps/vue/`,
+  react: isDev ? 'http://localhost:7803/' : `${base}micro-apps/react/`,
+  vue2: isDev ? 'http://localhost:7804/' : `${base}micro-apps/vue2/`,
+  'react-legacy': isDev ? 'http://localhost:7805/' : `${base}micro-apps/react-legacy/`,
 };
 
 const appNames: Record<FrameworkKind, string> = {

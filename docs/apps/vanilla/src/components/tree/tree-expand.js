@@ -28,7 +28,7 @@ const template = `
     <div class="tree-btn-container">
       <div class="input-container">
         <label>操作指定节点：</label>
-        <input id="nodeKeyInput" value="0-0" style="width:80px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;" />
+        <input id="nodeKeyInput" value="0-0" class="demo-input" style="width:80px;" />
         <button class="virt-list-btn virt-list-btn-primary" id="btnExpandNode">展开</button>
         <button class="virt-list-btn virt-list-btn-secondary" id="btnCollapseNode">折叠</button>
       </div>

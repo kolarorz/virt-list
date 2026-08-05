@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
 import Item from '../Item';
-import '../../demo.css';
 
 interface Item {
   id: number;
@@ -78,7 +77,7 @@ export default function Empty() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
-                color: '#999',
+                color: 'var(--demo-c-text-3)',
               }}
             >
               <svg

@@ -18,12 +18,12 @@
         :item-pre-size="70"
         @to-top="onToTop"
       >
-        <template #default="{ itemData, index, rowIndex }">
+        <template #default="{ itemData, rowIndex, listIndex }">
           <GridItem
             :item="itemData"
-            :index="index"
+            :list-index="listIndex"
             :row-index="rowIndex"
-            @delete="handleDelete(itemData, index)"
+            @delete="handleDelete(itemData, listIndex)"
           />
         </template>
       </VirtGrid>
@@ -37,7 +37,6 @@ import { faker } from '@faker-js/faker';
 import { VirtGrid } from '@virt-list/vue2';
 import GridItem from './GridItem.vue';
 import type { VirtGridRef } from '../_virtRefTypes';
-import '../../demo.css';
 
 function generateData(count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -55,11 +54,11 @@ const statusText = ref('');
 const gridItems = ref(2);
 const gridList = ref<GridItem[]>(generateData(1000));
 
-function handleDelete(item: GridItem, index: number) {
+function handleDelete(item: GridItem, listIndex: number) {
   const idx = gridList.value.findIndex((v) => v.id === item.id);
   if (idx > -1) {
     gridList.value = gridList.value.filter((v) => v.id !== item.id);
-    statusText.value = `已删除 item ${index}，剩余 ${gridList.value.length} 项`;
+    statusText.value = `已删除 item ${listIndex}，剩余 ${gridList.value.length} 项`;
   }
 }
 

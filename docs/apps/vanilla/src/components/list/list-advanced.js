@@ -36,7 +36,7 @@ function createTableCell(text, width, extra) {
 
 const template = `
   <div class="demo-panel">
-    <p style="font-size:12px;color:#888;margin-bottom:8px;">
+    <p style="font-size:12px;color:var(--demo-c-text-2);margin-bottom:8px;">
       高阶用法：展示类似表格的渲染，包含 sticky 列头和多列数据。前两行进行了合并展示。
     </p>
     <div id="stats" class="demo-stats"></div>
@@ -57,7 +57,7 @@ export function bootstrapAdvanced(root) {
       list,
       itemKey: 'id',
       itemPreSize: 40,
-      stickyHeaderStyle: 'background:#f5f5f5;',
+      stickyHeaderStyle: 'background:var(--demo-c-fill-2);',
       renderStickyHeader: () => {
         const header = document.createElement('div');
         header.className = 'demo-table-row demo-table-header';
@@ -66,7 +66,7 @@ export function bootstrapAdvanced(root) {
           header.appendChild(
             createTableCell(col.title, col.width, {
               fontWeight: 'bold',
-              background: '#e8e8e8',
+              background: 'var(--demo-c-fill-3)',
             }),
           );
         }
@@ -80,7 +80,7 @@ export function bootstrapAdvanced(root) {
         if (index === 0) {
           const mergedCell = createTableCell(`合并行 (ID: ${item.id} & ${item.id + 1})`, COLUMNS[0].width + COLUMNS[1].width, {
             minWidth: `${COLUMNS[0].width + COLUMNS[1].width}px`,
-            background: '#fffbe6',
+            background: 'var(--demo-c-warning-soft)',
             fontWeight: 'bold',
           });
           row.appendChild(mergedCell);
@@ -90,7 +90,7 @@ export function bootstrapAdvanced(root) {
         } else if (index === 1) {
           const mergedCell = createTableCell(`(续) ID: ${item.id}`, COLUMNS[0].width + COLUMNS[1].width, {
             minWidth: `${COLUMNS[0].width + COLUMNS[1].width}px`,
-            background: '#fffbe6',
+            background: 'var(--demo-c-warning-soft)',
           });
           row.appendChild(mergedCell);
           for (let c = 2; c < COLUMNS.length; c++) {

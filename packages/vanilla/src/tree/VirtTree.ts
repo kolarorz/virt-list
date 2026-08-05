@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { VirtList } from '../VirtList';
+import type { VirtScrollOptions } from '@virt-list/core';
 import type {
   TreeNode,
   TreeNodeData,
@@ -30,6 +31,12 @@ const DEFAULT_FIELD_NAMES: Required<TreeFieldNames> = {
 };
 
 /**
+ * 拖拽自动滚动的最大速度（px/s）。
+ * 与旧实现（每 10ms 移动 20px）保持一致的手感。
+ */
+const AUTO_SCROLL_MAX_SPEED = 2000;
+
+/**
  * 虚拟树形的 DOM 实现。
  *
  * 核心流程：
@@ -58,6 +65,14 @@ export class VirtTree {
   };
   /** 所有含子节点的节点 key（expandAll 时使用） */
   private _parentNodeKeys: TreeNodeKey[] = [];
+  /**
+   * key → DFS 顺序下标，_sortKeysByDataOrder 的排序基准。
+   *
+   * 与 allNodeKeys 同在 _setTreeData 中填充。之所以缓存成字段，是因为
+   * 每次点击复选框都要排序两组 key（选中 + 半选），若每次重建这张表，
+   * 单次交互就要多付两趟全树遍历。
+   */
+  private _keyOrderMap: Map<TreeNodeKey, number> = new Map();
 
   // ---- 交互状态集合 ----
   /** 当前展开的节点 key 集合 */
@@ -304,11 +319,14 @@ export class VirtTree {
 
   checkNode(key: TreeNodeKey | TreeNodeKey[], checked: boolean): void {
     const targets = Array.isArray(key) ? key : [key];
+    let mutated = false;
     for (const k of targets) {
       const node = this.getTreeNode(k);
       if (!node) continue;
-      this._toggleCheckboxInternal(node, checked);
+      // 冒泡延后到循环结束，否则每个 key 都要付一趟全树遍历
+      mutated = this._toggleCheckboxInternal(node, checked, true) || mutated;
     }
+    this._bubbleAfterBatch(mutated);
     this._updateRenderedNodeStates();
   }
 
@@ -394,25 +412,34 @@ export class VirtTree {
   // ----- Scroll -----
 
   scrollTo(scroll: IScrollParams): void {
-    const { key, align, offset } = scroll;
+    const { key, align, offset, behavior, duration } = scroll;
+    const scrollOptions: VirtScrollOptions | undefined = behavior
+      ? { behavior, duration }
+      : undefined;
+
     if (offset !== undefined && offset >= 0) {
-      this._virtListDOM.scrollToOffset(offset);
+      this._virtListDOM.scrollToOffset(offset, scrollOptions);
       return;
     }
     if (!key) return;
     if (align === 'top') {
-      this._scrollToTarget(key, true);
+      this._scrollToTarget(key, true, scrollOptions);
     } else {
-      this._scrollToTarget(key, false);
+      this._scrollToTarget(key, false, scrollOptions);
     }
   }
 
-  scrollToTop(): void {
-    this._virtListDOM.scrollToTop();
+  scrollToTop(options?: VirtScrollOptions): void {
+    this._virtListDOM.scrollToTop(options);
   }
 
-  scrollToBottom(): void {
-    this._virtListDOM.scrollToBottom();
+  scrollToBottom(options?: VirtScrollOptions): void {
+    this._virtListDOM.scrollToBottom(options);
+  }
+
+  /** 取消进行中的平滑滚动动画 */
+  cancelScroll(): void {
+    this._virtListDOM.cancelScroll();
   }
 
   // ----- Data -----
@@ -420,9 +447,6 @@ export class VirtTree {
   /** 替换整棵树的数据，重建所有内部状态 */
   setList(list: TreeData): void {
     this._options.list = list;
-    this._parentNodeKeys.length = 0;
-    this._treeInfo.treeNodesMap.clear();
-    this._treeInfo.allNodeKeys.length = 0;
     this._setTreeData(list);
     this._initExpandedKeys();
     this._initCheckedKeys();
@@ -432,9 +456,6 @@ export class VirtTree {
   }
 
   forceUpdate(): void {
-    this._parentNodeKeys.length = 0;
-    this._treeInfo.treeNodesMap.clear();
-    this._treeInfo.allNodeKeys.length = 0;
     this._setTreeData(this._options.list);
     this._initExpandedKeys();
     this._initCheckedKeys();
@@ -476,14 +497,11 @@ export class VirtTree {
 
   /**
    * 将 key 集合按照树的 DFS 遍历顺序排序（即数据源中的出现顺序）。
+   * 排序基准 _keyOrderMap 由 _setTreeData 预建，这里只做 O(k log k) 的排序。
    * allNodeKeys 在 _setTreeData 时按 DFS 顺序填充，作为排序基准。
    */
   private _sortKeysByDataOrder(keys: Iterable<TreeNodeKey>): TreeNodeKey[] {
-    const orderMap = new Map<TreeNodeKey, number>();
-    const allKeys = this._treeInfo.allNodeKeys;
-    for (let i = 0; i < allKeys.length; i++) {
-      orderMap.set(allKeys[i]!, i);
-    }
+    const orderMap = this._keyOrderMap;
     const sorted = [...keys].filter((k) => orderMap.has(k));
     sorted.sort((a, b) => orderMap.get(a)! - orderMap.get(b)!);
     return sorted;
@@ -496,11 +514,19 @@ export class VirtTree {
    * - treeNodesMap: key → TreeNode（O(1) 查找）
    * - levelNodesMap: level → TreeNode[]（复选框冒泡需要）
    * - parentNodeKeys: 所有非叶子节点 key
+   * - allNodeKeys / keyOrderMap: DFS 顺序及其反查表
+   *
+   * 这些索引全部在此重建，因此调用方无需（也不应）自行清理。
    */
   private _setTreeData(list: TreeData): void {
     const fieldNames = this._fieldNames;
     const levelNodesMap = new Map<TreeNodeKey, TreeNode[]>();
     let maxLevel = 1;
+
+    this._parentNodeKeys.length = 0;
+    this._treeInfo.treeNodesMap.clear();
+    this._treeInfo.allNodeKeys.length = 0;
+    this._keyOrderMap.clear();
 
     const flat = (
       nodes: TreeData,
@@ -534,7 +560,7 @@ export class VirtTree {
         }
         currNodes.push(node);
         this._treeInfo.treeNodesMap.set(String(key), node);
-        this._treeInfo.allNodeKeys.push(key);
+        this._keyOrderMap.set(key, this._treeInfo.allNodeKeys.push(key) - 1);
         if (level > maxLevel) maxLevel = level;
 
         const levelInfo = levelNodesMap.get(level);
@@ -568,14 +594,17 @@ export class VirtTree {
   private _initCheckedKeys(): void {
     this._checkedKeysSet.clear();
     this._indeterminateKeysSet.clear();
-    if (this._options.checkable && this._options.checkedKeys) {
-      for (const key of this._options.checkedKeys) {
-        const node = this.getTreeNode(key);
-        if (node && !this.hasChecked(node)) {
-          this._toggleCheckboxInternal(node, true);
-        }
+    if (!this._options.checkable || !this._options.checkedKeys) return;
+
+    let mutated = false;
+    for (const key of this._options.checkedKeys) {
+      const node = this.getTreeNode(key);
+      if (node && !this.hasChecked(node)) {
+        // 同 checkNode：受控树初始化时 checkedKeys 往往成百上千个
+        mutated = this._toggleCheckboxInternal(node, true, true) || mutated;
       }
     }
+    this._bubbleAfterBatch(mutated);
   }
 
   // ==================== Private: Expand ====================
@@ -593,19 +622,40 @@ export class VirtTree {
 
   // ==================== Private: Check ====================
 
-  /** 内部勾选/取消勾选逻辑，级联处理子节点（checkedStrictly 模式下不级联） */
-  private _toggleCheckboxInternal(node: TreeNode, isChecked: boolean): void {
-    if (node.disableCheckbox) return;
+  /**
+   * 内部勾选/取消勾选逻辑，级联处理子节点（checkedStrictly 模式下不级联）。
+   *
+   * @param deferBubble 批量勾选时置 true，跳过 _updateCheckedKeys 的父级冒泡。
+   *   冒泡是一趟全树遍历（O(n)），逐个节点各冒泡一次会让批量操作退化成
+   *   O(k·n)——2 万节点勾选 1000 个 key 需要 386ms。调用方须在循环结束后
+   *   补调一次 _updateCheckedKeys()。
+   * @returns 是否真的发生了变更（disableCheckbox 的节点会被跳过）
+   */
+  private _toggleCheckboxInternal(
+    node: TreeNode,
+    isChecked: boolean,
+    deferBubble = false,
+  ): boolean {
+    if (node.disableCheckbox) return false;
+    const strictly = this._options.checkedStrictly;
     const toggle = (n: TreeNode, checked: boolean) => {
       this._checkedKeysSet[checked ? 'add' : 'delete'](n.key);
-      if (n.children && !this._options.checkedStrictly) {
+      if (n.children && !strictly) {
         for (const child of n.children) {
           if (!child.disableCheckbox) toggle(child, checked);
         }
       }
     };
     toggle(node, isChecked);
-    if (!this._options.checkedStrictly) {
+    if (!deferBubble && !strictly) {
+      this._updateCheckedKeys();
+    }
+    return true;
+  }
+
+  /** 批量勾选后统一冒泡一次（无变更时连这一趟都省掉） */
+  private _bubbleAfterBatch(mutated: boolean): void {
+    if (mutated && !this._options.checkedStrictly) {
       this._updateCheckedKeys();
     }
   }
@@ -734,7 +784,11 @@ export class VirtTree {
 
   // ==================== Private: Scroll ====================
 
-  private _scrollToTarget(key: TreeNodeKey, isTop: boolean): void {
+  private _scrollToTarget(
+    key: TreeNodeKey,
+    isTop: boolean,
+    options?: VirtScrollOptions,
+  ): void {
     let idx = this._renderList.findIndex((l) => l.key === key);
     if (idx < 0) {
       this.expandNode(key, true);
@@ -744,9 +798,9 @@ export class VirtTree {
     }
     if (idx < 0) return;
     if (isTop) {
-      this._virtListDOM.scrollToIndex(idx);
+      this._virtListDOM.scrollToIndex(idx, options);
     } else {
-      this._virtListDOM.scrollIntoView(idx);
+      this._virtListDOM.scrollIntoView(idx, options);
     }
   }
 
@@ -771,6 +825,8 @@ export class VirtTree {
         fixed: opts.fixed,
         itemGap: opts.itemGap,
         buffer: opts.buffer ?? 2,
+        scrollDuration: opts.scrollDuration,
+        smoothMaxDistance: opts.smoothMaxDistance,
         listStyle: 'position:relative;',
         listClass,
         itemClass: (_item: TreeNode) => {
@@ -835,6 +891,12 @@ export class VirtTree {
     if (opts.renderNode) {
       const child = opts.renderNode(node, isExpanded, itemEl);
       if (child) itemEl.appendChild(child);
+      // 整行被自定义接管时没有默认的 content 区，click 只能挂在行容器上
+      itemEl.addEventListener('click', (e) => {
+        if (this._dragging) return;
+        const currentNode = this.getTreeNode(node.key);
+        if (currentNode) this._events.click?.(currentNode.data, currentNode, e);
+      });
       this._nodeElMap.set(String(node.key), itemEl);
       return;
     }
@@ -942,7 +1004,7 @@ export class VirtTree {
     content.addEventListener('click', (e) => {
       e.stopPropagation();
       const currentNode = this.getTreeNode(nodeKey);
-      if (currentNode) this._onClickNodeContent(currentNode);
+      if (currentNode) this._onClickNodeContent(currentNode, e);
     });
 
     if (opts.renderContent) {
@@ -999,8 +1061,15 @@ export class VirtTree {
     this.toggleCheckbox(node);
   }
 
-  private _onClickNodeContent(node: TreeNode): void {
+  /**
+   * 点击节点内容区。
+   *
+   * 先把点击本身通知出去（业务侧常需要"点了哪个节点"而不关心选中/展开语义），
+   * 再按配置执行默认行为——三个开关互斥，命中一个就不再往下走。
+   */
+  private _onClickNodeContent(node: TreeNode, e: MouseEvent): void {
     if (this._dragging) return;
+    this._events.click?.(node.data, node, e);
     if (this._options.selectable && !node.disableSelect) {
       this.toggleSelect(node);
     } else if (
@@ -1027,9 +1096,7 @@ export class VirtTree {
           this._dragState.onScroll,
         );
       }
-      if (this._dragState.autoScrollTimer) {
-        clearInterval(this._dragState.autoScrollTimer);
-      }
+      this._stopAutoScroll(this._dragState);
       if (this._dragState.hoverExpandTimer) {
         clearTimeout(this._dragState.hoverExpandTimer);
       }
@@ -1103,7 +1170,8 @@ export class VirtTree {
       prevNode: undefined,
       nextNode: undefined,
       hoverExpandTimer: null,
-      autoScrollTimer: null,
+      autoScrollRafId: null,
+      autoScrollSpeed: 0,
       dragBox,
       dragLine,
       levelArrow,
@@ -1252,10 +1320,7 @@ export class VirtTree {
       clearTimeout(state.hoverExpandTimer);
       state.hoverExpandTimer = null;
     }
-    if (state.autoScrollTimer) {
-      clearInterval(state.autoScrollTimer);
-      state.autoScrollTimer = null;
-    }
+    this._stopAutoScroll(state);
     state.scrollElement?.removeEventListener('scroll', state.onScroll);
     document.removeEventListener('mousemove', state.onMousemove);
     document.removeEventListener('mouseup', state.onMouseup);
@@ -1351,41 +1416,88 @@ export class VirtTree {
     return null;
   }
 
+  /**
+   * 拖拽到容器上/下边缘时自动滚动。
+   *
+   * 由 mousemove 高频调用，但只更新目标速度，不重启 rAF 循环——每次重启都会丢掉
+   * 一帧的时间基准，而 mousemove 的频率通常与刷新率同阶，重启会让滚动几乎停滞。
+   */
   private _autoScroll(state: DragState): void {
     if (!state.scrollElement || !state.scrollElementRect) return;
-    if (state.autoScrollTimer) {
-      clearInterval(state.autoScrollTimer);
-      state.autoScrollTimer = null;
+
+    state.autoScrollSpeed = this._calcAutoScrollSpeed(state);
+    if (state.autoScrollSpeed === 0) {
+      this._stopAutoScroll(state);
+      return;
     }
-    if (state.clientElementRect) {
-      if (
-        state.mouseX < state.clientElementRect.left ||
-        state.mouseX > state.clientElementRect.right ||
-        state.mouseY < state.clientElementRect.top ||
-        state.mouseY > state.clientElementRect.bottom
-      )
+    if (state.autoScrollRafId !== null) return;
+
+    // 按帧间隔折算位移，滚动速度与屏幕刷新率解耦（原先固定 10ms 步进在高刷屏上偏快）；
+    // rAF 在标签页不可见时自动暂停，也就不会像 setInterval 那样堆积回调
+    let last: number | null = null;
+    let remainder = 0;
+    const step = (timestamp: number): void => {
+      const scrollEl = state.scrollElement;
+      if (!scrollEl) {
+        state.autoScrollRafId = null;
         return;
+      }
+
+      const seconds = last === null ? 0 : (timestamp - last) / 1000;
+      last = timestamp;
+
+      // scrollTop 取整会吞掉小数位移，慢速时累积余量才不会完全不动
+      remainder += state.autoScrollSpeed * seconds;
+      const move = Math.trunc(remainder);
+      if (move !== 0) {
+        remainder -= move;
+        scrollEl.scrollTop += move;
+      }
+
+      state.autoScrollRafId = requestAnimationFrame(step);
+    };
+    state.autoScrollRafId = requestAnimationFrame(step);
+  }
+
+  /** 计算自动滚动速度（px/s）：指针进入容器上/下 1/4 区域时生效，越靠边越快 */
+  private _calcAutoScrollSpeed(state: DragState): number {
+    if (!state.scrollElementRect) return 0;
+
+    // 指针移出列表可视区域时停止
+    if (state.clientElementRect) {
+      const { left, right, top, bottom } = state.clientElementRect;
+      if (
+        state.mouseX < left ||
+        state.mouseX > right ||
+        state.mouseY < top ||
+        state.mouseY > bottom
+      ) {
+        return 0;
+      }
     }
-    const equalPart = state.scrollElementRect.height / 4;
-    const multiple = 20;
+
     const rect = state.scrollElementRect;
-    const scrollEl = state.scrollElement;
+    const equalPart = rect.height / 4;
+
     if (rect.top < state.mouseY && state.mouseY < rect.top + equalPart) {
-      const relative =
-        (1 - (state.mouseY - rect.top) / equalPart) * multiple;
-      state.autoScrollTimer = setInterval(() => {
-        scrollEl.scrollTop -= relative;
-      }, 10);
-    } else if (
+      const ratio = 1 - (state.mouseY - rect.top) / equalPart;
+      return -ratio * AUTO_SCROLL_MAX_SPEED;
+    }
+    if (
       rect.top + equalPart * 3 < state.mouseY &&
       state.mouseY < rect.bottom
     ) {
-      const relative =
-        ((state.mouseY - (rect.top + equalPart * 3)) / equalPart) * multiple;
-      state.autoScrollTimer = setInterval(() => {
-        scrollEl.scrollTop += relative;
-      }, 10);
+      const ratio = (state.mouseY - (rect.top + equalPart * 3)) / equalPart;
+      return ratio * AUTO_SCROLL_MAX_SPEED;
     }
+    return 0;
+  }
+
+  private _stopAutoScroll(state: DragState): void {
+    state.autoScrollSpeed = 0;
+    if (state.autoScrollRafId === null) return;
+    cancelAnimationFrame(state.autoScrollRafId);
+    state.autoScrollRafId = null;
   }
 
   private _buildDragLine(state: DragState, level: number): void {
@@ -1751,7 +1863,10 @@ interface DragState {
   prevNode: TreeNode | undefined;
   nextNode: TreeNode | undefined;
   hoverExpandTimer: ReturnType<typeof setTimeout> | null;
-  autoScrollTimer: ReturnType<typeof setInterval> | null;
+  /** 拖拽自动滚动的 rAF 句柄，null 表示循环未运行 */
+  autoScrollRafId: number | null;
+  /** 拖拽自动滚动的当前速度（px/s，负数向上），由 mousemove 持续更新 */
+  autoScrollSpeed: number;
   dragBox: HTMLElement;
   dragLine: HTMLElement;
   levelArrow: HTMLElement;

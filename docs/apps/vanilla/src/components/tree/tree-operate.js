@@ -21,9 +21,9 @@ const template = `
     <div class="tree-btn-container">
       <div class="input-container" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
         <label>目标 key：</label>
-        <input id="scrollKeyInput" value="5-1-0" style="width:120px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;" />
+        <input id="scrollKeyInput" value="5-1-0" class="demo-input" style="width:120px;" />
         <label>滚动 offset：</label>
-        <input id="scrollOffsetInput" value="400" type="number" min="0" style="width:100px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;" />
+        <input id="scrollOffsetInput" value="400" type="number" min="0" class="demo-input" style="width:100px;" />
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="virt-list-btn virt-list-btn-success" id="btnExpandAll">展开所有</button>

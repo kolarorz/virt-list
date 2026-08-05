@@ -4,19 +4,38 @@ layout: home
 
 hero:
   name: 'virt-list'
-  tagline: 轻量、高性能、跨框架的虚拟列表库
+  text: '列表有多长，DOM 都只有一屏'
+  tagline: 轻量、跨框架，行高由内容决定。三十万行与三十行，滚动开销一样。
+  actions:
+    - theme: brand
+      text: 快速开始
+      link: /vanilla/guide/started
+    - theme: alt
+      text: 现场跑一遍性能
+      link: '#benchmark'
+    - theme: alt
+      text: GitHub
+      link: https://github.com/kolarorz/virt-list
 
 features:
-  - title: 高性能渲染
-    details: 仅渲染可视区域与缓冲区，轻松应对超长列表，滚动更流畅。
+  - title: 常数级滚动开销
+    details: 稳态滚动从上一帧的位置增量推进，每帧只跨越几项；数据量从一万涨到三十万，单帧成本不变。
+  - title: 真正的不定高
+    details: 行高由内容决定，无需预先声明。ResizeObserver 实测尺寸，配合分块索引让任意跳转保持 O(√n)。
   - title: 跨框架一致体验
-    details: 提供 Vue、Vue2、React、Vanilla 多端实现，API 设计统一，上手成本低。
+    details: Vue 3 / Vue 2 / React 18+ / React 16-17 / 原生 JS 五套实现共享同一份核心算法，API 对齐。
   - title: 能力完整
-    details: 支持动态高度、sticky 区域、空状态、滚动定位与常见列表操作场景。
+    details: 虚拟列表、虚拟树形、网格布局，外加 sticky 区域、空状态、滚动定位、拖拽排序与无限加载。
   - title: 灵活可控
-    details: 提供丰富配置与渲染控制能力，可按业务定制渲染范围、样式与交互行为。
+    details: 渲染区间、缓冲区、样式与交互都可接管，renderControl 允许你完全自定义渲染哪些项。
   - title: 类型友好
-    details: 使用 TypeScript 构建，接口清晰，开发期即可获得更好的提示与约束。
-  - title: 简单接入
-    details: 最少配置即可运行，文档与示例覆盖常见用法，方便快速落地。
+    details: 全量 TypeScript 编写，核心零运行时依赖，完整链路 gzip 后 6.1KB。
 ---
+
+<ComplexityTable />
+
+<div id="benchmark"></div>
+
+<ClientOnly>
+  <BenchmarkPanel />
+</ClientOnly>

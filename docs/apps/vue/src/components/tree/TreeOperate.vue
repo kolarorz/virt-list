@@ -8,7 +8,7 @@
           <span>节点 key</span>
           <input
             v-model="nodeKeyInput"
-            style="width: 100px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px"
+            class="demo-input" style="width: 100px"
           />
         </label>
         <button type="button" class="virt-list-btn virt-list-btn-primary" @click="expandNode">展开节点</button>
@@ -19,7 +19,7 @@
           <span>scroll key</span>
           <input
             v-model="scrollKeyInput"
-            style="width: 100px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px"
+            class="demo-input" style="width: 100px"
           />
         </label>
         <button type="button" class="virt-list-btn virt-list-btn-primary" @click="scrollToTop">scrollTo top</button>
@@ -29,7 +29,7 @@
           <input
             v-model.number="offsetInput"
             type="number"
-            style="width: 88px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px"
+            class="demo-input" style="width: 88px"
           />
         </label>
         <button type="button" class="virt-list-btn virt-list-btn-secondary" @click="scrollToOffset">scrollTo offset</button>
@@ -50,7 +50,6 @@ import { ref } from 'vue';
 import { VirtTree } from '@virt-list/vue';
 import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

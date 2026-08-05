@@ -36,7 +36,6 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
 import Item from '../Item.vue';
-import '../../demo.css';
 
 const SENTENCES = [
   '虚拟列表是一种高性能的列表渲染方案，只渲染可视区域内的元素。',
@@ -93,6 +92,6 @@ function onToggle() {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--demo-c-text-3);
 }
 </style>

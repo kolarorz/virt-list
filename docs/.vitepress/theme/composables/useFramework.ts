@@ -28,7 +28,7 @@ export const FRAMEWORK_ICONS: Record<Framework, string> = {
  * Uses withBase() to prepend the configured base path (e.g. /virt-list/).
  */
 const MODULE_ENTRY: Record<ModuleName, string> = {
-  guide: 'started',
+  guide: 'introduction',
   examples: 'list/list-basic',
   api: 'virt-list',
 };

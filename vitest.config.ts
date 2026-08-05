@@ -27,9 +27,25 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['packages/**/__tests__/**/*.test.ts'],
+    benchmark: {
+      include: ['packages/**/__bench__/**/*.bench.ts'],
+    },
     coverage: {
       include: ['packages/*/src/**/*.ts'],
-      exclude: ['packages/*/src/index.ts'],
+      exclude: [
+        // 纯 re-export 与纯类型声明文件，没有可执行语句
+        'packages/*/src/index.ts',
+        'packages/*/src/tree/index.ts',
+        'packages/*/src/tree/types.ts',
+      ],
+      reporter: ['text', 'html', 'lcov'],
+      // 阈值按当前实测值向下留出缓冲：不为了好看拔高，只用来拦住明显的覆盖倒退
+      thresholds: {
+        statements: 85,
+        branches: 84,
+        functions: 78,
+        lines: 85,
+      },
     },
   },
 });

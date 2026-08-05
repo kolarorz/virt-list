@@ -45,10 +45,10 @@ pnpm install
 pnpm dev
 
 # 单独启动
-pnpm dev:docs      # VitePress 文档站 (port 5173)
-pnpm dev:vanilla        # JS demo (port 7101)
-pnpm dev:vue       # Vue demo (port 7102)
-pnpm dev:react     # React demo (port 7103)
+pnpm dev:docs      # VitePress 文档站 (port 7800)
+pnpm dev:vanilla        # JS demo (port 7801)
+pnpm dev:vue       # Vue demo (port 7802)
+pnpm dev:react     # React demo (port 7803)
 ```
 
 ### 运行测试

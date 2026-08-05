@@ -21,6 +21,7 @@ import type {
   IScrollParams,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
+  VirtScrollOptions,
 } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
 import { createReactMounter } from './compat';
@@ -36,6 +37,8 @@ export interface VirtTreeProps {
   buffer?: number;
   itemPreSize?: number;
   fixed?: boolean;
+  scrollDuration?: number;
+  smoothMaxDistance?: number;
   showLine?: boolean;
   itemClass?: string;
   listClass?: string;
@@ -81,6 +84,8 @@ export interface VirtTreeProps {
   stickyHeader?: () => ReactNode;
   stickyFooter?: () => ReactNode;
 
+  /** 点击节点（内容区，或 nodeRender 接管后的整行） */
+  onNodeClick?: VirtTreeDOMEvents['click'];
   onExpand?: VirtTreeDOMEvents['expand'];
   onSelect?: VirtTreeDOMEvents['select'];
   onCheck?: VirtTreeDOMEvents['check'];
@@ -112,11 +117,22 @@ export interface VirtTreeRef {
   setFocusedKeys: (keys: TreeNodeKey[]) => void;
   filter: (query: string) => void;
   scrollTo: (params: IScrollParams) => void;
-  scrollToTop: () => void;
-  scrollToBottom: () => void;
+  scrollToTop: (options?: VirtScrollOptions) => void;
+  scrollToBottom: (options?: VirtScrollOptions) => void;
+  cancelScroll: () => void;
   setList: (list: TreeData) => void;
   forceUpdate: () => void;
   getTreeNode: (key: TreeNodeKey) => TreeNode | undefined;
+}
+
+/** 逐项比较两组 key，undefined 与空数组视为不同（前者表示不受控） */
+function sameKeys(a?: TreeNodeKey[], b?: TreeNodeKey[]): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
 
 /**
@@ -150,6 +166,8 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       buffer: props.buffer,
       itemPreSize: props.itemPreSize,
       fixed: props.fixed,
+      scrollDuration: props.scrollDuration,
+      smoothMaxDistance: props.smoothMaxDistance,
       showLine: props.showLine,
       itemClass: props.itemClass,
       listClass: props.listClass,
@@ -222,6 +240,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
     }
 
     const events: VirtTreeDOMEvents = {
+      click: (...args) => eventsRef.current.onNodeClick?.(...args),
       expand: (...args) => eventsRef.current.onExpand?.(...args),
       select: (...args) => eventsRef.current.onSelect?.(...args),
       check: (...args) => eventsRef.current.onCheck?.(...args),
@@ -250,6 +269,44 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
     treeRef.current?.setList(props.list);
   }
 
+  /*
+   * 受控 keys 的同步。
+   *
+   * 比较到元素粒度而不是引用：React 侧写 `expandedKeys={[...]}` 是常态，
+   * 每次 render 都是新数组，按引用比较会让整棵树在每次父组件渲染时全量重建。
+   */
+  const prevKeysRef = useRef({
+    expandedKeys: props.expandedKeys,
+    selectedKeys: props.selectedKeys,
+    checkedKeys: props.checkedKeys,
+    focusedKeys: props.focusedKeys,
+  });
+  useEffect(() => {
+    const prev = prevKeysRef.current;
+    const next = {
+      expandedKeys: props.expandedKeys,
+      selectedKeys: props.selectedKeys,
+      checkedKeys: props.checkedKeys,
+      focusedKeys: props.focusedKeys,
+    };
+    const partial: Partial<VirtTreeDOMOptions> = {};
+    for (const key of Object.keys(next) as (keyof typeof next)[]) {
+      // undefined 表示"该项不受控"，不能拿它去清空 DOM 层已有状态
+      if (next[key] !== undefined && !sameKeys(prev[key], next[key])) {
+        partial[key] = next[key];
+      }
+    }
+    prevKeysRef.current = next;
+    if (Object.keys(partial).length > 0) {
+      treeRef.current?.updateOptions(partial);
+    }
+  }, [
+    props.expandedKeys,
+    props.selectedKeys,
+    props.checkedKeys,
+    props.focusedKeys,
+  ]);
+
   useImperativeHandle(ref, () => ({
     expandAll: (expanded) => treeRef.current?.expandAll(expanded),
     expandNode: (key, expanded) => treeRef.current?.expandNode(key, expanded),
@@ -266,8 +323,9 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
     setFocusedKeys: (keys) => treeRef.current?.setFocusedKeys(keys),
     filter: (query) => treeRef.current?.filter(query),
     scrollTo: (params) => treeRef.current?.scrollTo(params),
-    scrollToTop: () => treeRef.current?.scrollToTop(),
-    scrollToBottom: () => treeRef.current?.scrollToBottom(),
+    scrollToTop: (opts) => treeRef.current?.scrollToTop(opts),
+    scrollToBottom: (opts) => treeRef.current?.scrollToBottom(opts),
+    cancelScroll: () => treeRef.current?.cancelScroll(),
     setList: (list) => treeRef.current?.setList(list),
     forceUpdate: () => treeRef.current?.forceUpdate(),
     getTreeNode: (key) => treeRef.current?.getTreeNode(key),

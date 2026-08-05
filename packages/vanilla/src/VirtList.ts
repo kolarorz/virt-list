@@ -1,8 +1,10 @@
 import { VirtListCore } from '@virt-list/core';
 import type {
   ListState,
+  LoadState,
   VirtListDOMOptions,
   VirtListEvents,
+  VirtScrollOptions,
 } from '@virt-list/core';
 import { mergeStyles, applyClass, applyStyle, normalizeStyle } from './utils';
 
@@ -40,6 +42,16 @@ export class VirtList<T extends Record<string, any>> {
   private _renderedKeys: string[] = [];
   /** DOM 是否已构建完成（防止 constructor 中的首次 update 事件过早 patch） */
   private _domReady = false;
+  /**
+   * header / footer 的渲染函数是否走"返回元素"模式。
+   *
+   * 加载状态变化时要重渲染这两个插槽，而两种渲染模式的清理方式相反：
+   * 返回元素的实现每次都产出新节点，重渲染前必须清空容器，否则会不断堆叠；
+   * 直接操作 el 的实现（框架封装走的是这条，内部是幂等 patch）反而不能清空，
+   * 清了会打断框架自己维护的 vnode 引用。
+   */
+  private _headerReturnsEl = false;
+  private _footerReturnsEl = false;
 
   get core(): VirtListCore<T> {
     return this._core;
@@ -77,6 +89,10 @@ export class VirtList<T extends Record<string, any>> {
         }
         externalEvents?.update?.(renderList, state);
       },
+      loadStateChange: (loadState) => {
+        this._rerenderLoadSlots(loadState);
+        externalEvents?.loadStateChange?.(loadState);
+      },
     };
 
     this._core = new VirtListCore<T>(options, events);
@@ -102,24 +118,29 @@ export class VirtList<T extends Record<string, any>> {
 
   // ==================== 公共代理 API ====================
 
-  scrollToIndex(index: number): void {
-    this._core.scrollToIndex(index);
+  scrollToIndex(index: number, options?: VirtScrollOptions): void {
+    this._core.scrollToIndex(index, options);
   }
 
-  scrollIntoView(index: number): void {
-    this._core.scrollIntoView(index);
+  scrollIntoView(index: number, options?: VirtScrollOptions): void {
+    this._core.scrollIntoView(index, options);
   }
 
-  scrollToTop(): void {
-    this._core.scrollToTop();
+  scrollToTop(options?: VirtScrollOptions): void {
+    this._core.scrollToTop(options);
   }
 
-  scrollToBottom(): void {
-    this._core.scrollToBottom();
+  scrollToBottom(options?: VirtScrollOptions): void {
+    this._core.scrollToBottom(options);
   }
 
-  scrollToOffset(offset: number): void {
-    this._core.scrollToOffset(offset);
+  scrollToOffset(offset: number, options?: VirtScrollOptions): void {
+    this._core.scrollToOffset(offset, options);
+  }
+
+  /** 取消进行中的平滑滚动动画 */
+  cancelScroll(): void {
+    this._core.cancelScroll();
   }
 
   reset(): void {
@@ -128,6 +149,31 @@ export class VirtList<T extends Record<string, any>> {
 
   setList(list: T[]): void {
     this._core.updateOptions({ list });
+  }
+
+  /** 获取当前加载状态（loading / hasMore / pendingNew） */
+  getLoadState(): LoadState {
+    return this._core.getLoadState();
+  }
+
+  /**
+   * 加载状态变化后重渲染 header / footer，让加载提示条反映最新状态。
+   *
+   * 这两个插槽本来只在建 DOM 时渲染一次，而"加载中 / 没有更多了"必须跟着状态走。
+   */
+  private _rerenderLoadSlots(loadState: LoadState): void {
+    if (!this._domReady) return;
+
+    if (this._options.renderHeader && this._headerEl) {
+      if (this._headerReturnsEl) this._headerEl.replaceChildren();
+      const hd = this._options.renderHeader(this._headerEl, loadState);
+      if (hd) this._headerEl.appendChild(hd);
+    }
+    if (this._options.renderFooter && this._footerEl) {
+      if (this._footerReturnsEl) this._footerEl.replaceChildren();
+      const ft = this._options.renderFooter(this._footerEl, loadState);
+      if (ft) this._footerEl.appendChild(ft);
+    }
   }
 
   updateOptions(partial: Partial<VirtListDOMOptions<T>>): void {
@@ -195,7 +241,18 @@ export class VirtList<T extends Record<string, any>> {
     this._clientEl = document.createElement('div');
     this._clientEl.className = 'virt-list__client';
     this._clientEl.dataset.id = 'client';
-    applyStyle(this._clientEl, 'width:100%; height:100%; overflow:auto; position: relative;');
+    // overflow-anchor: none 必须显式关掉浏览器的滚动锚定。
+    //
+    // 默认开启时，只要视口上方的内容高度发生变化，浏览器就会自作主张微调
+    // scrollTop 来保持画面稳定——而且这个调整**不派发 scroll 事件**。虚拟列表
+    // 每次回填实测尺寸都在改内容高度，于是滚动位置被悄悄挪走，内部偏移量还是
+    // 旧值，渲染区间就按一个错的位置去算，视口边缘留出空白（再滚一下才恢复）。
+    //
+    // 滚动位置本来就由列表自己用锚点机制维护，浏览器这份好意只会和它打架。
+    applyStyle(
+      this._clientEl,
+      'width:100%; height:100%; overflow:auto; overflow-anchor: none; position: relative;',
+    );
 
     if (this._options.renderStickyHeader) {
       this._stickyHeaderEl = document.createElement('div');
@@ -225,8 +282,14 @@ export class VirtList<T extends Record<string, any>> {
       if (this._options.headerStyle) {
         applyStyle(this._headerEl, this._options.headerStyle);
       }
-      const hd = this._options.renderHeader(this._headerEl);
-      if (hd) this._headerEl.appendChild(hd);
+      const hd = this._options.renderHeader(
+        this._headerEl,
+        this._core.getLoadState(),
+      );
+      if (hd) {
+        this._headerEl.appendChild(hd);
+        this._headerReturnsEl = true;
+      }
       this._clientEl.appendChild(this._headerEl);
     }
 
@@ -249,8 +312,14 @@ export class VirtList<T extends Record<string, any>> {
       if (this._options.footerStyle) {
         applyStyle(this._footerEl, this._options.footerStyle);
       }
-      const ft = this._options.renderFooter(this._footerEl);
-      if (ft) this._footerEl.appendChild(ft);
+      const ft = this._options.renderFooter(
+        this._footerEl,
+        this._core.getLoadState(),
+      );
+      if (ft) {
+        this._footerEl.appendChild(ft);
+        this._footerReturnsEl = true;
+      }
       this._clientEl.appendChild(this._footerEl);
     }
 

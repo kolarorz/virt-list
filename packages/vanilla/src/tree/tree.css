@@ -1,317 +1,469 @@
-.virt-tree-all-drag-area,
-.virt-tree-item {
-  /* drag line */
-  --virt-tree-color-drag-line: #4c88ff;
-  --virt-tree-color-drag-box: rgb(76, 136, 255, 0.1);
-  --virt-tree-color-drag-line-disabled: rgb(76, 136, 255, 0.4);
-  --virt-tree-color-allow-drag-area-bg: #3e72ed1a;
-  --virt-tree-color-allow-drag-area-bd: #3e72ed;
+/**
+ * @virt-list —— VirtTree 默认样式
+ *
+ * 设计约定
+ * 1. 所有可定制项都以 CSS 变量暴露（--virt-tree-*），业务侧覆盖变量即可换肤，
+ *    无需与选择器优先级搏斗；
+ * 2. 暗色模式跟随宿主：`html.dark`（VitePress / 多数文档站约定）或任意祖先上的
+ *    `[data-theme='dark']`。两者都不使用时，可直接覆盖变量自行定义主题；
+ * 3. 节点默认背景为 transparent，跟随容器底色，避免嵌入卡片/弹层时出现色块；
+ * 4. 过渡只声明必要属性，长列表滚动时不产生额外的重排与合成开销；
+ * 5. 遵循 prefers-reduced-motion，见文件末尾。
+ */
 
-  /* text */
+/* ===================================================================
+ * 令牌：亮色（默认）
+ * =================================================================== */
+
+.virt-tree-item,
+.virt-tree-all-drag-area {
+  /* 拖拽 */
+  --virt-tree-color-drag-line: #2a63f0;
+  --virt-tree-color-drag-box: rgb(42 99 240 / 8%);
+  --virt-tree-color-drag-line-disabled: rgb(42 99 240 / 40%);
+  --virt-tree-color-allow-drag-area-bg: rgb(42 99 240 / 8%);
+  --virt-tree-color-allow-drag-area-bd: rgb(42 99 240 / 45%);
+
+  /* 文本 */
   --virt-tree-color-text: #1f2329;
   --virt-tree-color-text-disabled: #a8abb2;
-  --virt-tree-color-text-selected: #1456f0;
+  --virt-tree-color-text-selected: #1f52d6;
 
-  /* node */
-  --virt-tree-color-node-bg: #fff;
-  --virt-tree-color-node-bg-hover: #1f232914;
+  /* 节点 */
+  --virt-tree-color-node-bg: transparent;
+  --virt-tree-color-node-bg-hover: rgb(31 35 41 / 6%);
   --virt-tree-color-node-bg-disabled: transparent;
-  --virt-tree-color-node-bg-selected: #f0f4ff;
+  --virt-tree-color-node-bg-selected: rgb(42 99 240 / 10%);
+  --virt-tree-color-node-bg-focused: rgb(42 99 240 / 6%);
+  --virt-tree-color-node-ring-focused: rgb(42 99 240 / 55%);
 
-  /* icon */
-  --virt-tree-color-icon: #2b2f36;
-  --virt-tree-color-icon-bg-hover: #1f23291a;
+  /* 拖拽跟随副本的底色（浮在 body 上，需要不透明） */
+  --virt-tree-color-bg-clone-node: #fff;
 
-  /* line */
-  --virt-tree-line-color: #cacdd1;
+  /* 图标 */
+  --virt-tree-color-icon: #5f6672;
+  --virt-tree-color-icon-bg-hover: rgb(31 35 41 / 10%);
 
-  /* checkbox */
+  /* 层级连接线 */
+  --virt-tree-line-color: #d6d9dd;
+
+  /* 复选框 */
   --virt-tree-color-checkbox-bg: #fff;
-  --virt-tree-color-checkbox-bg-indeterminate: #1890ff;
-  --virt-tree-color-checkbox-bg-checked: #1890ff;
-  --virt-tree-color-checkbox-bg-disabled: rgba(255, 255, 255, 0.3);
-  --virt-tree-color-checkbox-border: rgb(190, 192, 198);
-  --virt-tree-color-checkbox-border-checked: #1890ff;
-  --virt-tree-color-checkbox-border-indeterminate: #1890ff;
+  --virt-tree-color-checkbox-bg-indeterminate: #2a63f0;
+  --virt-tree-color-checkbox-bg-checked: #2a63f0;
+  --virt-tree-color-checkbox-bg-disabled: #f2f3f5;
+  --virt-tree-color-checkbox-border: #c4c7ce;
+  --virt-tree-color-checkbox-border-hover: #2a63f0;
+  --virt-tree-color-checkbox-border-checked: #2a63f0;
+  --virt-tree-color-checkbox-border-indeterminate: #2a63f0;
+  --virt-tree-color-checkbox-border-disabled: #dcdfe4;
+  --virt-tree-color-checkbox-mark: #fff;
 
-  /* 生效于图标的margin和拖拽线的左边距离 */
+  /* 几何与动效 */
+  --virt-tree-node-radius: 6px;
+  --virt-tree-icon-radius: 4px;
+  --virt-tree-checkbox-size: 16px;
+  --virt-tree-checkbox-radius: 4px;
+  --virt-tree-duration: 160ms;
+  --virt-tree-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 生效于图标的 margin 和拖拽线的左边距离 */
   --virt-tree-switcher-icon-margin-right: 4px;
   --virt-tree-drag-line-gap: 4px;
 }
 
-html.dark .virt-tree-item {
-  /* drag line */
-  --virt-tree-color-drag-line: #4c88ff;
-  --virt-tree-color-drag-box: rgb(76, 136, 255, 0.1);
-  --virt-tree-color-drag-line-disabled: rgb(76, 136, 255, 0.4);
-  --virt-tree-color-allow-drag-area-bg: #3e72ed1a;
-  --virt-tree-color-allow-drag-area-bd: #3e72ed;
+/* ===================================================================
+ * 令牌：暗色
+ * =================================================================== */
 
-  /* text */
-  --virt-tree-color-text: #f9f9f9;
-  --virt-tree-color-text-disabled: rgba(255, 255, 255, 0.3);
-  --virt-tree-color-text-selected: #4c88ff;
+html.dark .virt-tree-item,
+html.dark .virt-tree-all-drag-area,
+[data-theme='dark'] .virt-tree-item,
+[data-theme='dark'] .virt-tree-all-drag-area {
+  /* 拖拽 */
+  --virt-tree-color-drag-line: #5a8dfb;
+  --virt-tree-color-drag-box: rgb(97 143 250 / 14%);
+  --virt-tree-color-drag-line-disabled: rgb(97 143 250 / 40%);
+  --virt-tree-color-allow-drag-area-bg: rgb(97 143 250 / 12%);
+  --virt-tree-color-allow-drag-area-bd: rgb(97 143 250 / 50%);
 
-  /* node */
-  --virt-tree-color-node-bg: #1b1b1f;
-  --virt-tree-color-node-bg-hover: #2e3238;
+  /* 文本 */
+  --virt-tree-color-text: rgb(255 255 255 / 87%);
+  --virt-tree-color-text-disabled: rgb(235 235 245 / 38%);
+  --virt-tree-color-text-selected: #8fb2ff;
+
+  /* 节点 */
+  --virt-tree-color-node-bg: transparent;
+  --virt-tree-color-node-bg-hover: rgb(235 235 245 / 8%);
   --virt-tree-color-node-bg-disabled: transparent;
-  --virt-tree-color-node-bg-selected: #152340;
+  --virt-tree-color-node-bg-selected: rgb(97 143 250 / 20%);
+  --virt-tree-color-node-bg-focused: rgb(97 143 250 / 10%);
+  --virt-tree-color-node-ring-focused: rgb(140 175 255 / 65%);
 
-  /* icon */
-  --virt-tree-color-icon: #f9f9f9;
-  --virt-tree-color-icon-bg-hover: #ebebeb1a;
+  /* 拖拽跟随副本的底色（浮在 body 上，需要不透明） */
+  --virt-tree-color-bg-clone-node: #26272d;
 
-  /* line */
-  --virt-tree-line-color: #35393f;
+  /* 图标 */
+  --virt-tree-color-icon: rgb(235 235 245 / 60%);
+  --virt-tree-color-icon-bg-hover: rgb(235 235 245 / 14%);
 
-  /* checkbox */
-  --virt-tree-color-checkbox-bg: #fff;
-  --virt-tree-color-checkbox-bg-indeterminate: #1890ff;
-  --virt-tree-color-checkbox-bg-checked: #1890ff;
-  --virt-tree-color-checkbox-bg-disabled: rgba(255, 255, 255, 0.3);
-  --virt-tree-color-checkbox-border: rgb(190, 192, 198);
-  --virt-tree-color-checkbox-border-checked: #1890ff;
-  --virt-tree-color-checkbox-border-indeterminate: #1890ff;
+  /* 层级连接线 */
+  --virt-tree-line-color: #3c3f46;
 
-  /* 生效于图标的margin和拖拽线的左边距离 */
-  --virt-tree-switcher-icon-margin-right: 4px;
-  --virt-tree-drag-line-gap: 4px;
+  /* 复选框 */
+  --virt-tree-color-checkbox-bg: transparent;
+  --virt-tree-color-checkbox-bg-indeterminate: #3970e4;
+  --virt-tree-color-checkbox-bg-checked: #3970e4;
+  --virt-tree-color-checkbox-bg-disabled: rgb(235 235 245 / 8%);
+  --virt-tree-color-checkbox-border: #55575e;
+  --virt-tree-color-checkbox-border-hover: #5a8dfb;
+  --virt-tree-color-checkbox-border-checked: #3970e4;
+  --virt-tree-color-checkbox-border-indeterminate: #3970e4;
+  --virt-tree-color-checkbox-border-disabled: #3a3b41;
+  --virt-tree-color-checkbox-mark: #fff;
 }
 
-/* item */
+/* ===================================================================
+ * item：行容器（承载拖拽指示层）
+ * =================================================================== */
+
 .virt-tree-item {
   position: relative;
   z-index: 2;
 }
+
 .virt-tree-drag-line-same-level,
 .virt-tree-drag-line {
-  width: calc(100% - var(--virt-tree-switcher-icon-margin-right));
-  height: 2px;
   position: absolute;
   bottom: -1px;
   left: 0;
-  display: flex;
   z-index: 99999;
-  /* 图标icon的margin-right，如果样式覆盖了 */
+  display: flex;
+  width: calc(100% - var(--virt-tree-switcher-icon-margin-right));
+  height: 2px;
+  /* 图标 icon 的 margin-right，如果样式覆盖了 */
   margin-left: var(--virt-tree-switcher-icon-margin-right);
+  border-radius: 1px;
 }
+
 .virt-tree-drag-line {
   /* 层级线的分隔距离 */
   gap: var(--virt-tree-drag-line-gap);
 }
+
 .virt-tree-drag-line-arrow {
-  width: 0;
-  height: 0;
-  border-left: 4px solid var(--virt-tree-color-drag-line);
-  border-right: 4px solid transparent;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
   position: absolute;
   top: -3px;
   left: 0;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 4px solid var(--virt-tree-color-drag-line);
 }
+
 .virt-tree-drag-box {
-  width: 100%;
-  height: 100%;
-  border: 2px solid var(--virt-tree-color-drag-line);
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--virt-tree-color-drag-line);
+  border-radius: var(--virt-tree-node-radius);
+  background-color: var(--virt-tree-color-drag-box);
   pointer-events: none;
 }
+
 .virt-tree-item--drag {
-  opacity: 0.2;
+  opacity: 0.35;
 }
+
 .virt-tree-item--ghost {
-  opacity: 1;
   z-index: 99999;
-  /* box-shadow: 1px 1px 5px 1px rgba(0, 0, 0, 0.1); */
-  /* background-color: var(--virt-tree-color-bg-clone-node); */
-  box-shadow: 1px 1px 5px 1px rgba(124, 126, 128, 0.1);
+  border-radius: var(--virt-tree-node-radius);
+  background-color: var(--virt-tree-color-bg-clone-node);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 18%);
+  opacity: 1;
 }
-/* 禁用node按钮的箭头 */
+
+/* 拖拽副本上不展示展开箭头的旋转态与竖向连线 */
 .virt-tree-item--ghost .virt-tree-icon-wrapper.is-expanded .virt-tree-icon {
   transform: rotate(-90deg);
 }
+
 .virt-tree-item--ghost .virt-tree-node-indent-block-line-vertical {
   display: none;
 }
 
-/* node */
+/* ===================================================================
+ * node：节点主体
+ * =================================================================== */
+
 .virt-tree-node {
-  width: 100%;
   display: flex;
+  box-sizing: border-box;
   align-items: stretch;
+  width: 100%;
+  border-radius: var(--virt-tree-node-radius);
+  background-color: var(--virt-tree-color-node-bg);
+  color: var(--virt-tree-color-text);
   cursor: pointer;
   user-select: none;
-  color: var(--virt-tree-color-text);
-  background-color: var(--virt-tree-color-node-bg);
+  transition:
+    background-color var(--virt-tree-duration) var(--virt-tree-ease),
+    color var(--virt-tree-duration) var(--virt-tree-ease),
+    box-shadow var(--virt-tree-duration) var(--virt-tree-ease);
 }
-/* 用户如需自定义hover，则样式覆盖 */
+
+/* 用户如需自定义 hover，则样式覆盖 */
 .virt-tree-node:hover {
   background-color: var(--virt-tree-color-node-bg-hover);
 }
-/* 拖拽时候禁用hover样式 */
+
+/* 拖拽时候禁用 hover 样式 */
 .virt-list__client.is-dragging .virt-tree-node:hover {
   background-color: transparent;
 }
 
 .virt-tree-node.is-selected {
+  background-color: var(--virt-tree-color-node-bg-selected);
   color: var(--virt-tree-color-text-selected);
+}
+
+/* 聚焦态：内描边环，不占布局空间，不影响虚拟滚动的高度测量 */
+.virt-tree-node.is-focused {
+  background-color: var(--virt-tree-color-node-bg-focused);
+  box-shadow: inset 0 0 0 2px var(--virt-tree-color-node-ring-focused);
+}
+
+.virt-tree-node.is-selected.is-focused {
   background-color: var(--virt-tree-color-node-bg-selected);
 }
+
 .virt-tree-node.is-disabled {
-  color: var(--virt-tree-color-text-disabled);
   background-color: var(--virt-tree-color-node-bg-disabled);
+  color: var(--virt-tree-color-text-disabled);
 }
+
 .virt-tree-node.is-disabled .virt-tree-node-content {
   cursor: not-allowed;
 }
 
-/* content */
+/* ===================================================================
+ * content：内容区
+ * =================================================================== */
+
 .virt-tree-node-content {
-  flex: 1;
-  word-break: break-all;
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
+  word-break: break-all;
 }
+
 /* 固定高度 */
 .virt-tree-node-content.is-fixed-height {
   overflow: hidden;
   word-break: keep-all;
 }
 
-/* indent */
+/* ===================================================================
+ * indent：缩进与层级连接线
+ * =================================================================== */
+
 .virt-tree-node-indent {
   display: flex;
+  flex-shrink: 0;
 }
+
 .virt-tree-node-indent-block {
   position: relative;
 }
+
 .virt-tree-node-indent-block-line-vertical::before {
-  content: '';
   position: absolute;
-  top: 0px;
-  bottom: 0px;
+  top: 0;
+  bottom: 0;
   left: 50%;
   box-sizing: border-box;
   width: 1px;
   border-left: 1px solid var(--virt-tree-line-color);
-}
-.virt-tree-node-indent-block-line-horizontal::after {
   content: '';
-  width: 50%;
+}
+
+.virt-tree-node-indent-block-line-horizontal::after {
   position: absolute;
   top: 50%;
   left: 50%;
   box-sizing: border-box;
+  width: 50%;
   height: 1px;
   border-top: 1px solid var(--virt-tree-line-color);
+  content: '';
 }
+
 .virt-tree-node-indent-block-line-horizontal--double::after {
   width: 100%;
 }
+
 .virt-tree-node-indent-block-line-vertical--half::before {
   height: calc(50% + 1px);
 }
 
-/* icon */
+/* ===================================================================
+ * icon：展开/折叠箭头
+ * =================================================================== */
+
 .virt-tree-icon-wrapper {
   display: flex;
-  justify-content: center;
+  flex-shrink: 0;
   align-items: center;
-  color: var(--virt-tree-color-icon);
+  justify-content: center;
   margin-right: var(--virt-tree-switcher-icon-margin-right);
+  color: var(--virt-tree-color-icon);
 }
-.virt-tree-icon-wrapper .virt-tree-icon svg {
-  transform: rotate(-90deg);
-  transition: all 0.5s ease;
-}
-.virt-tree-icon-wrapper.is-expanded .virt-tree-icon svg {
-  transform: rotate(0deg);
-}
+
 .virt-tree-icon {
+  border-radius: var(--virt-tree-icon-radius);
   overflow: hidden;
-  border-radius: 2px;
+  transition: background-color var(--virt-tree-duration) var(--virt-tree-ease);
 }
+
 .virt-tree-icon:hover {
   background-color: var(--virt-tree-color-icon-bg-hover);
 }
+
 .virt-tree-icon svg {
+  display: block;
   width: 100%;
   height: 100%;
 }
 
-/* checkbox */
+.virt-tree-icon-wrapper .virt-tree-icon svg {
+  transform: rotate(-90deg);
+  transition: transform var(--virt-tree-duration) var(--virt-tree-ease);
+}
+
+.virt-tree-icon-wrapper.is-expanded .virt-tree-icon svg {
+  transform: rotate(0deg);
+}
+
+/* ===================================================================
+ * checkbox：复选框
+ * =================================================================== */
+
 .virt-tree-checkbox-wrapper {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  margin-right: 4px;
+  margin-right: 6px;
 }
+
 .virt-tree-checkbox {
-  display: inline-block;
   position: relative;
-  border: 1px solid var(--virt-tree-color-checkbox-border);
-  border-radius: 4px;
+  display: inline-block;
   box-sizing: border-box;
-  width: 16px;
-  height: 16px;
+  width: var(--virt-tree-checkbox-size);
+  height: var(--virt-tree-checkbox-size);
+  border: 1px solid var(--virt-tree-color-checkbox-border);
+  border-radius: var(--virt-tree-checkbox-radius);
   background-color: var(--virt-tree-color-checkbox-bg);
   transition:
-    border-color 0.25s cubic-bezier(0.71, -0.46, 0.29, 1.46),
-    background-color 0.25s cubic-bezier(0.71, -0.46, 0.29, 1.46),
-    outline 0.25s cubic-bezier(0.71, -0.46, 0.29, 1.46);
+    border-color var(--virt-tree-duration) var(--virt-tree-ease),
+    background-color var(--virt-tree-duration) var(--virt-tree-ease);
 }
+
+.virt-tree-checkbox:hover {
+  border-color: var(--virt-tree-color-checkbox-border-hover);
+}
+
+/* 勾：用两条边框拼成对勾，选中时纵向展开 */
 .virt-tree-checkbox::after {
-  box-sizing: content-box;
-  content: '';
-  border: 2px solid transparent;
-  border-left: 0;
-  border-top: 0;
-  height: 7px;
-  left: 4px;
   position: absolute;
-  top: 1px;
-  transform: rotate(45deg) scaleY(0);
-  width: 4px;
-  transition: transform 0.15s ease-in 0.05s;
+  top: 46%;
+  left: 50%;
+  box-sizing: content-box;
+  width: 3px;
+  height: 7px;
+  border: 2px solid transparent;
+  border-top: 0;
+  border-left: 0;
+  content: '';
+  transform: translate(-50%, -55%) rotate(45deg) scaleY(0);
   transform-origin: center;
+  transition: transform 150ms var(--virt-tree-ease) 30ms;
 }
+
 .virt-tree-checkbox.is-checked {
   border-color: var(--virt-tree-color-checkbox-border-checked);
   background-color: var(--virt-tree-color-checkbox-bg-checked);
 }
+
 .virt-tree-checkbox.is-checked::after {
-  transform: rotate(45deg) scaleY(1);
-  border-color: #fff;
+  border-color: var(--virt-tree-color-checkbox-mark);
+  transform: translate(-50%, -55%) rotate(45deg) scaleY(1);
 }
+
 .virt-tree-checkbox.is-indeterminate {
   border-color: var(--virt-tree-color-checkbox-border-indeterminate);
   background-color: var(--virt-tree-color-checkbox-bg-indeterminate);
 }
+
+/* 半选：居中横杠 */
 .virt-tree-checkbox.is-indeterminate::before {
-  content: '';
   position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
-  background-color: #fff;
-  height: 4px;
-  transform: scale(0.5);
-  left: 0;
-  right: 0;
-  top: 5px;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--virt-tree-color-checkbox-mark);
+  content: '';
+  transform: translate(-50%, -50%);
 }
-.virt-tree-checkbox.is-disabled {
+
+.virt-tree-checkbox.is-indeterminate::after {
+  transform: translate(-50%, -55%) rotate(45deg) scaleY(0);
+}
+
+.virt-tree-checkbox.is-disabled,
+.virt-tree-checkbox.is-disabled:hover {
+  border-color: var(--virt-tree-color-checkbox-border-disabled);
+  background-color: var(--virt-tree-color-checkbox-bg-disabled);
   cursor: not-allowed;
-  background: var(--virt-tree-color-checkbox-bg-disabled);
-  border-color: #d9d9d9;
 }
+
+.virt-tree-checkbox.is-disabled::after,
+.virt-tree-checkbox.is-disabled::before {
+  opacity: 0.45;
+}
+
+/* ===================================================================
+ * 可放置区域提示
+ * =================================================================== */
+
 .virt-tree-all-drag-area {
   position: absolute;
-  box-sizing: border-box;
   top: 100%;
-  border: 1px dotted;
   z-index: 1;
+  box-sizing: border-box;
+  border: 1px dashed var(--virt-tree-color-allow-drag-area-bd);
+  border-radius: var(--virt-tree-node-radius);
   background-color: var(--virt-tree-color-allow-drag-area-bg);
-  border-color: var(--virt-tree-color-allow-drag-area-bd);
+}
+
+/* ===================================================================
+ * 无障碍：降低动效
+ * =================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .virt-tree-node,
+  .virt-tree-icon,
+  .virt-tree-icon-wrapper .virt-tree-icon svg,
+  .virt-tree-checkbox,
+  .virt-tree-checkbox::after {
+    transition-duration: 1ms;
+  }
 }

@@ -1,6 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
-import '../../demo.css';
 
 interface Item {
   id: number;

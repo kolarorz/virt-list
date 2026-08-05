@@ -2,6 +2,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helper';
 import App from './App';
 import './style.css';
+import { syncStandaloneTheme } from '../../_shared/theme';
 
 type FrameworkKind = 'react' | 'vue';
 
@@ -11,6 +12,9 @@ interface QiankunProps {
   framework?: FrameworkKind;
   onEvent?: (payload: { framework: FrameworkKind; message: string }) => void;
 }
+
+// 独立运行时按系统偏好同步暗色；嵌入文档时由 VitePress 控制
+syncStandaloneTheme(Boolean(qiankunWindow.__POWERED_BY_QIANKUN__));
 
 let root: Root | null = null;
 

@@ -40,8 +40,8 @@ function Literal() {
           row.style.padding = '4px';
           row.innerHTML = `
             <div style="font-weight:bold;">Item ${item.id}</div>
-            <div style="color:#666;font-size:12px;">${item.content}</div>
-            <div style="color:#999;font-size:10px;">Key: ${item.id} (DOM)</div>
+            <div style="color:var(--demo-c-text-2);font-size:12px;">${item.content}</div>
+            <div style="color:var(--demo-c-text-3);font-size:10px;">Key: ${item.id} (DOM)</div>
           `;
           return row;
         },
@@ -64,7 +64,7 @@ function Literal() {
         style={{
           width: 400,
           height: 600,
-          border: '1px solid #000',
+          border: '1px solid var(--demo-c-border-strong)',
           margin: '20px auto',
         }}
       />

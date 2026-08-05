@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
-import '../../demo.css';
 
 interface Item {
   id: number;
@@ -30,7 +29,7 @@ export default function Dynamic() {
 
   return (
     <div className="demo-panel">
-      <div style={{ marginBottom: 8, fontSize: 12, color: '#888' }}>
+      <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--demo-c-text-2)' }}>
         提示：点击内容区域可以直接编辑文本，行高会自动适应。
       </div>
       <div className="demo-stats">{stats}</div>

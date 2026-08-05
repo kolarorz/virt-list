@@ -3,7 +3,8 @@ import { fileURLToPath, URL } from 'node:url';
 
 const deployBase = process.env.DEPLOY_BASE;
 
-const listDemos = [
+/** frameworks 缺省表示所有框架都有该示例；指定则只在这些框架的侧边栏里出现 */
+const listDemos: { text: string; link: string; frameworks?: string[] }[] = [
   { text: '基础', link: 'list-basic' },
   { text: '空状态', link: 'list-empty' },
   { text: '渲染buffer', link: 'list-buffer' },
@@ -12,10 +13,12 @@ const listDemos = [
   { text: '水平滚动', link: 'list-horizontal' },
   { text: '插槽', link: 'list-slots' },
   { text: '各类操作', link: 'list-operations' },
+  { text: '平滑滚动', link: 'list-smooth' },
   { text: '可变窗口大小', link: 'list-resize' },
   { text: '可变高度', link: 'list-dynamic' },
   { text: '无限加载', link: 'list-infinity' },
   { text: '聊天室', link: 'list-chat' },
+  { text: '聊天室（折叠消息）', link: 'list-chat-collapse' },
   { text: '上下分页', link: 'list-pagination' },
   { text: 'keep-alive', link: 'list-keep-alive' },
   { text: '表格', link: 'list-table' },
@@ -50,7 +53,9 @@ function buildExamplesSidebar(fw: string) {
     {
       text: '虚拟列表',
       collapsed: false,
-      items: listDemos.map((d) => ({ text: d.text, link: `/${fw}/examples/list/${d.link}` })),
+      items: listDemos
+        .filter((d) => !d.frameworks || d.frameworks.includes(fw))
+        .map((d) => ({ text: d.text, link: `/${fw}/examples/list/${d.link}` })),
     },
     {
       text: '虚拟树形',
@@ -70,8 +75,19 @@ function buildGuideSidebar(fw: string) {
     {
       text: '指南',
       items: [
+        { text: '项目介绍', link: `/${fw}/guide/introduction` },
         { text: '快速开始', link: `/${fw}/guide/started` },
         { text: '特殊说明', link: `/${fw}/guide/instructions` },
+      ],
+    },
+    {
+      text: '深入',
+      items: [
+        { text: '虚拟滚动原理', link: `/${fw}/guide/principles` },
+        { text: '算法与复杂度', link: `/${fw}/guide/algorithms` },
+        { text: '架构设计', link: `/${fw}/guide/architecture` },
+        { text: '设计决策', link: `/${fw}/guide/design-decisions` },
+        { text: '与同类方案对比', link: `/${fw}/guide/comparison` },
       ],
     },
   ];
@@ -132,7 +148,7 @@ export default defineConfig({
   },
   vite: {
     server: {
-      port: 5173,
+      port: 7800,
     },
     resolve: {
       alias: {

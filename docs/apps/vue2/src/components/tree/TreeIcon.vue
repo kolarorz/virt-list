@@ -18,7 +18,6 @@ import { ref } from 'vue';
 import { VirtTree } from '@virt-list/vue2';
 import TreeIconItem from './items/TreeIconItem.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

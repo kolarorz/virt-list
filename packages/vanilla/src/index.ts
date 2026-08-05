@@ -15,4 +15,11 @@ export type {
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
 } from './tree';
+export type {
+  ListState,
+  SlotSize,
+  VirtScrollOptions,
+  LoadState,
+  LoadDirection,
+} from '@virt-list/core';
 export { normalizeStyle, mergeStyles, setAttrs, applyStyle, applyClass } from './utils';

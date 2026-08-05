@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { faker } from '@faker-js/faker';
 import { VirtGrid as VirtGridRoot, type VirtGridRef } from '@virt-list/react';
 import { GridItem } from './GridItem';
-import '../../demo.css';
 
 function generateData(count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -45,10 +44,10 @@ export default function VirtGrid() {
             setStatus('已滚动到顶部');
           }}
         >
-          {({ itemData, index, rowIndex }) => (
+          {({ itemData, rowIndex, listIndex }) => (
             <GridItem
               item={itemData as (typeof list)[number]}
-              index={index}
+              listIndex={listIndex}
               rowIndex={rowIndex}
               onDelete={() => {
                 const id = itemData.id;
@@ -57,7 +56,7 @@ export default function VirtGrid() {
                   if (idx > -1) {
                     const next = prev.slice();
                     next.splice(idx, 1);
-                    setStatus(`已删除 item ${index}，剩余 ${next.length} 项`);
+                    setStatus(`已删除 item ${listIndex}，剩余 ${next.length} 项`);
                     return next;
                   }
                   return prev;

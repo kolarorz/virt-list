@@ -1,5 +1,10 @@
+/* 共享设计令牌 + 示例组件样式（亮/暗双主题） */
+@import '../../_shared/styles/index.css';
+
+/* 应用根节点：嵌入文档时与文档背景保持一致，独立运行时提供留白 */
 #app,
-#vue-root {
+#vue2-root {
   margin: 0;
   min-height: 180px;
+  color: var(--demo-c-text-1);
 }

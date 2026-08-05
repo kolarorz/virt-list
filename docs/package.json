@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev . --host --port 5173",
+    "dev": "vitepress dev . --host --port 7800",
     "build": "pnpm run build:micro && vitepress build .",
     "build:micro": "pnpm -C ./apps/react build && pnpm -C ./apps/vue build && pnpm -C ./apps/vanilla build",
     "preview": "vitepress preview . --host --port 4173",

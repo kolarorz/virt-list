@@ -4,6 +4,10 @@ import {
   renderWithQiankun,
 } from 'vite-plugin-qiankun/dist/helper';
 import { mountDemoBlock } from './demo-block.js';
+import { syncStandaloneTheme } from '../../_shared/theme';
+
+// 独立运行时按系统偏好同步暗色；嵌入文档时由 VitePress 控制
+syncStandaloneTheme(Boolean(qiankunWindow.__POWERED_BY_QIANKUN__));
 
 import { bootstrapBasic } from './components/list/list-basic.js';
 import { bootstrapBuffer } from './components/list/list-buffer.js';
@@ -13,10 +17,12 @@ import { bootstrapHorizontal } from './components/list/list-horizontal.js';
 import { bootstrapSlots } from './components/list/list-slots.js';
 import { bootstrapFlatRender } from './components/list/list-flat-render.js';
 import { bootstrapOperations } from './components/list/list-operations.js';
+import { bootstrapSmooth } from './components/list/list-smooth.js';
 import { bootstrapResize } from './components/list/list-resize.js';
 import { bootstrapDynamic } from './components/list/list-dynamic.js';
 import { bootstrapInfinity } from './components/list/list-infinity.js';
 import { bootstrapChat } from './components/list/list-chat.js';
+import { bootstrapChatCollapse } from './components/list/list-chat-collapse.js';
 import { bootstrapAdvanced } from './components/list/list-advanced.js';
 import { bootstrapPagination } from './components/list/list-pagination.js';
 import { bootstrapKeepAlive } from './components/list/list-keep-alive.js';
@@ -41,8 +47,9 @@ import { bootstrapTreeDragArea } from './components/tree/tree-dragarea.js';
 
 import { bootstrapGridBasic } from './components/grid/grid-basic.js';
 
-const rawSources = import.meta.glob('./components/**/*.js', {
-  query: '?raw',
+/** 构建时已高亮的源码：{ html, raw }，见 _shared/vitePluginHighlightSource.js */
+const highlightedSources = import.meta.glob('./components/**/*.js', {
+  query: '?highlight',
   import: 'default',
   eager: true,
 });
@@ -56,11 +63,13 @@ const demoBootstrapMap = {
   'list-slots': bootstrapSlots,
   'list-flat-render': bootstrapFlatRender,
   'list-operations': bootstrapOperations,
+  'list-smooth': bootstrapSmooth,
   'list-resize': bootstrapResize,
   'list-dynamic': bootstrapDynamic,
   'list-table': bootstrapTable,
   'list-infinity': bootstrapInfinity,
   'list-chat': bootstrapChat,
+  'list-chat-collapse': bootstrapChatCollapse,
   'list-advanced': bootstrapAdvanced,
   'list-pagination': bootstrapPagination,
   'list-keep-alive': bootstrapKeepAlive,
@@ -94,6 +103,7 @@ const demoSourceMap = {
   'list-slots': './components/list/list-slots.js',
   'list-flat-render': './components/list/list-flat-render.js',
   'list-operations': './components/list/list-operations.js',
+  'list-smooth': './components/list/list-smooth.js',
   'list-resize': './components/list/list-resize.js',
   'list-dynamic': './components/list/list-dynamic.js',
   'list-table': './components/list/list-table.js',
@@ -125,7 +135,7 @@ const demoSourceMap = {
 
 function getDemoSource(exampleId) {
   const path = demoSourceMap[exampleId] || demoSourceMap['list-basic'];
-  return rawSources[path] || '';
+  return highlightedSources[path] || { html: '', raw: '' };
 }
 
 let cleanup = null;

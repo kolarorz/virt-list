@@ -33,7 +33,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 const PAGE_SIZE = 40;
 

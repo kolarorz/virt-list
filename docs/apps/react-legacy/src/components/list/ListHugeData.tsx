@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react';
-import { VirtList } from '@virt-list/react-legacy';
-import '../../demo.css';
+import { useRef, useState, useMemo } from 'react';
+import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
 
 interface HugeItem {
   id: number;
@@ -13,6 +12,7 @@ export default function HugeData() {
   const [loadStatus, setLoadStatus] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const virtListRef = useRef<VirtListRef<HugeItem>>(null);
 
   const list = useMemo(() => {
     if (!loaded) return [];
@@ -54,7 +54,23 @@ export default function HugeData() {
         >
           生成 30w 数据
         </button>
-        <span style={{ fontSize: 12, color: '#666' }}>{loadStatus}</span>
+        <button
+          type="button"
+          className="virt-list-btn"
+          disabled={!loaded}
+          onClick={() => virtListRef.current?.scrollToTop()}
+        >
+          scrollToTop
+        </button>
+        <button
+          type="button"
+          className="virt-list-btn"
+          disabled={!loaded}
+          onClick={() => virtListRef.current?.scrollToBottom()}
+        >
+          scrollToBottom
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--demo-c-text-2)' }}>{loadStatus}</span>
       </div>
       <div className="demo-stats">
         {stats || (loaded ? `总数: ${list.length.toLocaleString()}` : '')}
@@ -67,13 +83,14 @@ export default function HugeData() {
               alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              color: '#999',
+              color: 'var(--demo-c-text-3)',
             }}
           >
             {loading ? '数据生成中...' : '点击按钮生成海量数据'}
           </div>
         ) : (
           <VirtList<HugeItem>
+            ref={virtListRef}
             list={list}
             itemKey="id"
             itemPreSize={40}

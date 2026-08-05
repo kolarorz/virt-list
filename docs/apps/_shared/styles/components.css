@@ -1,0 +1,882 @@
+/**
+ * virt-list 文档示例 —— 组件样式
+ *
+ * 五个示例应用（vanilla / vue / vue2 / react / react-legacy）共用同一份实现，
+ * 所有颜色、圆角、动效均取自 tokens.css，因此天然支持亮/暗双主题。
+ *
+ * 性能约定：
+ * - 过渡只声明具体属性（不使用 transition: all），避免列表大量节点重排重绘；
+ * - 列表行内不使用 box-shadow / filter 等触发额外合成层的属性；
+ * - 尊重 prefers-reduced-motion（见文件末尾）。
+ */
+
+/* ===================================================================
+ * 1. 面板与滚动容器
+ * =================================================================== */
+
+.demo-panel,
+.virt-grid-demo {
+  width: 100%;
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+}
+
+/* 列表 / 树 / 网格的外框：统一描边、圆角与层次 */
+.demo-list-container,
+.demo-horizontal-container,
+.demo-resize-container,
+.virt-grid-container,
+.virt-tree-wrapper,
+.virt-list-container {
+  box-sizing: border-box;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-lg);
+  background-color: var(--demo-c-bg-elv);
+  box-shadow: var(--demo-shadow-1);
+  transition:
+    border-color var(--demo-duration) var(--demo-ease),
+    background-color var(--demo-duration) var(--demo-ease);
+}
+
+.demo-list-container {
+  width: 100%;
+  height: 500px;
+  overflow: hidden;
+}
+
+.demo-horizontal-container {
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+}
+
+.demo-resize-container {
+  width: 100%;
+  height: 500px;
+  overflow: hidden;
+  resize: both;
+}
+
+.virt-grid-container {
+  width: 100%;
+  height: 500px;
+  overflow: auto;
+}
+
+.virt-tree-wrapper {
+  width: 100%;
+  height: 500px;
+  padding: 4px;
+  overflow: hidden;
+}
+
+/* vanilla 示例中的独立容器 */
+.virt-list-container {
+  width: 100%;
+  max-width: 640px;
+  height: 600px;
+  overflow: auto;
+}
+
+.virt-list-container.hide-native-scrollbar {
+  scrollbar-width: none;
+}
+
+.virt-list-container.hide-native-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* 滚动条：细、圆、低对比，hover 时才明显 */
+.virt-list__client,
+.virt-grid-container,
+.virt-list-container,
+.demo-block__pre {
+  scrollbar-width: thin;
+  scrollbar-color: var(--demo-c-scrollbar) transparent;
+}
+
+.virt-list__client::-webkit-scrollbar,
+.virt-grid-container::-webkit-scrollbar,
+.virt-list-container::-webkit-scrollbar,
+.demo-block__pre::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.virt-list__client::-webkit-scrollbar-track,
+.virt-grid-container::-webkit-scrollbar-track,
+.virt-list-container::-webkit-scrollbar-track,
+.demo-block__pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.virt-list__client::-webkit-scrollbar-thumb,
+.virt-grid-container::-webkit-scrollbar-thumb,
+.virt-list-container::-webkit-scrollbar-thumb,
+.demo-block__pre::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-scrollbar);
+  background-clip: content-box;
+}
+
+.virt-list__client::-webkit-scrollbar-thumb:hover,
+.virt-grid-container::-webkit-scrollbar-thumb:hover,
+.virt-list-container::-webkit-scrollbar-thumb:hover,
+.demo-block__pre::-webkit-scrollbar-thumb:hover {
+  background-color: var(--demo-c-scrollbar-hover);
+}
+
+.virt-list__client::-webkit-scrollbar-corner,
+.virt-grid-container::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ===================================================================
+ * 2. 按钮
+ * =================================================================== */
+
+.virt-list-btn {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--demo-control-height);
+  padding: 0 14px;
+  border: 1px solid var(--demo-c-border-strong);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-bg-elv);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-sm);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--demo-duration-fast) var(--demo-ease),
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease),
+    box-shadow var(--demo-duration-fast) var(--demo-ease);
+}
+
+.virt-list-btn:hover {
+  border-color: var(--demo-c-brand-1);
+  color: var(--demo-c-brand-text);
+}
+
+.virt-list-btn:active {
+  background-color: var(--demo-c-surface-active);
+}
+
+.virt-list-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+.virt-list-btn:disabled,
+.virt-list-btn[disabled] {
+  border-color: var(--demo-c-border);
+  background-color: var(--demo-c-fill-1);
+  color: var(--demo-c-text-3);
+  cursor: not-allowed;
+}
+
+/* 实心按钮：主色 / 中性 / 成功 / 警告 —— 语义清晰，避免多彩渐变 */
+.virt-list-btn-primary,
+.virt-list-btn-secondary,
+.virt-list-btn-success,
+.virt-list-btn-warning {
+  border-color: transparent;
+  color: var(--demo-c-on-accent);
+}
+
+.virt-list-btn-primary {
+  background-color: var(--demo-c-brand-1);
+}
+
+.virt-list-btn-primary:hover {
+  border-color: transparent;
+  background-color: var(--demo-c-brand-2);
+  color: var(--demo-c-on-accent);
+}
+
+.virt-list-btn-primary:active {
+  background-color: var(--demo-c-brand-3);
+}
+
+.virt-list-btn-secondary {
+  border-color: var(--demo-c-border);
+  background-color: var(--demo-c-fill-2);
+  color: var(--demo-c-text-1);
+}
+
+.virt-list-btn-secondary:hover {
+  border-color: var(--demo-c-border-strong);
+  background-color: var(--demo-c-fill-3);
+  color: var(--demo-c-text-1);
+}
+
+.virt-list-btn-success {
+  background-color: var(--demo-c-success);
+}
+
+/* 实心按钮 hover 统一压暗（而非提亮），保证白字对比度不下降 */
+.virt-list-btn-success:hover {
+  border-color: transparent;
+  background-color: var(--demo-c-success);
+  color: var(--demo-c-on-accent);
+  filter: brightness(0.92);
+}
+
+.virt-list-btn-warning {
+  background-color: var(--demo-c-warning);
+}
+
+.virt-list-btn-warning:hover {
+  border-color: transparent;
+  background-color: var(--demo-c-warning);
+  color: var(--demo-c-on-accent);
+  filter: brightness(0.92);
+}
+
+/* 小尺寸按钮（表格行内操作） */
+.grid-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--demo-control-height-sm);
+  padding: 0 10px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-sm);
+  background-color: transparent;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--demo-duration-fast) var(--demo-ease),
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.grid-delete-btn:hover {
+  border-color: var(--demo-c-danger);
+  background-color: var(--demo-c-danger-soft);
+  color: var(--demo-c-danger-text);
+}
+
+.grid-delete-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+/* ===================================================================
+ * 3. 表单控件
+ * =================================================================== */
+
+.demo-input,
+.demo-toolbar input,
+.demo-toolbar select,
+.demo-ka-toolbar input,
+.input-container input,
+.tree-btn-container input,
+.virt-list-control-group input,
+.virt-grid-controls input {
+  box-sizing: border-box;
+  height: var(--demo-control-height);
+  padding: 0 10px;
+  border: 1px solid var(--demo-c-border-strong);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-bg-elv);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-sm);
+  transition:
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    box-shadow var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-input::placeholder,
+.demo-toolbar input::placeholder,
+.input-container input::placeholder {
+  color: var(--demo-c-text-3);
+}
+
+.demo-input:hover,
+.demo-toolbar input:hover,
+.input-container input:hover {
+  border-color: var(--demo-c-brand-1);
+}
+
+.demo-input:focus,
+.demo-toolbar input:focus,
+.demo-toolbar select:focus,
+.demo-ka-toolbar input:focus,
+.input-container input:focus,
+.tree-btn-container input:focus,
+.virt-list-control-group input:focus,
+.virt-grid-controls input:focus {
+  outline: none;
+  border-color: var(--demo-c-brand-1);
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+.demo-toolbar label,
+.input-container label,
+.virt-list-control-group label,
+.virt-grid-controls span {
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+}
+
+/* ===================================================================
+ * 4. 工具栏与信息条
+ * =================================================================== */
+
+.demo-toolbar,
+.demo-ka-toolbar,
+.virt-grid-controls,
+.virt-list-controls,
+.input-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.input-container {
+  margin-bottom: 0;
+}
+
+.virt-list-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-right: 12px;
+}
+
+.virt-list-control-group input {
+  width: 100px;
+}
+
+/* 统计信息：等宽数字，避免数值跳动时抖动 */
+.demo-stats,
+.status-text {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-fill-1);
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+}
+
+/* 说明性小字 */
+.demo-hint {
+  margin: 0 0 8px;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  line-height: 1.6;
+}
+
+/* 空状态 */
+.demo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 160px;
+  color: var(--demo-c-text-3);
+  gap: 4px;
+}
+
+.demo-empty svg {
+  opacity: 0.7;
+}
+
+/* ===================================================================
+ * 5. 列表行
+ * =================================================================== */
+
+.demo-row-item {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--demo-c-divider);
+  color: var(--demo-c-text-1);
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-row-item:hover {
+  background-color: var(--demo-c-surface-hover);
+}
+
+.demo-row-index {
+  flex-shrink: 0;
+  min-width: 52px;
+  color: var(--demo-c-brand-text);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.demo-row-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  line-height: 1.6;
+}
+
+/* 横向列表 */
+.demo-col-item {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  padding: 8px;
+  border-right: 1px solid var(--demo-c-divider);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-sm);
+  text-align: center;
+}
+
+/* 动态高度：可编辑行 */
+.demo-dynamic-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.demo-editable {
+  flex: 1;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 22px;
+  padding: 6px 10px;
+  border: 1px dashed var(--demo-c-border-strong);
+  border-radius: var(--demo-radius-md);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  line-height: 1.6;
+  outline: none;
+  transition:
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-editable:hover {
+  border-color: var(--demo-c-brand-1);
+}
+
+.demo-editable:focus {
+  border-style: solid;
+  border-color: var(--demo-c-brand-1);
+  background-color: var(--demo-c-brand-soft);
+}
+
+/* ===================================================================
+ * 6. 表格
+ * =================================================================== */
+
+.demo-table-row {
+  display: flex;
+  min-width: min-content;
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-table-row:not(.demo-table-header):hover {
+  background-color: var(--demo-c-surface-hover);
+}
+
+.demo-table-cell,
+.demo-adv-cell {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 8px 10px;
+  border-right: 1px solid var(--demo-c-divider);
+  border-bottom: 1px solid var(--demo-c-divider);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.demo-adv-cell {
+  padding: 6px 10px;
+}
+
+.demo-table-header {
+  background-color: var(--demo-c-fill-1);
+  color: var(--demo-c-text-2);
+  font-weight: 600;
+}
+
+.demo-table-header .demo-table-cell,
+.demo-table-header .demo-adv-cell {
+  border-bottom-color: var(--demo-c-border);
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ===================================================================
+ * 7. 网格
+ * =================================================================== */
+
+.grid-cell {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 200px;
+  min-height: 40px;
+  height: 100%;
+  padding: 8px 10px;
+  border-right: 1px solid var(--demo-c-divider);
+  border-bottom: 1px solid var(--demo-c-divider);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  overflow: hidden;
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.grid-cell:hover {
+  background-color: var(--demo-c-surface-hover);
+}
+
+/* ===================================================================
+ * 8. 聊天与加载条
+ * =================================================================== */
+
+.demo-chat-message {
+  padding: 6px 12px;
+}
+
+.demo-chat-bubble {
+  max-width: 80%;
+  padding: 8px 12px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-lg);
+  border-top-left-radius: var(--demo-radius-sm);
+  background-color: var(--demo-c-brand-soft);
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.demo-chat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-lg);
+  background-color: var(--demo-c-bg-soft);
+}
+
+/* 加载提示条：柔和底色，替代原先的纯色块；文案同时用于「加载中」与「没有更多」两种状态，
+   因此不加动画，避免终态仍在闪动造成误解 */
+.demo-loading-bar {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  background-color: var(--demo-c-brand-soft);
+  color: var(--demo-c-brand-text);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ===================================================================
+ * 9. keep-alive 示例：标签页与卡片
+ * =================================================================== */
+
+.demo-ka-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--demo-c-border);
+}
+
+.demo-ka-tab {
+  position: relative;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--demo-radius-md) var(--demo-radius-md) 0 0;
+  background: none;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-lg);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--demo-duration-fast) var(--demo-ease),
+    background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-ka-tab::after {
+  position: absolute;
+  right: 12px;
+  bottom: -1px;
+  left: 12px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background-color: transparent;
+  content: '';
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-ka-tab:hover {
+  background-color: var(--demo-c-surface-hover);
+  color: var(--demo-c-text-1);
+}
+
+.demo-ka-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+.demo-ka-tab.is-active {
+  color: var(--demo-c-brand-text);
+  font-weight: 600;
+}
+
+.demo-ka-tab.is-active::after {
+  background-color: var(--demo-c-brand-1);
+}
+
+.demo-ka-card {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--demo-c-divider);
+  box-shadow: inset 3px 0 0 var(--demo-c-brand-1);
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-ka-card:hover {
+  background-color: var(--demo-c-surface-hover);
+}
+
+.demo-ka-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-brand-1);
+  color: var(--demo-c-on-accent);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.demo-ka-info {
+  flex: 1;
+  min-width: 0;
+  color: var(--demo-c-text-1);
+  line-height: 1.6;
+}
+
+/* ===================================================================
+ * 10. 树示例
+ * =================================================================== */
+
+.tree-demo {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+}
+
+.tree-btn-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 0 12px;
+}
+
+/* ===================================================================
+ * 11. 代码块（展示源码）
+ * =================================================================== */
+
+.demo-block {
+  color: var(--demo-c-text-1);
+}
+
+.demo-block__actions {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.demo-block__divider {
+  flex: 1;
+  height: 1px;
+  background-color: var(--demo-c-border);
+}
+
+.demo-block__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--demo-radius-md);
+  background: none;
+  color: var(--demo-c-brand-text);
+  font-size: var(--demo-fs-md);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color var(--demo-duration-fast) var(--demo-ease),
+    background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-block__toggle:hover {
+  background-color: var(--demo-c-brand-soft);
+}
+
+.demo-block__toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+.demo-block__arrow {
+  transition: transform var(--demo-duration) var(--demo-ease);
+}
+
+.demo-block__arrow.is-open {
+  transform: rotate(180deg);
+}
+
+.demo-block__source {
+  position: relative;
+  margin-top: 8px;
+  border: 1px solid var(--demo-c-code-border);
+  border-radius: var(--demo-radius-lg);
+  background-color: var(--demo-c-code-bg);
+  overflow: hidden;
+}
+
+.demo-block__source-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 10px 0;
+}
+
+.demo-block__copy {
+  padding: 3px 10px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-sm);
+  background-color: var(--demo-c-bg-elv);
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--demo-duration-fast) var(--demo-ease),
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-block__copy:hover {
+  border-color: var(--demo-c-brand-1);
+  color: var(--demo-c-brand-text);
+}
+
+.demo-block__copy:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+.demo-block__pre {
+  margin: 0;
+  max-height: 500px;
+  padding: 8px 16px 16px;
+  overflow: auto;
+}
+
+.demo-block__pre code {
+  color: var(--demo-c-code-text);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-md);
+  line-height: 1.7;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* -------------------------------------------------------------------
+ * shiki 高亮（源码在构建时着色，见 _shared/vitePluginHighlightSource.ts）
+ *
+ * 插件用双主题输出：亮色写进 color，暗色写进 --shiki-dark 变量，
+ * 这里按 .dark 切换，无需重新高亮。
+ * ------------------------------------------------------------------- */
+
+.demo-block__pre .shiki {
+  margin: 0;
+  padding: 0;
+  background-color: transparent !important;
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-md);
+  line-height: 1.7;
+  tab-size: 2;
+}
+
+.demo-block__pre .shiki code {
+  display: block;
+  white-space: pre;
+}
+
+html.dark .demo-block__pre .shiki,
+html.dark .demo-block__pre .shiki span,
+[data-theme='dark'] .demo-block__pre .shiki,
+[data-theme='dark'] .demo-block__pre .shiki span {
+  color: var(--shiki-dark, inherit) !important;
+  font-style: var(--shiki-dark-font-style, inherit) !important;
+  font-weight: var(--shiki-dark-font-weight, inherit) !important;
+  text-decoration: var(--shiki-dark-text-decoration, inherit) !important;
+}
+
+/* ===================================================================
+ * 12. 无障碍：降低动效
+ * =================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-block__arrow,
+  .demo-row-item,
+  .demo-table-row,
+  .grid-cell,
+  .demo-ka-card,
+  .demo-ka-tab,
+  .virt-list-btn,
+  .demo-input,
+  .demo-editable {
+    transition-duration: 1ms;
+  }
+}

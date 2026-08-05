@@ -1,12 +1,13 @@
 import { defineConfig } from 'vite';
 import qiankun from 'vite-plugin-qiankun';
 import { fileURLToPath, URL } from 'node:url';
+import { highlightSource } from '../_shared/vitePluginHighlightSource';
 
 const deployBase = process.env.DEPLOY_BASE;
 
 export default defineConfig({
   base: deployBase ? `${deployBase}micro-apps/vanilla/` : '/',
-  plugins: [qiankun('vanillaDemo', { useDevMode: true })],
+  plugins: [highlightSource(), qiankun('vanillaDemo', { useDevMode: true })],
   resolve: {
     alias: [
       {

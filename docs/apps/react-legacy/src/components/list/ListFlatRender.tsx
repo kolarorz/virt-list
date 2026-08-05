@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
-import '../../demo.css';
 
 interface Item {
   id: number;
@@ -38,13 +37,13 @@ export default function FlatRender() {
           itemKey="id"
           itemPreSize={40}
           buffer={2}
-          stickyHeaderStyle="display: flex; align-items: center; justify-content: center; height: 50px; background: #2e8b57; font-weight: bold; color: #fff;"
+          stickyHeaderStyle="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); font-weight: bold; color: var(--demo-c-on-accent);"
           renderStickyHeader={() => <>Sticky Header (固定头部)</>}
-          headerStyle="display: flex; align-items: center; justify-content: center; height: 40px; background: #3cb371; font-weight: bold; color: #fff;"
+          headerStyle="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); font-weight: bold; color: var(--demo-c-on-accent);"
           renderHeader={() => <>Header (头部)</>}
-          footerStyle="display: flex; align-items: center; justify-content: center; height: 40px; background: #20b2aa; font-weight: bold; color: #fff;"
+          footerStyle="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); font-weight: bold; color: var(--demo-c-on-accent);"
           renderFooter={() => <>Footer (尾部)</>}
-          stickyFooterStyle="display: flex; align-items: center; justify-content: center; height: 50px; background: #008b8b; font-weight: bold; color: #fff;"
+          stickyFooterStyle="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); font-weight: bold; color: var(--demo-c-on-accent);"
           renderStickyFooter={() => <>Sticky Footer (固定底部)</>}
           itemClass="demo-row-item"
           onUpdate={(_, state) =>

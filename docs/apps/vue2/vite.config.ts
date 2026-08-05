@@ -3,12 +3,13 @@ import vue2 from '@vitejs/plugin-vue2'
 import vue2Jsx from '@vitejs/plugin-vue2-jsx'
 import qiankun from 'vite-plugin-qiankun'
 import { fileURLToPath, URL } from 'node:url'
+import { highlightSource } from '../_shared/vitePluginHighlightSource'
 
 const deployBase = process.env.DEPLOY_BASE
 
 export default defineConfig({
   base: deployBase ? `${deployBase}micro-apps/vue2/` : '/',
-  plugins: [vue2(), vue2Jsx(), qiankun('vue2Demo', { useDevMode: true })],
+  plugins: [highlightSource(), vue2(), vue2Jsx(), qiankun('vue2Demo', { useDevMode: true })],
   resolve: {
     alias: [
       {

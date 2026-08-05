@@ -7,7 +7,7 @@ export default function TreeDefaultItem({ node }: { node: TreeNode }) {
         height: 40,
         display: 'flex',
         alignItems: 'center',
-        borderBottom: '1px solid #eee',
+        borderBottom: '1px solid var(--demo-c-divider)',
         boxSizing: 'border-box',
         paddingLeft: 4,
       }}

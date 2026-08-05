@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react';
-import '../../demo.css';
 
 interface Item {
   id: number;

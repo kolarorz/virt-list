@@ -1,6 +1,6 @@
 <template>
   <div class="demo-panel">
-    <div style="margin-bottom: 8px; font-size: 12px; color: #888">
+    <div style="margin-bottom: 8px; font-size: 12px; color: var(--demo-c-text-2)">
       提示：点击内容区域可以直接编辑文本，行高会自动适应。
     </div>
     <div class="demo-stats">{{ statsText }}</div>
@@ -31,7 +31,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 function generateList(count: number) {
   const texts = [

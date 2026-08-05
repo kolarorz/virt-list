@@ -19,6 +19,7 @@ import type {
   IScrollParams,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
+  VirtScrollOptions,
 } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
 import { createSlotMounter } from './compat';
@@ -44,6 +45,8 @@ export const VirtTree = defineComponent({
     buffer: { type: Number, default: 2 },
     itemPreSize: { type: Number, default: 32 },
     fixed: { type: Boolean, default: false },
+    scrollDuration: { type: Number, default: 300 },
+    smoothMaxDistance: { type: Number, default: 0 },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -95,6 +98,8 @@ export const VirtTree = defineComponent({
         itemGap: props.itemGap,
         buffer: props.buffer,
         itemPreSize: props.itemPreSize,
+        scrollDuration: props.scrollDuration,
+        smoothMaxDistance: props.smoothMaxDistance,
         fixed: props.fixed,
         showLine: props.showLine,
         itemClass: props.itemClass,
@@ -172,6 +177,8 @@ export const VirtTree = defineComponent({
 
     function buildEvents(): VirtTreeDOMEvents {
       return {
+        // 与 vue3 版一致用 nodeClick（模板里 `@node-click`），避开原生 click 的歧义
+        click: (data, node, e) => emit('nodeClick', data, node, e),
         expand: (keys, data) => {
           emit('expand', keys, data);
           emit('update:expandedKeys', keys);
@@ -241,8 +248,10 @@ export const VirtTree = defineComponent({
       setFocusedKeys: (keys: TreeNodeKey[]) => tree?.setFocusedKeys(keys),
       filter: (query: string) => tree?.filter(query),
       scrollTo: (params: IScrollParams) => tree?.scrollTo(params),
-      scrollToTop: () => tree?.scrollToTop(),
-      scrollToBottom: () => tree?.scrollToBottom(),
+      scrollToTop: (options?: VirtScrollOptions) => tree?.scrollToTop(options),
+      scrollToBottom: (options?: VirtScrollOptions) =>
+        tree?.scrollToBottom(options),
+      cancelScroll: () => tree?.cancelScroll(),
       setList: (list: TreeData) => tree?.setList(list),
       forceUpdate: () => tree?.forceUpdate(),
       getTreeNode: (key: TreeNodeKey) => tree?.getTreeNode(key),

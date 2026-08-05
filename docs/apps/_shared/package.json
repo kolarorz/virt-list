@@ -1,0 +1,13 @@
+{
+  "name": "@demo/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "文档示例共用的样式、主题与构建插件",
+  "dependencies": {
+    "shiki": "^2.5.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}

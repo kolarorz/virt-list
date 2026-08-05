@@ -22,7 +22,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 const SENTENCES = [
   '拖拽容器右下角可以调整大小，虚拟列表会自动适应新的容器尺寸。',

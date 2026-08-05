@@ -1,6 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
-import '../../demo.css';
 
 const PAGE_SIZE = 40;
 

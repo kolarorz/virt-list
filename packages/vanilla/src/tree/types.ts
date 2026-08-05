@@ -82,6 +82,10 @@ export interface IScrollParams {
   align?: 'view' | 'top';
   /** 直接指定滚动偏移量（优先级最高） */
   offset?: number;
+  /** 滚动方式：'auto'（默认）瞬时跳转，'smooth' 平滑动画 */
+  behavior?: 'auto' | 'smooth';
+  /** 平滑动画时长（ms），缺省取 scrollDuration */
+  duration?: number;
 }
 
 /**
@@ -104,6 +108,10 @@ export interface VirtTreeDOMOptions {
   itemPreSize?: number;
   /** 是否固定行高 */
   fixed?: boolean;
+  /** smooth 滚动的默认动画时长（ms），默认 300 */
+  scrollDuration?: number;
+  /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
+  smoothMaxDistance?: number;
   /** 是否显示连接线 */
   showLine?: boolean;
   /** 节点行的自定义 class */

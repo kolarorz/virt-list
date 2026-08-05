@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { VirtTree } from '@virt-list/react-legacy';
 import TreeIconItem from './items/TreeIconItem';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

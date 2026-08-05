@@ -20,7 +20,7 @@ const template = `
   <div class="tree-demo">
     <div class="tree-btn-container">
       <div class="input-container">
-        <input id="filterInput" value="Node-0" style="width:160px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;" />
+        <input id="filterInput" value="Node-0" class="demo-input" style="width:160px;" />
         <button class="virt-list-btn virt-list-btn-primary" id="btnFilter">filter</button>
       </div>
     </div>

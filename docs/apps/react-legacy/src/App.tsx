@@ -1,5 +1,5 @@
-import '@arco-design/web-react/dist/css/arco.css';
 import DemoBlock from './components/DemoBlock.tsx';
+import type { DemoSource } from '../../_shared/demoSource';
 import Literal from './components/Literal.tsx';
 import Widget from './components/Widget.tsx';
 
@@ -10,11 +10,13 @@ import ListFixed from './components/list/ListFixed.tsx';
 import ListHorizontal from './components/list/ListHorizontal.tsx';
 import ListSlots from './components/list/ListSlots.tsx';
 import ListOperations from './components/list/ListOperations.tsx';
+import ListSmooth from './components/list/ListSmooth.tsx';
 import ListResize from './components/list/ListResize.tsx';
 import ListDynamic from './components/list/ListDynamic.tsx';
 import ListTable from './components/list/ListTable.tsx';
 import ListInfinity from './components/list/ListInfinity.tsx';
 import ListChat from './components/list/ListChat.tsx';
+import ListChatCollapse from './components/list/ListChatCollapse.tsx';
 import ListAdvanced from './components/list/ListAdvanced.tsx';
 import ListPagination from './components/list/ListPagination.tsx';
 import ListKeepAlive from './components/list/ListKeepAlive.tsx';
@@ -39,13 +41,13 @@ import TreeDragArea from './components/tree/TreeDragArea.tsx';
 
 import GridBasic from './components/grid/GridBasic.tsx';
 
-const rawSources = import.meta.glob(
+const highlightedSources = import.meta.glob(
   ['./components/list/*.tsx', './components/tree/*.tsx', './components/grid/*.tsx'],
-  { query: '?raw', import: 'default', eager: true },
-) as Record<string, string>;
+  { query: '?highlight', import: 'default', eager: true },
+) as Record<string, DemoSource>;
 
-function src(path: string): string {
-  return rawSources[path] ?? '';
+function src(path: string): DemoSource {
+  return highlightedSources[path] ?? { html: '', raw: '' };
 }
 
 interface AppProps {
@@ -63,11 +65,13 @@ const demoRenderMap: Record<string, () => JSX.Element> = {
   'list-horizontal': () => <DemoBlock source={src('./components/list/ListHorizontal.tsx')}><ListHorizontal /></DemoBlock>,
   'list-slots': () => <DemoBlock source={src('./components/list/ListSlots.tsx')}><ListSlots /></DemoBlock>,
   'list-operations': () => <DemoBlock source={src('./components/list/ListOperations.tsx')}><ListOperations /></DemoBlock>,
+  'list-smooth': () => <DemoBlock source={src('./components/list/ListSmooth.tsx')}><ListSmooth /></DemoBlock>,
   'list-resize': () => <DemoBlock source={src('./components/list/ListResize.tsx')}><ListResize /></DemoBlock>,
   'list-dynamic': () => <DemoBlock source={src('./components/list/ListDynamic.tsx')}><ListDynamic /></DemoBlock>,
   'list-table': () => <DemoBlock source={src('./components/list/ListTable.tsx')}><ListTable /></DemoBlock>,
   'list-infinity': () => <DemoBlock source={src('./components/list/ListInfinity.tsx')}><ListInfinity /></DemoBlock>,
   'list-chat': () => <DemoBlock source={src('./components/list/ListChat.tsx')}><ListChat /></DemoBlock>,
+  'list-chat-collapse': () => <DemoBlock source={src('./components/list/ListChatCollapse.tsx')}><ListChatCollapse /></DemoBlock>,
   'list-advanced': () => <DemoBlock source={src('./components/list/ListAdvanced.tsx')}><ListAdvanced /></DemoBlock>,
   'list-pagination': () => <DemoBlock source={src('./components/list/ListPagination.tsx')}><ListPagination /></DemoBlock>,
   'list-keep-alive': () => <DemoBlock source={src('./components/list/ListKeepAlive.tsx')}><ListKeepAlive /></DemoBlock>,

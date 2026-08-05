@@ -1,6 +1,5 @@
 import { useState, useMemo, type CSSProperties } from 'react';
 import { VirtList } from '@virt-list/react';
-import '../../demo.css';
 
 interface Row {
   id: number;
@@ -24,14 +23,14 @@ const stickyLeft: CSSProperties = {
   position: 'sticky',
   left: 0,
   zIndex: 1,
-  background: '#fff',
+  background: 'var(--demo-c-bg-elv)',
 };
 
 const stickyRight: CSSProperties = {
   position: 'sticky',
   right: 0,
   zIndex: 1,
-  background: '#fff',
+  background: 'var(--demo-c-bg-elv)',
 };
 
 function Cell({
@@ -60,19 +59,19 @@ export default function Table() {
           list={list}
           itemKey="id"
           itemPreSize={40}
-          stickyHeaderStyle={{ background: '#f0f0f0' }}
+          stickyHeaderStyle={{ background: 'var(--demo-c-fill-2)' }}
           renderStickyHeader={() => (
             <div className="demo-table-row demo-table-header">
               <Cell
                 text="ID"
-                style={{ ...stickyLeft, width: 80, minWidth: 80, background: '#e0e0e0' }}
+                style={{ ...stickyLeft, width: 80, minWidth: 80, background: 'var(--demo-c-fill-3)' }}
               />
               <Cell text="名称" style={{ width: 120, minWidth: 120 }} />
               <Cell text="描述1" style={{ width: 600, minWidth: 600 }} />
               <Cell text="描述2" style={{ width: 600, minWidth: 600 }} />
               <Cell
                 text="操作"
-                style={{ ...stickyRight, width: 80, minWidth: 80, background: '#e0e0e0' }}
+                style={{ ...stickyRight, width: 80, minWidth: 80, background: 'var(--demo-c-fill-3)' }}
               />
             </div>
           )}

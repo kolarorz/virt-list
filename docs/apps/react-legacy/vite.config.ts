@@ -2,12 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import qiankun from 'vite-plugin-qiankun'
 import { fileURLToPath, URL } from 'node:url'
+import { highlightSource } from '../_shared/vitePluginHighlightSource'
 
 const deployBase = process.env.DEPLOY_BASE
 
 export default defineConfig({
   base: deployBase ? `${deployBase}micro-apps/react-legacy/` : '/',
-  plugins: [react(), qiankun('reactLegacyDemo', { useDevMode: true })],
+  plugins: [highlightSource(), react(), qiankun('reactLegacyDemo', { useDevMode: true })],
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: [

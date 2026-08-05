@@ -28,7 +28,6 @@ import { ref } from 'vue';
 import { VirtTree } from '@virt-list/vue';
 import type { TreeNode } from '@virt-list/vue';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 const treeData = ref([
   {

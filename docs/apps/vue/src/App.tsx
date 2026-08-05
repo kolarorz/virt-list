@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue';
 import DemoBlock from './components/DemoBlock.vue';
+import type { DemoSource } from '../../_shared/demoSource';
 import Literal from './components/Literal.vue';
 import Widget from './components/Widget.vue';
 
@@ -10,11 +11,13 @@ import ListFixed from './components/list/ListFixed.vue';
 import ListHorizontal from './components/list/ListHorizontal.vue';
 import ListSlots from './components/list/ListSlots.vue';
 import ListOperations from './components/list/ListOperations.vue';
+import ListSmooth from './components/list/ListSmooth.vue';
 import ListResize from './components/list/ListResize.vue';
 import ListDynamic from './components/list/ListDynamic.vue';
 import ListTable from './components/list/ListTable.vue';
 import ListInfinity from './components/list/ListInfinity.vue';
 import ListChat from './components/list/ListChat.vue';
+import ListChatCollapse from './components/list/ListChatCollapse.vue';
 import ListAdvanced from './components/list/ListAdvanced.vue';
 import ListPagination from './components/list/ListPagination.vue';
 import ListKeepAlive from './components/list/ListKeepAlive.vue';
@@ -39,13 +42,13 @@ import TreeDragArea from './components/tree/TreeDragArea.vue';
 
 import GridBasic from './components/grid/GridBasic.vue';
 
-const rawSources = import.meta.glob(
+const highlightedSources = import.meta.glob(
   ['./components/list/*.vue', './components/tree/*.vue', './components/grid/*.vue'],
-  { query: '?raw', import: 'default', eager: true },
-) as Record<string, string>;
+  { query: '?highlight', import: 'default', eager: true },
+) as Record<string, DemoSource>;
 
-function src(path: string): string {
-  return rawSources[path] ?? '';
+function src(path: string): DemoSource {
+  return highlightedSources[path] ?? { html: '', raw: '' };
 }
 
 type FrameworkKind = 'react' | 'vue';
@@ -73,11 +76,13 @@ export default defineComponent({
       'list-horizontal': () => <DemoBlock source={src('./components/list/ListHorizontal.vue')}><ListHorizontal /></DemoBlock>,
       'list-slots': () => <DemoBlock source={src('./components/list/ListSlots.vue')}><ListSlots /></DemoBlock>,
       'list-operations': () => <DemoBlock source={src('./components/list/ListOperations.vue')}><ListOperations /></DemoBlock>,
+      'list-smooth': () => <DemoBlock source={src('./components/list/ListSmooth.vue')}><ListSmooth /></DemoBlock>,
       'list-resize': () => <DemoBlock source={src('./components/list/ListResize.vue')}><ListResize /></DemoBlock>,
       'list-dynamic': () => <DemoBlock source={src('./components/list/ListDynamic.vue')}><ListDynamic /></DemoBlock>,
       'list-table': () => <DemoBlock source={src('./components/list/ListTable.vue')}><ListTable /></DemoBlock>,
       'list-infinity': () => <DemoBlock source={src('./components/list/ListInfinity.vue')}><ListInfinity /></DemoBlock>,
       'list-chat': () => <DemoBlock source={src('./components/list/ListChat.vue')}><ListChat /></DemoBlock>,
+      'list-chat-collapse': () => <DemoBlock source={src('./components/list/ListChatCollapse.vue')}><ListChatCollapse /></DemoBlock>,
       'list-advanced': () => <DemoBlock source={src('./components/list/ListAdvanced.vue')}><ListAdvanced /></DemoBlock>,
       'list-pagination': () => <DemoBlock source={src('./components/list/ListPagination.vue')}><ListPagination /></DemoBlock>,
       'list-keep-alive': () => <DemoBlock source={src('./components/list/ListKeepAlive.vue')}><ListKeepAlive /></DemoBlock>,

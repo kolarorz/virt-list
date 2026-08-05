@@ -7,7 +7,7 @@
       justify-content: center;
       width: 16px;
       height: 16px;
-      color: #333;
+      color: var(--demo-c-text-1);
       transition: transform 0.15s ease;
     "
     :style="{ transform: props.isExpanded ? 'rotate(-90deg)' : 'rotate(0deg)' }"

@@ -1,65 +1,116 @@
+/**
+ * 示例宿主（PlaygroundHost）样式
+ *
+ * 全部基于 VitePress 主题变量（--vp-*），因此亮/暗模式自动跟随文档主题。
+ */
+
 .playground-shell {
-  /* border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  padding: 16px; */
+  position: relative;
 }
 
-.playground-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin-bottom: 12px;
+/* 微应用挂载区：给出最小高度，避免加载瞬间页面跳动 */
+.micro-container {
+  min-height: 120px;
 }
 
+/* 状态提示：胶囊 + 状态点，弱化视觉噪音 */
 .status {
-  margin-bottom: 10px;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 5px 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.status::before {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentcolor;
+  content: '';
 }
 
 .status.error {
-  color: #f53f3f;
+  border-color: var(--vp-c-danger-soft);
+  background-color: var(--vp-c-danger-soft);
+  color: var(--vp-c-danger-1);
 }
 
 .status.loading {
-  color: #165dff;
+  border-color: var(--vp-c-brand-soft);
+  background-color: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+.status.loading::before {
+  animation: playground-pulse 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .status.warning {
-  color: #ff7d00;
+  border-color: var(--vp-c-warning-soft);
+  background-color: var(--vp-c-warning-soft);
+  color: var(--vp-c-warning-1);
 }
 
-.micro-container {
-  /* min-height: 240px;
-  border: 1px dashed var(--vp-c-divider);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px; */
+@keyframes playground-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.72);
+  }
 }
 
+/* 事件日志 */
 .event-log {
-  border-top: 1px solid var(--vp-c-divider);
+  margin-top: 16px;
   padding-top: 12px;
+  border-top: 1px solid var(--vp-c-divider);
 }
 
 .event-log h4 {
   margin: 0 0 8px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .event-log ul {
   margin: 0;
   padding-left: 20px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
 }
 
+/* 示例页正文容器：去掉 VitePress 默认外边距，让示例贴合标题 */
 .content-container {
   margin: 0 !important;
 }
 
-h1 {
-  letter-spacing: -0.02em;
-  line-height: 40px;
-  font-size: 32px;
+/* 示例页标题：比正文 h1 更紧凑 */
+.vp-doc h1 {
   position: relative;
-  font-weight: 600;
-  outline: none;
   margin-bottom: 12px;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status.loading::before {
+    animation: none;
+  }
 }

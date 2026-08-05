@@ -1,7 +1,6 @@
 import { useRef, useState, useMemo } from 'react';
 import { VirtTree, type VirtTreeRef } from '@virt-list/react-legacy';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
@@ -50,7 +49,7 @@ export default function TreeOperate() {
             <input
               value={nodeKey}
               onChange={(e) => setNodeKey(e.target.value)}
-              style={{ width: 100, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
+              className="demo-input" style={{ width: 100 }}
             />
           </label>
           <button
@@ -74,7 +73,7 @@ export default function TreeOperate() {
             <input
               value={scrollOffset}
               onChange={(e) => setScrollOffset(e.target.value)}
-              style={{ width: 100, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
+              className="demo-input" style={{ width: 100 }}
             />
           </label>
           <button
@@ -96,7 +95,7 @@ export default function TreeOperate() {
             <input
               value={scrollKey}
               onChange={(e) => setScrollKey(e.target.value)}
-              style={{ width: 100, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4 }}
+              className="demo-input" style={{ width: 100 }}
             />
           </label>
           <button

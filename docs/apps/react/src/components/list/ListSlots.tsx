@@ -1,6 +1,5 @@
 import { useState, useMemo, type CSSProperties } from 'react';
 import { VirtList } from '@virt-list/react';
-import '../../demo.css';
 
 interface Item {
   id: number;
@@ -31,7 +30,7 @@ const slotBase: CSSProperties = {
   justifyContent: 'center',
   fontWeight: 'bold',
   fontSize: 14,
-  color: '#fff',
+  color: 'var(--demo-c-on-accent)',
 };
 
 export default function Slots() {
@@ -46,17 +45,17 @@ export default function Slots() {
           list={list}
           itemKey="id"
           itemPreSize={40}
-          stickyHeaderStyle={{ background: '#2e8b57', height: 50 }}
+          stickyHeaderStyle={{ background: 'var(--demo-c-band-sticky-header)', height: 50 }}
           renderStickyHeader={() => (
             <div style={slotBase}>Sticky Header（固定头部）</div>
           )}
           renderHeader={() => (
-            <div style={{ ...slotBase, background: '#3cb371', height: 40 }}>Header（头部）</div>
+            <div style={{ ...slotBase, background: 'var(--demo-c-band-header)', height: 40 }}>Header（头部）</div>
           )}
           renderFooter={() => (
-            <div style={{ ...slotBase, background: '#20b2aa', height: 40 }}>Footer（尾部）</div>
+            <div style={{ ...slotBase, background: 'var(--demo-c-band-footer)', height: 40 }}>Footer（尾部）</div>
           )}
-          stickyFooterStyle={{ background: '#008b8b', height: 50 }}
+          stickyFooterStyle={{ background: 'var(--demo-c-band-sticky-footer)', height: 50 }}
           renderStickyFooter={() => (
             <div style={slotBase}>Sticky Footer（固定底部）</div>
           )}

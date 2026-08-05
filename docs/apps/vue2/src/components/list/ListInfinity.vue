@@ -28,7 +28,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 let uid = 0;
 

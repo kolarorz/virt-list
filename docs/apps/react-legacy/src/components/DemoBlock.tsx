@@ -1,16 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import './DemoBlock.css';
+import type { DemoSource } from '../../../_shared/demoSource';
 
-export default function DemoBlock({ source, children }: { source: string; children: ReactNode }) {
+export default function DemoBlock({ source, children }: { source: DemoSource; children: ReactNode }) {
   const [showCode, setShowCode] = useState(false);
   const [copyText, setCopyText] = useState('复制');
 
   const onCopy = async () => {
     try {
-      await navigator.clipboard.writeText(source);
+      await navigator.clipboard.writeText(source.raw);
     } catch {
       const textarea = document.createElement('textarea');
-      textarea.value = source;
+      textarea.value = source.raw;
       textarea.style.position = 'fixed';
       textarea.style.left = '-9999px';
       document.body.appendChild(textarea);
@@ -50,9 +50,11 @@ export default function DemoBlock({ source, children }: { source: string; childr
               {copyText}
             </button>
           </div>
-          <pre className="demo-block__pre">
-            <code>{source}</code>
-          </pre>
+          {/* 高亮 HTML 在构建时生成（见 _shared/vitePluginHighlightSource.ts），这里只负责渲染 */}
+          <div
+            className="demo-block__pre"
+            dangerouslySetInnerHTML={{ __html: source.html }}
+          />
         </div>
       )}
     </div>

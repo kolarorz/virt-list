@@ -15,18 +15,18 @@ const template = `
       <div class="demo-block__source-header">
         <button class="demo-block__copy" type="button">复制</button>
       </div>
-      <pre class="demo-block__pre"><code></code></pre>
+      <div class="demo-block__pre"></div>
     </div>
   </div>
 `;
 
 async function copyText(source) {
   try {
-    await navigator.clipboard.writeText(source);
+    await navigator.clipboard.writeText(source?.raw || '');
     return true;
   } catch {
     const textarea = document.createElement('textarea');
-    textarea.value = source;
+    textarea.value = source?.raw || '';
     textarea.style.position = 'fixed';
     textarea.style.left = '-9999px';
     document.body.appendChild(textarea);
@@ -41,7 +41,7 @@ export function mountDemoBlock(root, source) {
   root.innerHTML = template;
   const contentEl = root.querySelector('.demo-block__content');
   const sourceEl = root.querySelector('.demo-block__source');
-  const codeEl = root.querySelector('.demo-block__pre code');
+  const codeEl = root.querySelector('.demo-block__pre');
   const toggleBtn = root.querySelector('.demo-block__toggle');
   const toggleTextEl = root.querySelector('.demo-block__toggle-text');
   const arrowEl = root.querySelector('.demo-block__arrow');
@@ -51,7 +51,8 @@ export function mountDemoBlock(root, source) {
     throw new Error('Demo block mount failed: missing elements');
   }
 
-  codeEl.textContent = source || '';
+  // 高亮 HTML 在构建时生成（见 _shared/vitePluginHighlightSource.ts），这里只负责渲染
+  codeEl.innerHTML = source?.html || '';
 
   let showCode = false;
   const onToggle = () => {

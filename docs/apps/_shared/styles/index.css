@@ -1,0 +1,9 @@
+/**
+ * virt-list 文档示例样式入口
+ *
+ * 五个示例应用（vanilla / vue / vue2 / react / react-legacy）均通过
+ * src/style.css 与 src/demo.css 引入本文件，保证视觉与暗色适配完全一致。
+ */
+
+@import './tokens.css';
+@import './components.css';

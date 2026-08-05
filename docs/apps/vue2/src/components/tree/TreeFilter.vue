@@ -4,7 +4,7 @@
       <div class="input-container">
         <input
           v-model="filterInput"
-          style="width: 160px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px"
+          class="demo-input" style="width: 160px"
         />
         <button type="button" class="virt-list-btn virt-list-btn-primary" @click="applyFilter">filter</button>
       </div>
@@ -25,7 +25,6 @@ import { VirtTree } from '@virt-list/vue2';
 import type { TreeNode } from '@virt-list/vue2';
 import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

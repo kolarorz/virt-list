@@ -1,8 +1,8 @@
 <template>
   <div class="grid-cell">
     <div>
-      <div style="font-size:12px;color:#999;">
-        row:{{ rowIndex }} - item:{{ index }}
+      <div style="font-size:12px;color:var(--demo-c-text-3);">
+        row:{{ rowIndex }} - item:{{ listIndex }}
       </div>
       <div style="display:flex;align-items:center;">
         <img :src="item.avatar" style="width:40px;height:40px;border-radius:50%;" />
@@ -20,7 +20,7 @@ defineProps<{
     avatar: string;
     name: string;
   };
-  index: number;
+  listIndex: number;
   rowIndex: number;
 }>();
 

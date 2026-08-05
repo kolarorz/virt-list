@@ -3,7 +3,7 @@
     <div class="tree-btn-container">
       <div class="input-container">
         <label>操作指定节点：</label>
-        <input v-model="nodeKeyInput" style="width: 80px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px" />
+        <input v-model="nodeKeyInput" class="demo-input" style="width: 80px" />
         <button type="button" class="virt-list-btn virt-list-btn-primary" @click="expandNode">展开</button>
         <button type="button" class="virt-list-btn virt-list-btn-secondary" @click="collapseNode">折叠</button>
       </div>
@@ -35,7 +35,6 @@ import { VirtTree } from '@virt-list/vue2';
 import type { TreeNodeKey } from '@virt-list/vue2';
 import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

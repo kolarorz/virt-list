@@ -2,7 +2,6 @@ import { useRef, useMemo } from 'react';
 import { VirtTree, type VirtTreeRef } from '@virt-list/react';
 import TreeDragAreaItem from './items/TreeDragAreaItem';
 import TreeEmpty from './items/TreeEmpty';
-import '../../demo.css';
 
 export default function TreeDragArea() {
   const treeRef = useRef<VirtTreeRef>(null);

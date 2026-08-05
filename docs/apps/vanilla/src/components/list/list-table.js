@@ -36,13 +36,13 @@ export function bootstrapTable(root) {
     position: 'sticky',
     left: '0',
     zIndex: '1',
-    background: '#fff',
+    background: 'var(--demo-c-bg-elv)',
   };
   const stickyRight = {
     position: 'sticky',
     right: '0',
     zIndex: '1',
-    background: '#fff',
+    background: 'var(--demo-c-bg-elv)',
   };
 
   const virtList = new VirtList(
@@ -51,12 +51,12 @@ export function bootstrapTable(root) {
       list,
       itemKey: 'id',
       itemPreSize: 40,
-      stickyHeaderStyle: 'background:#f0f0f0;',
+      stickyHeaderStyle: 'background:var(--demo-c-fill-2);',
       renderStickyHeader: () => {
         const header = document.createElement('div');
         header.className = 'demo-table-row demo-table-header';
         header.appendChild(
-          createCell('ID', { ...stickyLeft, width: '80px', minWidth: '80px', background: '#e0e0e0' }),
+          createCell('ID', { ...stickyLeft, width: '80px', minWidth: '80px', background: 'var(--demo-c-fill-3)' }),
         );
         header.appendChild(
           createCell('名称', { width: '120px', minWidth: '120px' }),
@@ -68,7 +68,7 @@ export function bootstrapTable(root) {
           createCell('描述2', { width: '600px', minWidth: '600px' }),
         );
         header.appendChild(
-          createCell('操作', { ...stickyRight, width: '80px', minWidth: '80px', background: '#e0e0e0' }),
+          createCell('操作', { ...stickyRight, width: '80px', minWidth: '80px', background: 'var(--demo-c-fill-3)' }),
         );
         return header;
       },

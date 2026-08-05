@@ -3,12 +3,12 @@
     <div class="demo-stats">{{ statsText }}</div>
     <div class="demo-list-container">
       <VirtList
-        v-if="list.length > 0"
-        ref="virtListRef"
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        @to-bottom="onToBottom"
+        :load-more="onLoadMore"
+        :has-more-top="false"
+        @load-state-change="onLoadStateChange"
         @update="onUpdate"
       >
         <template #default="{ itemData }">
@@ -17,8 +17,10 @@
             <span class="demo-row-text">{{ itemData.text }}</span>
           </div>
         </template>
-        <template #footer>
-          <div id="loadingBar" class="demo-loading-bar">{{ loading ? '加载中...' : ' ' }}</div>
+        <template #footer="{ loadState }">
+          <div id="loadingBar" class="demo-loading-bar">
+            {{ loadState.loadingBottom ? '加载中...' : ' ' }}
+          </div>
         </template>
       </VirtList>
     </div>
@@ -26,9 +28,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
+import type { LoadDirection, LoadState } from '@virt-list/vue';
 
 let uid = 0;
 
@@ -54,38 +56,37 @@ function generateList(count: number, startIndex = 0, delay = 0) {
 
 type Item = Awaited<ReturnType<typeof generateList>>[number];
 
-const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const list = ref<Item[]>([]);
-const loading = ref(false);
+const loadState = ref<LoadState | null>(null);
 
-function updateStats(state?: any) {
-  statsText.value = `总数: ${list.value.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
-    loading.value ? ' | 加载中...' : ''
-  }`;
-}
-
-async function loadMore() {
-  if (loading.value) return;
-  loading.value = true;
-  updateStats();
+/**
+ * 触底取数。
+ *
+ * 列表初始为空，首屏这一次加载也由组件自动发起——内容填不满视口时会继续要
+ * 下一页，不需要在 onMounted 里手动拉第一页。
+ */
+async function onLoadMore(direction: LoadDirection) {
+  if (direction !== 'bottom') return false;
   const newItems = await generateList(200, list.value.length, 1000);
   list.value = list.value.concat(newItems);
-  loading.value = false;
-  await nextTick();
-  virtListRef.value?.forceUpdate();
-  updateStats();
+  return true;
 }
 
-function onToBottom() {
-  void loadMore();
+function onLoadStateChange(state: LoadState) {
+  loadState.value = state;
+  updateStats();
 }
 
 function onUpdate(_list: any[], state: any) {
   updateStats(state);
 }
 
-onMounted(() => {
-  void loadMore();
-});
+function updateStats(state?: any) {
+  statsText.value = `总数: ${list.value.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
+    loadState.value?.loadingBottom ? ' | 加载中...' : ''
+  }`;
+}
+
+updateStats();
 </script>

@@ -51,6 +51,8 @@
 | key     | `TreeNodeKey \| undefined`            | 目标节点 key                               |
 | align   | `'view' \| 'top' \| undefined`       | 对齐方式                                   |
 | offset  | `number \| undefined`                | 偏移量（**≥ 0** 时优先使用）              |
+| behavior | `'auto' \| 'smooth' \| undefined`   | 滚动方式，`'smooth'` 为平滑动画            |
+| duration | `number \| undefined`               | 平滑动画时长（ms），缺省取 `scrollDuration` |
 
 ## 属性
 
@@ -64,6 +66,7 @@
 | buffer               | 虚拟列表 buffer 行数                                                 | `Number`                                                             | `2`       | -                            |
 | itemPreSize          | 预估行高                                                             | `Number`                                                             | `32`      | -                            |
 | fixed                | 是否固定高度                                                         | `Boolean`                                                            | `false`   | -                            |
+| scrollDuration       | 平滑滚动的默认动画时长（ms）                                         | `Number`                                                              | `300`     | -                            |
 | showLine             | 是否显示层级线                                                       | `Boolean`                                                            | `false`   | -                            |
 | itemClass            | 节点类名                                                             | `String`                                                             | `undefined` | -                            |
 | listClass            | 列表容器类名                                                         | `String`                                                             | `undefined` | -                            |
@@ -124,6 +127,7 @@
 
 | 事件名     | 说明           | 回调参数                                                                                                                                 |
 | ---------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| nodeClick  | 点击节点（内容区；`#default` 插槽接管后为整行）。与 `select` / `check` / 展开互不冲突，先于它们触发。模板里写 **`@node-click`** | **`(data: TreeNodeData, node: TreeNode, e: MouseEvent)`** |
 | expand     | 展开/折叠节点  | **`expandKeys: TreeNodeKey[]`**，**`data`**：`{ node?: TreeNode; expanded: boolean; expandedNodes: TreeNodeData[] }`                     |
 | select     | 选择节点       | **`selectedKeys: TreeNodeKey[]`**，**`data`**：`{ node: TreeNode; selected: boolean; selectedKeys: TreeNodeKey[]; selectedNodes: TreeNodeData[] }` |
 | check      | 勾选节点       | **`checkedKeys: TreeNodeKey[]`**，**`data`**：`{ node: TreeNode; checked: boolean; checkedKeys: TreeNodeKey[]; checkedNodes: TreeNodeData[]; halfCheckedKeys: TreeNodeKey[]; halfCheckedNodes: TreeNodeData[] }` |
@@ -161,8 +165,11 @@
 | setFocusedKeys     | 设置聚焦节点             | **`(keys: TreeNodeKey[]) => void`** |
 | filter             | 按查询字符串筛选节点     | **`(query: string) => void`** |
 | scrollTo           | 滚动到指定位置           | **`(params: IScrollParams) => void`** |
-| scrollToTop        | 滚动到顶部               | **`() => void`** |
-| scrollToBottom     | 滚动到底部               | **`() => void`** |
+| scrollToTop        | 滚动到顶部               | **`(options?: VirtScrollOptions) => void`** |
+| scrollToBottom     | 滚动到底部               | **`(options?: VirtScrollOptions) => void`** |
+| cancelScroll       | 取消进行中的平滑滚动动画 | **`() => void`** |
 | setList            | 设置新的树数据           | **`(list: TreeData) => void`** |
 | forceUpdate        | 强制更新                 | **`() => void`** |
 | getTreeNode        | 根据 key 获取节点        | **`(key: TreeNodeKey) => TreeNode \| undefined`** |
+
+<!--@include: ../../_shared/theming.md-->

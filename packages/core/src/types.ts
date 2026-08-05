@@ -57,6 +57,62 @@ export interface SlotSize {
 }
 
 /**
+ * 滚动行为配置。
+ *
+ * 注意：不能命名为 `ScrollToOptions`，会与 DOM 内置全局类型冲突。
+ */
+export interface VirtScrollOptions {
+  /**
+   * 滚动方式：
+   * - `'auto'`（默认）：瞬时跳转
+   * - `'smooth'`：requestAnimationFrame 动画
+   */
+  behavior?: 'auto' | 'smooth';
+  /**
+   * 目标项与视口的对齐方式（仅 scrollToIndex 生效）：
+   * - `'start'`（默认）：项的顶部对齐视口顶部
+   * - `'end'`：项的底部对齐视口底部
+   *
+   * 对齐用的是列表项容器的边界，项内的 padding 与 itemGap 都已计入，
+   * 所以卡片之间的间隔会自然保留下来。
+   *
+   * `'end'` 用于展开成好几屏的项——顶部对齐会把刚展开的内容推到视口外面去。
+   */
+  align?: 'start' | 'end';
+  /** 动画时长（ms），仅 smooth 生效；缺省取 options.scrollDuration */
+  duration?: number;
+  /**
+   * 本次逐帧穿越的最大距离（px），超出部分先瞬跳；
+   * 缺省取 options.smoothMaxDistance（默认两倍视口）。
+   */
+  maxDistance?: number;
+  /** 动画结束回调，canceled 表示被中断（用户滚动 / 新的滚动调用 / destroy） */
+  onDone?: (canceled: boolean) => void;
+}
+
+/** 加载方向 */
+export type LoadDirection = 'top' | 'bottom';
+
+/**
+ * 分页 / 无限加载的运行状态，透出给上层渲染加载提示条。
+ */
+export interface LoadState {
+  /** 顶部方向正在加载 */
+  loadingTop: boolean;
+  /** 底部方向正在加载 */
+  loadingBottom: boolean;
+  /** 顶部方向是否还有更多数据 */
+  hasMoreTop: boolean;
+  /** 底部方向是否还有更多数据 */
+  hasMoreBottom: boolean;
+  /**
+   * 未贴底时尾部新增的项数（贴底跟随场景下的"N 条新消息"角标）。
+   * 视口回到底部后归零。仅在 stickyBottom 开启时累加。
+   */
+  pendingNew: number;
+}
+
+/**
  * 虚拟列表核心配置项。
  */
 export interface VirtListOptions<T extends Record<string, any>> {
@@ -80,6 +136,13 @@ export interface VirtListOptions<T extends Record<string, any>> {
   horizontal?: boolean;
   /** 触发 toTop/toBottom 事件的阈值距离（px） */
   scrollDistance?: number;
+  /** smooth 滚动的默认动画时长（ms） */
+  scrollDuration?: number;
+  /**
+   * 平滑滚动允许逐帧穿越的最大距离（px），超出部分先瞬跳掉。
+   * 缺省为两倍视口高度。设为 Infinity 表示全程逐帧滚动（长距离会明显露白）。
+   */
+  smoothMaxDistance?: number;
   /** 初始化后自动滚动到的索引 */
   start?: number;
   /** 初始化后自动滚动到的偏移量 */
@@ -89,6 +152,47 @@ export interface VirtListOptions<T extends Record<string, any>> {
     begin: number,
     end: number,
   ) => { begin: number; end: number };
+
+  /**
+   * 触达边界时的取数回调，声明式分页 / 无限加载的入口。
+   *
+   * 约定：回调内部自行把新数据写入 `list`（数据所有权仍在使用方，这样才能适配
+   * Vue 的响应式与 React 的 setState），返回该方向是否还有更多数据；
+   * 返回 `false` 会关闭这个方向的后续触发，返回 `void` 视为仍有更多。
+   *
+   * 库负责其余全部：防重入、加载期间不重复触发、加载后的位移补偿与重算、
+   * 内容不足一屏时自动续拉、loading 状态透出。
+   *
+   * ```ts
+   * loadMore: async (dir) => {
+   *   const data = await fetchPage(dir === 'top' ? --page : ++page);
+   *   list.value = dir === 'top' ? data.concat(list.value) : list.value.concat(data);
+   *   return data.length > 0;
+   * }
+   * ```
+   */
+  loadMore?: (
+    direction: LoadDirection,
+  ) => boolean | void | Promise<boolean | void>;
+  /** 顶部方向是否还有更多数据，默认 true；可作为受控属性覆盖 loadMore 的返回值 */
+  hasMoreTop?: boolean;
+  /** 底部方向是否还有更多数据，默认 true；可作为受控属性覆盖 loadMore 的返回值 */
+  hasMoreBottom?: boolean;
+  /**
+   * 首屏定位。`'bottom'` 会在挂载后定位到列表底部，并在不定高场景下
+   * 随尺寸测量渐进校准（聊天室的常规需求）。
+   * 与 start / offset 同时给出时，start / offset 优先。
+   */
+  initialPosition?: 'top' | 'bottom';
+  /**
+   * 尾部追加时是否自动跟随到底部。
+   *
+   * 关键在于"仅在原本就贴底时才跟随"：用户正在向上翻历史消息时来了新消息，
+   * 视口不会被拽走，新增量记在 loadState.pendingNew 里供上层渲染角标。
+   */
+  stickyBottom?: boolean;
+  /** 判定"贴底"的容差（px），缺省取 scrollDistance（至少 2px） */
+  stickyThreshold?: number;
 }
 
 export type RequiredOptions<T extends Record<string, any>> = Required<
@@ -109,6 +213,8 @@ export interface VirtListEvents<T extends Record<string, any>> {
   itemResize?: (id: string, newSize: number) => void;
   /** 渲染列表（可视区间）更新时触发 */
   update?: (renderList: T[], state: ListState) => void;
+  /** 加载状态变化时触发（loading / hasMore / pendingNew） */
+  loadStateChange?: (state: LoadState) => void;
 }
 
 /**
@@ -125,13 +231,18 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
   /**
    * 列表头部渲染函数（参与滚动）。
    * 同 renderItem，可返回元素或直接操作 el。
+   *
+   * 第二个参数是当前加载状态，加载提示条（"加载中" / "没有更早的消息了"）直接
+   * 据此渲染即可。状态变化时这个函数会被重新调用。
    */
-  renderHeader?: (el: HTMLElement) => HTMLElement | void;
+  renderHeader?: (el: HTMLElement, loadState: LoadState) => HTMLElement | void;
   /**
    * 列表底部渲染函数（参与滚动）。
    * 同 renderItem，可返回元素或直接操作 el。
+   *
+   * 同 renderHeader，第二个参数为当前加载状态。
    */
-  renderFooter?: (el: HTMLElement) => HTMLElement | void;
+  renderFooter?: (el: HTMLElement, loadState: LoadState) => HTMLElement | void;
   /**
    * 吸顶区域渲染函数。
    * 同 renderItem，可返回元素或直接操作 el。
@@ -177,8 +288,16 @@ export const DEFAULT_OPTIONS = {
   bufferTop: 0,
   bufferBottom: 0,
   scrollDistance: 0,
+  scrollDuration: 300,
+  smoothMaxDistance: 0,
   horizontal: false,
   start: 0,
   offset: 0,
   renderControl: undefined,
+  loadMore: undefined,
+  hasMoreTop: true,
+  hasMoreBottom: true,
+  initialPosition: 'top',
+  stickyBottom: false,
+  stickyThreshold: 0,
 } as const;

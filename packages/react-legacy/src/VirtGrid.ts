@@ -11,7 +11,11 @@ import {
   type ReactNode,
 } from 'react';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
-import type { ListState, StyleValue } from '@virt-list/core';
+import type {
+  ListState,
+  StyleValue,
+  VirtScrollOptions,
+} from '@virt-list/core';
 import { createReactMounter } from './compat';
 
 export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
@@ -22,9 +26,11 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   itemGap?: number;
   fixed?: boolean;
   buffer?: number;
+  scrollDuration?: number;
+  smoothMaxDistance?: number;
   itemStyle?: StyleValue;
-  children?: (props: { itemData: T; index: number; rowIndex: number }) => ReactNode;
-  renderItem?: (item: T, index: number, rowIndex: number, el: HTMLElement) => HTMLElement | void;
+  children?: (props: { itemData: T; rowIndex: number; listIndex: number }) => ReactNode;
+  renderItem?: (item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void;
   renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
   renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
@@ -45,11 +51,12 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
 export interface VirtGridRef {
   setList: (list: Record<string, any>[]) => void;
   setGridItems: (n: number) => void;
-  scrollToIndex: (i: number) => void;
-  scrollIntoView: (i: number) => void;
-  scrollToTop: () => void;
-  scrollToBottom: () => void;
-  scrollToOffset: (o: number) => void;
+  scrollToIndex: (i: number, options?: VirtScrollOptions) => void;
+  scrollIntoView: (i: number, options?: VirtScrollOptions) => void;
+  scrollToTop: (options?: VirtScrollOptions) => void;
+  scrollToBottom: (options?: VirtScrollOptions) => void;
+  scrollToOffset: (o: number, options?: VirtScrollOptions) => void;
+  cancelScroll: () => void;
   forceUpdate: () => void;
 }
 
@@ -79,12 +86,14 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         itemGap: props.itemGap,
         fixed: props.fixed,
         buffer: props.buffer ?? 2,
+        scrollDuration: props.scrollDuration,
+        smoothMaxDistance: props.smoothMaxDistance,
         itemStyle: props.itemStyle,
-        renderItem: props.renderItem ?? ((item: any, index: number, rowIndex: number, el: HTMLElement) => {
+        renderItem: props.renderItem ?? ((item: any, rowIndex: number, listIndex: number, el: HTMLElement) => {
           if (eventsRef.current.children) {
             mountReact(
-              `grid:item:${String(item?.[props.itemKey] ?? index)}`,
-              eventsRef.current.children({ itemData: item, index, rowIndex }),
+              `grid:item:${String(item?.[props.itemKey] ?? listIndex)}`,
+              eventsRef.current.children({ itemData: item, rowIndex, listIndex }),
               el,
             );
           }
@@ -128,11 +137,12 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   useImperativeHandle(ref, () => ({
     setList: (list) => gridRef.current?.setList(list),
     setGridItems: (n) => gridRef.current?.setGridItems(n),
-    scrollToIndex: (i) => gridRef.current?.scrollToIndex(i),
-    scrollIntoView: (i) => gridRef.current?.scrollIntoView(i),
-    scrollToTop: () => gridRef.current?.scrollToTop(),
-    scrollToBottom: () => gridRef.current?.scrollToBottom(),
-    scrollToOffset: (o) => gridRef.current?.scrollToOffset(o),
+    scrollToIndex: (i, opts) => gridRef.current?.scrollToIndex(i, opts),
+    scrollIntoView: (i, opts) => gridRef.current?.scrollIntoView(i, opts),
+    scrollToTop: (opts) => gridRef.current?.scrollToTop(opts),
+    scrollToBottom: (opts) => gridRef.current?.scrollToBottom(opts),
+    scrollToOffset: (o, opts) => gridRef.current?.scrollToOffset(o, opts),
+    cancelScroll: () => gridRef.current?.cancelScroll(),
     forceUpdate: () => gridRef.current?.forceUpdate(),
   }));
 

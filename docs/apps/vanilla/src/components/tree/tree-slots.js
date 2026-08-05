@@ -46,8 +46,8 @@ export function bootstrapTreeSlots(root) {
         const el = document.createElement('div');
         el.textContent = '悬浮header';
         el.style.padding = '10px 12px';
-        el.style.background = '#42b983';
-        el.style.color = '#fff';
+        el.style.background = 'var(--demo-c-success)';
+        el.style.color = 'var(--demo-c-on-accent)';
         el.style.fontWeight = '600';
         return el;
       },
@@ -55,24 +55,24 @@ export function bootstrapTreeSlots(root) {
         const el = document.createElement('div');
         el.textContent = 'header';
         el.style.padding = '8px 12px';
-        el.style.background = 'cyan';
-        el.style.color = '#1f2329';
+        el.style.background = 'var(--demo-c-brand-soft)';
+        el.style.color = 'var(--demo-c-brand-text)';
         return el;
       },
       renderFooter: () => {
         const el = document.createElement('div');
         el.textContent = 'footer';
         el.style.padding = '8px 12px';
-        el.style.background = 'cyan';
-        el.style.color = '#1f2329';
+        el.style.background = 'var(--demo-c-brand-soft)';
+        el.style.color = 'var(--demo-c-brand-text)';
         return el;
       },
       renderStickyFooter: () => {
         const el = document.createElement('div');
         el.textContent = '悬浮footer';
         el.style.padding = '10px 12px';
-        el.style.background = '#42b983';
-        el.style.color = '#fff';
+        el.style.background = 'var(--demo-c-success)';
+        el.style.color = 'var(--demo-c-on-accent)';
         el.style.fontWeight = '600';
         return el;
       },

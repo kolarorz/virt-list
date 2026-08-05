@@ -21,7 +21,7 @@
       style="
         width: 400px;
         height: 600px;
-        border: 1px solid #000;
+        border: 1px solid var(--demo-c-border-strong);
         margin: 0 auto;
       "
     >
@@ -36,10 +36,10 @@
         <template #default="{ itemData, index }">
           <div style="padding: 4px">
             <div style="font-weight: bold">Item {{ itemData.id }}</div>
-            <div style="color: #666; font-size: 12px">
+            <div style="color: var(--demo-c-text-2); font-size: 12px">
               {{ itemData.content }}
             </div>
-            <div style="color: #999; font-size: 10px">
+            <div style="color: var(--demo-c-text-3); font-size: 10px">
               Index: {{ index }} (@virt-list/vue2 VirtList)
             </div>
           </div>
@@ -47,7 +47,7 @@
         <template #stickyHeader>
           <div
             style="
-              background: cyan;
+              background: var(--demo-c-brand-soft);
               padding: 10px;
               text-align: center;
               font-weight: bold;
@@ -59,7 +59,7 @@
         <template #stickyFooter>
           <div
             style="
-              background: cyan;
+              background: var(--demo-c-brand-soft);
               padding: 10px;
               text-align: center;
               font-weight: bold;

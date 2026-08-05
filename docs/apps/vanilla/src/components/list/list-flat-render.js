@@ -40,23 +40,23 @@ export function bootstrapFlatRender(root) {
       itemPreSize: 40,
       buffer: 2,
       stickyHeaderStyle:
-        'display: flex; align-items: center; justify-content: center; height: 50px; background: #2e8b57;',
+        'display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); color: var(--demo-c-on-accent); font-weight: 600;',
       // 扁平模式：直接操作 el，不返回元素
       renderStickyHeader: (el) => {
         el.textContent = 'Sticky Header (固定头部)';
       },
       headerStyle:
-        'display: flex; align-items: center; justify-content: center; height: 40px; background: #3cb371;',
+        'display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); color: var(--demo-c-on-accent); font-weight: 600;',
       renderHeader: (el) => {
         el.textContent = 'Header (头部)';
       },
       footerStyle:
-        'display: flex; align-items: center; justify-content: center; height: 40px; background: #20b2aa;',
+        'display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); color: var(--demo-c-on-accent); font-weight: 600;',
       renderFooter: (el) => {
         el.textContent = 'Footer (尾部)';
       },
       stickyFooterStyle:
-        'display: flex; align-items: center; justify-content: center; height: 50px; background: #008b8b;',
+        'display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); color: var(--demo-c-on-accent); font-weight: 600;',
       renderStickyFooter: (el) => {
         el.textContent = 'Sticky Footer (固定底部)';
       },

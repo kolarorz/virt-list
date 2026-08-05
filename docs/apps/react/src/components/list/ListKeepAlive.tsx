@@ -1,6 +1,5 @@
 import { useRef, useState, useLayoutEffect } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
-import '../../demo.css';
 
 interface User {
   id: number;
@@ -99,7 +98,7 @@ export default function KeepAlive() {
             <button type="button" className="virt-list-btn virt-list-btn-warning" onClick={() => setUsers([])}>清空列表</button>
             <button type="button" className="virt-list-btn virt-list-btn-success" onClick={() => userListRef.current?.scrollToTop()}>回到顶部</button>
             <button type="button" className="virt-list-btn virt-list-btn-secondary" onClick={() => userListRef.current?.scrollToBottom()}>滚动到底部</button>
-            <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>总数: {users.length}</span>
+            <span style={{ fontSize: 12, color: 'var(--demo-c-text-2)', marginLeft: 8 }}>总数: {users.length}</span>
           </>
         ) : (
           <>
@@ -110,7 +109,7 @@ export default function KeepAlive() {
             <button type="button" className="virt-list-btn virt-list-btn-warning" onClick={() => setProducts([])}>清空列表</button>
             <button type="button" className="virt-list-btn virt-list-btn-success" onClick={() => productListRef.current?.scrollToTop()}>回到顶部</button>
             <button type="button" className="virt-list-btn virt-list-btn-secondary" onClick={() => productListRef.current?.scrollToBottom()}>滚动到底部</button>
-            <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>总数: {products.length}</span>
+            <span style={{ fontSize: 12, color: 'var(--demo-c-text-2)', marginLeft: 8 }}>总数: {products.length}</span>
           </>
         )}
       </div>
@@ -127,8 +126,8 @@ export default function KeepAlive() {
                 <div className="demo-ka-avatar">{user.name.charAt(0)}</div>
                 <div className="demo-ka-info">
                   <div style={{ fontWeight: 'bold' }}>{user.name}</div>
-                  <div style={{ fontSize: 11, color: '#888' }}>{user.email} | {user.department}</div>
-                  <div style={{ fontSize: 11, color: '#aaa' }}>入职: {user.joinDate}</div>
+                  <div style={{ fontSize: 11, color: 'var(--demo-c-text-2)' }}>{user.email} | {user.department}</div>
+                  <div style={{ fontSize: 11, color: 'var(--demo-c-text-3)' }}>入职: {user.joinDate}</div>
                 </div>
               </div>
             )}
@@ -142,11 +141,11 @@ export default function KeepAlive() {
           >
             {({ itemData: product }) => (
               <div className="demo-ka-card">
-                <div className="demo-ka-avatar" style={{ background: '#f0ad4e' }}>{product.name.charAt(0)}</div>
+                <div className="demo-ka-avatar" style={{ background: 'var(--demo-c-warning)' }}>{product.name.charAt(0)}</div>
                 <div className="demo-ka-info">
-                  <div style={{ fontWeight: 'bold' }}>{product.name} <span style={{ color: '#e74c3c', fontSize: 12 }}>¥{product.price}</span></div>
-                  <div style={{ fontSize: 11, color: '#888' }}>{product.category} | 库存: {product.stock}</div>
-                  <div style={{ fontSize: 11, color: '#aaa' }}>{product.description}</div>
+                  <div style={{ fontWeight: 'bold' }}>{product.name} <span style={{ color: 'var(--demo-c-danger-text)', fontSize: 12 }}>¥{product.price}</span></div>
+                  <div style={{ fontSize: 11, color: 'var(--demo-c-text-2)' }}>{product.category} | 库存: {product.stock}</div>
+                  <div style={{ fontSize: 11, color: 'var(--demo-c-text-3)' }}>{product.description}</div>
                 </div>
               </div>
             )}

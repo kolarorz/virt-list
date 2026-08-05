@@ -15,7 +15,7 @@
             :style="{ minWidth: `${itemData.width}px`, width: `${itemData.width}px` }"
           >
             <div style="font-weight: bold">{{ itemData.id }}</div>
-            <div style="font-size: 11px; color: #999">w:{{ itemData.width }}</div>
+            <div style="font-size: 11px; color: var(--demo-c-text-3)">w:{{ itemData.width }}</div>
           </div>
         </template>
       </VirtList>
@@ -26,7 +26,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 const WIDTHS = [60, 80, 100, 110, 130];
 

@@ -1,6 +1,6 @@
 <template>
   <div class="demo-panel">
-    <p style="font-size: 12px; color: #888; margin-bottom: 8px">
+    <p style="font-size: 12px; color: var(--demo-c-text-2); margin-bottom: 8px">
       高阶用法：展示类似表格的渲染，包含 sticky 列头和多列数据。前两行进行了合并展示。
     </p>
     <div class="demo-stats">{{ statsText }}</div>
@@ -9,7 +9,7 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        :sticky-header-style="{ background: '#f5f5f5' }"
+        :sticky-header-style="{ background: 'var(--demo-c-fill-2)' }"
         @update="onUpdate"
       >
         <template #stickyHeader>
@@ -18,7 +18,7 @@
               v-for="col in COLUMNS"
               :key="col.key"
               class="demo-adv-cell"
-              :style="{ width: `${col.width}px`, minWidth: `${col.width}px`, fontWeight: 'bold', background: '#e8e8e8' }"
+              :style="{ width: `${col.width}px`, minWidth: `${col.width}px`, fontWeight: 'bold', background: 'var(--demo-c-fill-3)' }"
             >
               {{ col.title }}
             </div>
@@ -32,7 +32,7 @@
                 :style="{
                   width: `${COLUMNS[0]!.width + COLUMNS[1]!.width}px`,
                   minWidth: `${COLUMNS[0]!.width + COLUMNS[1]!.width}px`,
-                  background: '#fffbe6',
+                  background: 'var(--demo-c-warning-soft)',
                   fontWeight: 'bold',
                 }"
               >
@@ -53,7 +53,7 @@
                 :style="{
                   width: `${COLUMNS[0]!.width + COLUMNS[1]!.width}px`,
                   minWidth: `${COLUMNS[0]!.width + COLUMNS[1]!.width}px`,
-                  background: '#fffbe6',
+                  background: 'var(--demo-c-warning-soft)',
                 }"
               >
                 (续) ID: {{ itemData.id }}
@@ -87,7 +87,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 const COLUMNS = [
   { key: 'id' as const, title: 'ID', width: 60 },

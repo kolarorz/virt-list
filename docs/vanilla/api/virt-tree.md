@@ -6,6 +6,7 @@
 | ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------- | --------- | ---------------------------- |
 | list                            | 树形数据                                                                      | `TreeNodeData[]`             | -         | <font color="#f00">是</font> |
 | itemPreSize                     | 预估尺寸                                                                      | `number`                     | `32`      | -                            |
+| scrollDuration                  | 平滑滚动的默认动画时长（ms）                                                  | `number`                     | `300`     | -                            |
 | indent                          | 相邻级节点间的水平缩进，单位为像素                                            | `number`                     | `16`      | -                            |
 | iconSize                        | 图标大小                                                                      | `number`                     | `16`      | -                            |
 | itemGap                         | 元素之间的间距 (元素尺寸包含itemGap)                                          | `Number`                     | `0`       | -                            |
@@ -34,7 +35,8 @@
 
 | Method           | Description            | Parameters                                                              |
 | ---------------- | ---------------------- | ----------------------------------------------------------------------- |
-| scrollTo         | 滚动到                 | `({key?: string \| number; align?: 'view' \| 'top'; offset?: number;})` |
+| scrollTo         | 滚动到                 | `({key?: string \| number; align?: 'view' \| 'top'; offset?: number; behavior?: 'auto' \| 'smooth'; duration?: number;})` |
+| cancelScroll     | 取消平滑滚动动画       | `() => void`                                                            |
 | hasSelected      | 该节点是否被选中       | `(node: TreeNode) => boolean`                                           |
 | selectAll        | 设置全部节点的选中状态 | `(selected: boolean)`                                                   |
 | selectNode       | 选中指定节点           | `(key: TreeNodeKey\|TreeNodeKey[], selected: boolean)`                  |
@@ -51,6 +53,7 @@
 
 | 事件名     | 描述                                                                                   | 参数                                                                                                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| click      | 点击节点时触发（内容区；`renderNode` 接管后为整行）。先于 select / check / expand 触发，拖拽进行中不触发                    | data: `TreeNodeData`<br>node: `TreeNode`<br>e: `MouseEvent`                                                                                                     |
 | select     | 点击树节点时触发                                                                       | selectedKeys: `Array<string \| number>`<br>data: `{ selected?: boolean; selectedNodes: TreeNodeData[]; node?: TreeNodeData; e?: Event; }`                                                                       |
 | check      | 点击树节点复选框时触发。`halfCheckedKeys` 和 `halfCheckedNodes` 从 `2.19.0` 开始支持。 | checkedKeys: `Array<string \| number>`<br>data: `{ checked?: boolean; checkedNodes: TreeNodeData[]; node?: TreeNodeData; e?: Event; halfCheckedKeys: (string \| number)[]; halfCheckedNodes: TreeNodeData[]; }` |
 | expand     | 展开/关闭                                                                              | expandKeys: `Array<string \| number>`<br>data: `{ expanded?: boolean; expandNodes: TreeNodeData[]; node?: TreeNodeData; e?: Event; }`                                                                           |
@@ -96,3 +99,5 @@
 | disableCheckbox | 禁止复选框勾选                     | `string`         | `disableCheckbox` | -        |
 | disableDragIn   | 禁止拖入该节点                     | `string`         | `disableDragIn`   | -        |
 | disableDragOut  | 禁止拖出该节点                     | `string`         | `disableDragOut`  | -        |
+
+<!--@include: ../../_shared/theming.md-->

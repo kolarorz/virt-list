@@ -34,7 +34,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 const PAGE_SIZE = 20;
 const PAGE_MAX = 10;

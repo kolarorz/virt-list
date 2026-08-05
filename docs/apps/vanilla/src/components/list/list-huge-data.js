@@ -4,11 +4,13 @@ const template = `
   <div class="demo-panel">
     <div class="demo-toolbar">
       <button class="virt-list-btn virt-list-btn-secondary" id="btnLoad">生成 30w 数据</button>
-      <span id="loadStatus" style="font-size:12px;color:#666;"></span>
+      <button class="virt-list-btn" id="btnTop" disabled>scrollToTop</button>
+      <button class="virt-list-btn" id="btnBottom" disabled>scrollToBottom</button>
+      <span id="loadStatus" style="font-size:12px;color:var(--demo-c-text-2);"></span>
     </div>
     <div id="stats" class="demo-stats"></div>
     <div class="demo-list-container" id="listContainer">
-      <div id="emptyHint" style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">
+      <div id="emptyHint" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--demo-c-text-3);">
         点击按钮生成海量数据
       </div>
     </div>
@@ -23,8 +25,14 @@ export function bootstrapHugeData(root) {
   const btnLoad = root.querySelector('#btnLoad');
   const loadStatus = root.querySelector('#loadStatus');
   const emptyHint = root.querySelector('#emptyHint');
+  const btnTop = root.querySelector('#btnTop');
+  const btnBottom = root.querySelector('#btnBottom');
 
   let virtList = null;
+
+  // 列表要等数据生成完才创建，此前这两个按钮无处可调
+  btnTop.addEventListener('click', () => virtList?.scrollToTop());
+  btnBottom.addEventListener('click', () => virtList?.scrollToBottom());
 
   btnLoad.addEventListener('click', () => {
     btnLoad.disabled = true;
@@ -75,6 +83,8 @@ export function bootstrapHugeData(root) {
       );
 
       statsEl.textContent = `总数: ${list.length.toLocaleString()}`;
+      btnTop.disabled = false;
+      btnBottom.disabled = false;
     }, 50);
   });
 

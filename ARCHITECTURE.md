@@ -169,11 +169,11 @@ DOM 操作层。负责：
 
 ```
 docs/apps/
-  vanilla/        端口 7101    Vanilla JS demo
-  vue/            端口 7102    Vue 3 demo
-  react/          端口 7103    React 18+ demo
-  vue2/           端口 7104    Vue 2 demo（共享 vue 组件源码）
-  react-legacy/   端口 7105    React 16-17 demo（共享 react 组件源码）
+  vanilla/        端口 7801    Vanilla JS demo
+  vue/            端口 7802    Vue 3 demo
+  react/          端口 7803    React 18+ demo
+  vue2/           端口 7804    Vue 2 demo（共享 vue 组件源码）
+  react-legacy/   端口 7805    React 16-17 demo（共享 react 组件源码）
 ```
 
 ### 组件共享策略
@@ -212,12 +212,12 @@ pnpm dev
 
 | 应用 | 端口 |
 |------|------|
-| React 18+ | 7101 |
-| Vue 3 | 7102 |
-| Vanilla | 7103 |
-| React 16-17 | 7104 |
-| Vue 2 | 7105 |
-| VitePress 文档站 | 5173 |
+| React 18+ | 7801 |
+| Vue 3 | 7802 |
+| Vanilla | 7803 |
+| React 16-17 | 7804 |
+| Vue 2 | 7805 |
+| VitePress 文档站 | 7800 |
 
 ### TypeScript 配置
 

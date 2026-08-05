@@ -53,7 +53,11 @@ describe('React VirtList', () => {
           itemPreSize: 20,
           fixed: true,
           buffer: 3,
-          renderItem: (_item, index) => createElement('div', null, `item-${index}`),
+          // renderItem 是 DOM 语义的逃生通道：写入传入的 el 或返回一个 HTMLElement。
+          // React 节点要走 children 渲染 prop（见下面的用例）
+          renderItem: (_item, index, el) => {
+            el.textContent = `item-${index}`;
+          },
         }),
       );
     });
@@ -94,7 +98,11 @@ describe('React VirtList', () => {
           itemPreSize: 16,
           fixed: true,
           buffer: 4,
-          renderItem: (_item, index) => createElement('div', null, `item-${index}`),
+          // renderItem 是 DOM 语义的逃生通道：写入传入的 el 或返回一个 HTMLElement。
+          // React 节点要走 children 渲染 prop（见下面的用例）
+          renderItem: (_item, index, el) => {
+            el.textContent = `item-${index}`;
+          },
         }),
       );
     });

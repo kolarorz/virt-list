@@ -22,6 +22,7 @@ import type {
   IScrollParams,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
+  VirtScrollOptions,
 } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
 
@@ -44,6 +45,11 @@ export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, ISc
 export const VirtTree = defineComponent({
   name: 'VirtTree',
   emits: {
+    /**
+     * 点击节点。取名 nodeClick（模板里 `@node-click`）而不是 click：
+     * 若声明 emits.click，落到根元素的原生点击就会被拦截成自定义事件。
+     */
+    nodeClick: (_data: TreeNodeData, _node: TreeNode, _e: MouseEvent) => true,
     expand: (_keys: TreeNodeKey[], _data: unknown) => true,
     'update:expandedKeys': (_keys: TreeNodeKey[]) => true,
     select: (_keys: TreeNodeKey[], _data: unknown) => true,
@@ -67,6 +73,8 @@ export const VirtTree = defineComponent({
     buffer: { type: Number, default: 2 },
     itemPreSize: { type: Number, default: 32 },
     fixed: { type: Boolean, default: false },
+    scrollDuration: { type: Number, default: 300 },
+    smoothMaxDistance: { type: Number, default: 0 },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -130,6 +138,8 @@ export const VirtTree = defineComponent({
         buffer: props.buffer,
         itemPreSize: props.itemPreSize,
         fixed: props.fixed,
+        scrollDuration: props.scrollDuration,
+        smoothMaxDistance: props.smoothMaxDistance,
         showLine: props.showLine,
         itemClass: props.itemClass,
         listClass: props.listClass,
@@ -196,6 +206,7 @@ export const VirtTree = defineComponent({
 
     function buildEvents(): VirtTreeDOMEvents {
       return {
+        click: (data, node, e) => emit('nodeClick', data, node, e),
         expand: (keys, data) => {
           emit('expand', keys, data);
           emit('update:expandedKeys', keys);
@@ -265,8 +276,10 @@ export const VirtTree = defineComponent({
       setFocusedKeys: (keys: TreeNodeKey[]) => tree?.setFocusedKeys(keys),
       filter: (query: string) => tree?.filter(query),
       scrollTo: (params: IScrollParams) => tree?.scrollTo(params),
-      scrollToTop: () => tree?.scrollToTop(),
-      scrollToBottom: () => tree?.scrollToBottom(),
+      scrollToTop: (options?: VirtScrollOptions) => tree?.scrollToTop(options),
+      scrollToBottom: (options?: VirtScrollOptions) =>
+        tree?.scrollToBottom(options),
+      cancelScroll: () => tree?.cancelScroll(),
       setList: (list: TreeData) => tree?.setList(list),
       forceUpdate: () => tree?.forceUpdate(),
       getTreeNode: (key: TreeNodeKey) => tree?.getTreeNode(key),

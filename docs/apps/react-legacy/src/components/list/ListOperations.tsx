@@ -1,7 +1,6 @@
 import { useRef, useState, useMemo } from 'react';
 import type { RefObject } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
-import '../../demo.css';
 
 interface Item {
   id: number;

@@ -6,8 +6,8 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        sticky-header-style="background:#2e8b57;height:50px;"
-        sticky-footer-style="background:#008b8b;height:50px;"
+        sticky-header-style="background:var(--demo-c-band-sticky-header);height:50px;"
+        sticky-footer-style="background:var(--demo-c-band-sticky-footer);height:50px;"
         @update="onUpdate"
       >
         <template #stickyHeader>
@@ -18,7 +18,7 @@
               justify-content: center;
               font-weight: bold;
               font-size: 14px;
-              color: #fff;
+              color: var(--demo-c-on-accent);
               height: 100%;
             "
           >
@@ -33,8 +33,8 @@
               justify-content: center;
               font-weight: bold;
               font-size: 14px;
-              color: #fff;
-              background: #3cb371;
+              color: var(--demo-c-on-accent);
+              background: var(--demo-c-band-header);
               height: 40px;
             "
           >
@@ -55,8 +55,8 @@
               justify-content: center;
               font-weight: bold;
               font-size: 14px;
-              color: #fff;
-              background: #20b2aa;
+              color: var(--demo-c-on-accent);
+              background: var(--demo-c-band-footer);
               height: 40px;
             "
           >
@@ -71,7 +71,7 @@
               justify-content: center;
               font-weight: bold;
               font-size: 14px;
-              color: #fff;
+              color: var(--demo-c-on-accent);
               height: 100%;
             "
           >
@@ -86,7 +86,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 const SENTENCES = [
   '插槽示例展示了 stickyHeader、header、footer、stickyFooter 四种插槽的使用方法。',

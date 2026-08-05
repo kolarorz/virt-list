@@ -29,7 +29,6 @@ import { VirtTree } from '@virt-list/vue2';
 import type { TreeNodeKey } from '@virt-list/vue2';
 import TreeFocusItem from './items/TreeFocusItem.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
-import '../../demo.css';
 
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({

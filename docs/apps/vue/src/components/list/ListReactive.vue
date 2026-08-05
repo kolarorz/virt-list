@@ -62,7 +62,6 @@
 <script setup lang="ts">
 import { ref, onUnmounted, type ComponentPublicInstance } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 interface Row {
   id: number;

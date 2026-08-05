@@ -64,7 +64,7 @@ export function bootstrapEmpty(root) {
       renderEmpty: () => {
         const el = document.createElement('div');
         el.style.cssText =
-          'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#999;';
+          'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--demo-c-text-3);';
         el.innerHTML = `
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5z"/>

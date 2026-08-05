@@ -3,16 +3,20 @@
     <div class="demo-stats">{{ statsText }}</div>
     <div class="demo-list-container">
       <VirtList
-        ref="virtListRef"
         :list="list"
         item-key="id"
         :item-pre-size="60"
-        @to-top="onToTop"
-        @item-resize="onItemResize"
+        :load-more="onLoadMore"
+        :has-more-bottom="false"
+        initial-position="bottom"
+        sticky-bottom
+        @load-state-change="onLoadStateChange"
         @update="onUpdate"
       >
-        <template #header>
-          <div id="chatLoadingBar" class="demo-loading-bar">{{ headerHint }}</div>
+        <template #header="{ loadState }">
+          <div id="chatLoadingBar" class="demo-loading-bar">
+            {{ loadState.loadingTop ? '加载中...' : loadState.hasMoreTop ? '' : '没有更早的消息了' }}
+          </div>
         </template>
         <template #default="{ itemData }">
           <div class="demo-chat-message">
@@ -31,9 +35,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
+import type { LoadDirection, LoadState } from '@virt-list/vue';
 
 const PAGE_SIZE = 40;
 
@@ -70,55 +74,53 @@ function asyncGeneratePage(page: number, pageSize: number) {
 
 type Item = ReturnType<typeof generatePage>[number];
 
-const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');
 const page = ref(5);
 const list = ref<Item[]>(generatePage(page.value, PAGE_SIZE));
-const loading = ref(false);
-const firstResize = ref(true);
+const loadState = ref<LoadState | null>(null);
 
-const headerHint = computed(() => (page.value > 1 ? '加载中...' : '没有更早的消息了'));
-
-function updateStats(state?: any) {
-  statsText.value = `总数: ${list.value.length} | Page: ${page.value} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`;
-}
-
-updateStats();
-
-async function onToTop() {
-  if (loading.value || page.value <= 1) return;
-  loading.value = true;
-  statsText.value += ' | 加载中...';
+/**
+ * 向上加载更早的消息。
+ *
+ * 只需取数并写入 list，返回是否还有更早的数据。防重入、加载中不重复触发、
+ * 加载后的滚动位置补偿与重新渲染都由组件内部完成。
+ */
+async function onLoadMore(direction: LoadDirection) {
+  if (direction !== 'top') return false;
   const prevPage = await asyncGeneratePage(page.value - 1, PAGE_SIZE);
   page.value--;
   list.value = prevPage.concat(list.value);
-  const vl = virtListRef.value;
-  if (!vl) return;
-  vl.addedList2Top(prevPage);
-  vl.forceUpdate();
-  loading.value = false;
-  updateStats();
+  return page.value > 1;
 }
 
-function onItemResize() {
-  if (firstResize.value && virtListRef.value) {
-    firstResize.value = false;
-    virtListRef.value.scrollToBottom();
-  }
+/** 发消息只管往列表里加，sticky-bottom 负责「贴底时才跟随」 */
+function onSend() {
+  const text = CHAT_MSGS[Math.floor(Math.random() * CHAT_MSGS.length)];
+  list.value = [...list.value, { id: uid++, index: list.value.length, text }];
+}
+
+function onLoadStateChange(state: LoadState) {
+  loadState.value = state;
+  updateStats();
 }
 
 function onUpdate(_list: any[], state: any) {
   updateStats(state);
 }
 
-function onSend() {
-  const text = CHAT_MSGS[Math.floor(Math.random() * CHAT_MSGS.length)];
-  const newItem = { id: uid++, index: list.value.length, text };
-  list.value = [...list.value, newItem];
-  virtListRef.value?.forceUpdate();
-  nextTick(() => {
-    virtListRef.value?.scrollToBottom();
-  });
-  updateStats();
+function updateStats(state?: any) {
+  const pending = loadState.value?.pendingNew ?? 0;
+  const parts = [
+    `总数: ${list.value.length}`,
+    `Page: ${page.value}`,
+    `可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'}`,
+    `渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`,
+  ];
+  if (loadState.value?.loadingTop) parts.push('加载中...');
+  // 用户正在翻历史时收到的新消息数，实际项目里可以拿它渲染「N 条新消息」角标
+  if (pending > 0) parts.push(`${pending} 条新消息`);
+  statsText.value = parts.join(' | ');
 }
+
+updateStats();
 </script>

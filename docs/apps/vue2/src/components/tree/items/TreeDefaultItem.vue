@@ -4,7 +4,7 @@
       height: 40px;
       display: flex;
       align-items: center;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--demo-c-divider);
       box-sizing: border-box;
     "
   >

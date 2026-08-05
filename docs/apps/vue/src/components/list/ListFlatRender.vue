@@ -7,10 +7,10 @@
         item-key="id"
         :item-pre-size="40"
         :buffer="2"
-        sticky-header-style="display: flex; align-items: center; justify-content: center; height: 50px; background: #2e8b57; font-weight: bold; color: #fff;"
-        header-style="display: flex; align-items: center; justify-content: center; height: 40px; background: #3cb371; font-weight: bold; color: #fff;"
-        footer-style="display: flex; align-items: center; justify-content: center; height: 40px; background: #20b2aa; font-weight: bold; color: #fff;"
-        sticky-footer-style="display: flex; align-items: center; justify-content: center; height: 50px; background: #008b8b; font-weight: bold; color: #fff;"
+        sticky-header-style="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); font-weight: bold; color: var(--demo-c-on-accent);"
+        header-style="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); font-weight: bold; color: var(--demo-c-on-accent);"
+        footer-style="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); font-weight: bold; color: var(--demo-c-on-accent);"
+        sticky-footer-style="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); font-weight: bold; color: var(--demo-c-on-accent);"
         item-class="demo-row-item"
         @update="onUpdate"
       >
@@ -30,7 +30,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
-import '../../demo.css';
 
 const SENTENCES = [
   '使用扁平渲染模式，slot 内容直接挂载到 item wrapper 上，无额外包裹层。',

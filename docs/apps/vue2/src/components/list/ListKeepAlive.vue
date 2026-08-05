@@ -28,7 +28,7 @@
         <button type="button" class="virt-list-btn virt-list-btn-secondary" @click="userListRef?.scrollToBottom()">
           滚动到底部
         </button>
-        <span style="font-size: 12px; color: #888; margin-left: 8px">总数: {{ users.length }}</span>
+        <span style="font-size: 12px; color: var(--demo-c-text-2); margin-left: 8px">总数: {{ users.length }}</span>
       </template>
       <template v-else>
         <button type="button" class="virt-list-btn virt-list-btn-primary" @click="addProducts">添加5个商品</button>
@@ -39,7 +39,7 @@
         <button type="button" class="virt-list-btn virt-list-btn-secondary" @click="productListRef?.scrollToBottom()">
           滚动到底部
         </button>
-        <span style="font-size: 12px; color: #888; margin-left: 8px">总数: {{ products.length }}</span>
+        <span style="font-size: 12px; color: var(--demo-c-text-2); margin-left: 8px">总数: {{ products.length }}</span>
       </template>
     </div>
     <div class="demo-list-container" style="height: 500px; position: relative">
@@ -58,8 +58,8 @@
               <div class="demo-ka-avatar">{{ itemData.name.charAt(0) }}</div>
               <div class="demo-ka-info">
                 <div style="font-weight: bold">{{ itemData.name }}</div>
-                <div style="font-size: 11px; color: #888">{{ itemData.email }} | {{ itemData.department }}</div>
-                <div style="font-size: 11px; color: #aaa">入职: {{ itemData.joinDate }}</div>
+                <div style="font-size: 11px; color: var(--demo-c-text-2)">{{ itemData.email }} | {{ itemData.department }}</div>
+                <div style="font-size: 11px; color: var(--demo-c-text-3)">入职: {{ itemData.joinDate }}</div>
               </div>
             </div>
           </template>
@@ -77,14 +77,14 @@
         >
           <template #default="{ itemData }">
             <div class="demo-ka-card">
-              <div class="demo-ka-avatar" style="background: #f0ad4e">{{ itemData.name.charAt(0) }}</div>
+              <div class="demo-ka-avatar" style="background: var(--demo-c-warning)">{{ itemData.name.charAt(0) }}</div>
               <div class="demo-ka-info">
                 <div style="font-weight: bold">
                   {{ itemData.name }}
-                  <span style="color: #e74c3c; font-size: 12px">¥{{ itemData.price }}</span>
+                  <span style="color: var(--demo-c-danger-text); font-size: 12px">¥{{ itemData.price }}</span>
                 </div>
-                <div style="font-size: 11px; color: #888">{{ itemData.category }} | 库存: {{ itemData.stock }}</div>
-                <div style="font-size: 11px; color: #aaa">{{ itemData.description }}</div>
+                <div style="font-size: 11px; color: var(--demo-c-text-2)">{{ itemData.category }} | 库存: {{ itemData.stock }}</div>
+                <div style="font-size: 11px; color: var(--demo-c-text-3)">{{ itemData.description }}</div>
               </div>
             </div>
           </template>
@@ -97,7 +97,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
-import '../../demo.css';
 
 function generateUsers(count: number) {
   const departments = ['工程部', '设计部', '产品部', '市场部', '运营部'];
