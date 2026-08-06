@@ -9,6 +9,7 @@ const listDemos: { text: string; link: string; frameworks?: string[] }[] = [
   { text: '空状态', link: 'list-empty' },
   { text: '渲染buffer', link: 'list-buffer' },
   { text: '海量数据', link: 'list-huge-data' },
+  { text: '自绘滚动条', link: 'list-scrollbar' },
   { text: '固定高度', link: 'list-fixed' },
   { text: '水平滚动', link: 'list-horizontal' },
   { text: '插槽', link: 'list-slots' },

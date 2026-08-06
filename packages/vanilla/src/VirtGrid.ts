@@ -30,6 +30,8 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   scrollDuration?: number;
   /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
   smoothMaxDistance?: number;
+  /** 滚动条实现方式，见 VirtListOptions.scrollbar */
+  scrollbar?: 'native' | 'custom';
   /** 行的自定义 style */
   itemStyle?: StyleValue;
   /** 单元格渲染函数（可返回 HTMLElement，或直接渲染到传入 el） */
@@ -108,6 +110,7 @@ export class VirtGrid<T extends Record<string, any>> {
         buffer: options.buffer,
         scrollDuration: options.scrollDuration,
         smoothMaxDistance: options.smoothMaxDistance,
+        scrollbar: options.scrollbar,
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {

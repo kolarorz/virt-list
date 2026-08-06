@@ -193,6 +193,27 @@ export interface VirtListOptions<T extends Record<string, any>> {
   stickyBottom?: boolean;
   /** 判定"贴底"的容差（px），缺省取 scrollDistance（至少 2px） */
   stickyThreshold?: number;
+  /**
+   * 滚动条实现方式。
+   *
+   * - `'native'`（默认）：容器 `overflow: auto`，滚动位置由浏览器掌管。
+   * - `'custom'`：容器 `overflow: hidden`，滚动位置由 JS 掌管，滚动条自绘。
+   *
+   * 选 `'custom'` 解决的是快速拖拽滚动条时的露白：原生滚动下浏览器在合成器线程上
+   * 先把画面滚过去、再异步回送 scroll 事件，那一帧的视口就落在还没有 DOM 的位置上，
+   * 这是时序问题，优化渲染速度消不掉。自绘模式下内容只在 JS 写入时才移动，
+   * 位置与 DOM 永远同帧提交。
+   *
+   * 附带解除浏览器的元素高度上限：native 靠一个与内容等高的占位元素撑开滚动空间，
+   * 超过上限的部分被直接截掉，尾部的项就永远滚不到（Chrome 实测上限
+   * 33,554,428px，约合 33.5 万个 100px 的行）。自绘模式最高的元素只有一屏，
+   * 不受这个约束。
+   *
+   * 代价见文档「已知取舍」：拖选文本到容器边缘不再自动滚动。
+   *
+   * 该选项在绑定 DOM 时读取一次，运行时改变不生效。
+   */
+  scrollbar?: 'native' | 'custom';
 }
 
 export type RequiredOptions<T extends Record<string, any>> = Required<
@@ -215,6 +236,13 @@ export interface VirtListEvents<T extends Record<string, any>> {
   update?: (renderList: T[], state: ListState) => void;
   /** 加载状态变化时触发（loading / hasMore / pendingNew） */
   loadStateChange?: (state: LoadState) => void;
+  /**
+   * 偏移量生效时**同步**触发，DOM 层据此把内容移到新位置。
+   *
+   * 仅 `scrollbar: 'custom'` 模式触发——native 模式下位置由浏览器直接应用，
+   * 不需要这一步。
+   */
+  offsetChange?: (offset: number) => void;
 }
 
 /**
@@ -278,6 +306,16 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
   stickyHeaderStyle?: StyleValue;
   stickyFooterClass?: ClassValue;
   stickyFooterStyle?: StyleValue;
+  /**
+   * 自绘滚动条停止滚动多久后淡出（ms），`0` 表示常驻。默认 1200。
+   * 仅 `scrollbar: 'custom'` 生效。
+   */
+  scrollbarAutoHide?: number;
+  /**
+   * 自绘滑块的最小长度（px），默认 20。太短会没法用鼠标抓住。
+   * 仅 `scrollbar: 'custom'` 生效。
+   */
+  scrollbarMinThumbSize?: number;
 }
 
 /** 虚拟列表选项的默认值 */
@@ -300,4 +338,5 @@ export const DEFAULT_OPTIONS = {
   initialPosition: 'top',
   stickyBottom: false,
   stickyThreshold: 0,
+  scrollbar: 'native',
 } as const;

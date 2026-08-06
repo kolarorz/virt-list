@@ -12,6 +12,7 @@ syncStandaloneTheme(Boolean(qiankunWindow.__POWERED_BY_QIANKUN__));
 import { bootstrapBasic } from './components/list/list-basic.js';
 import { bootstrapBuffer } from './components/list/list-buffer.js';
 import { bootstrapHugeData } from './components/list/list-huge-data.js';
+import { bootstrapScrollbar } from './components/list/list-scrollbar.js';
 import { bootstrapFixed } from './components/list/list-fixed.js';
 import { bootstrapHorizontal } from './components/list/list-horizontal.js';
 import { bootstrapSlots } from './components/list/list-slots.js';
@@ -58,6 +59,7 @@ const demoBootstrapMap = {
   'list-basic': bootstrapBasic,
   'list-buffer': bootstrapBuffer,
   'list-huge-data': bootstrapHugeData,
+  'list-scrollbar': bootstrapScrollbar,
   'list-fixed': bootstrapFixed,
   'list-horizontal': bootstrapHorizontal,
   'list-slots': bootstrapSlots,
@@ -98,6 +100,7 @@ const demoSourceMap = {
   'list-basic': './components/list/list-basic.js',
   'list-buffer': './components/list/list-buffer.js',
   'list-huge-data': './components/list/list-huge-data.js',
+  'list-scrollbar': './components/list/list-scrollbar.js',
   'list-fixed': './components/list/list-fixed.js',
   'list-horizontal': './components/list/list-horizontal.js',
   'list-slots': './components/list/list-slots.js',

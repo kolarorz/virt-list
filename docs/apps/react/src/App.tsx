@@ -1,3 +1,5 @@
+// React 19 的类型不再声明全局 JSX 命名空间，需要从 react 显式取
+import type { JSX } from 'react';
 import DemoBlock from './components/DemoBlock.tsx';
 import type { DemoSource } from '../../_shared/demoSource';
 import Literal from './components/Literal.tsx';
@@ -55,7 +57,7 @@ interface AppProps {
   onEvent?: (message: string) => void;
 }
 
-const demoRenderMap: Record<string, () => any> = {
+const demoRenderMap: Record<string, () => JSX.Element> = {
   'list-literal': () => <Literal />,
   'list-widget': () => <Widget />,
   'list-basic': () => <DemoBlock source={src('./components/list/ListBasic.tsx')}><ListBasic /></DemoBlock>,

@@ -112,6 +112,8 @@ export interface VirtTreeDOMOptions {
   scrollDuration?: number;
   /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
   smoothMaxDistance?: number;
+  /** 滚动条实现方式，见 VirtListOptions.scrollbar */
+  scrollbar?: 'native' | 'custom';
   /** 是否显示连接线 */
   showLine?: boolean;
   /** 节点行的自定义 class */
@@ -231,8 +233,8 @@ export interface VirtTreeDOMEvents {
     },
   ) => void;
 
-  /** 拖拽开始时触发 */
-  dragstart?: (data: { sourceNode: TreeNodeData }) => void;
+  /** 拖拽开始时触发。sourceNode 是被拖起的树节点（不是原始数据，`.data` 才是） */
+  dragstart?: (data: { sourceNode: TreeNode }) => void;
   /**
    * 拖拽结束时触发。
    * 返回 undefined 表示拖拽被取消（Esc）；

@@ -157,6 +157,10 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   initialPosition?: 'top' | 'bottom';
   stickyBottom?: boolean;
   stickyThreshold?: number;
+  /** 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar */
+  scrollbar?: 'native' | 'custom';
+  scrollbarAutoHide?: number;
+  scrollbarMinThumbSize?: number;
   listStyle?: StyleValue;
   listClass?: ClassValue;
   itemStyle?: StyleValue | ((item: T, index: number) => StyleValue);
@@ -275,6 +279,9 @@ function VirtListInner(
       initialPosition: props.initialPosition,
       stickyBottom: props.stickyBottom,
       stickyThreshold: props.stickyThreshold,
+      scrollbar: props.scrollbar,
+      scrollbarAutoHide: props.scrollbarAutoHide,
+      scrollbarMinThumbSize: props.scrollbarMinThumbSize,
       renderControl: props.renderControl,
       listStyle: props.listStyle,
       listClass: props.listClass,

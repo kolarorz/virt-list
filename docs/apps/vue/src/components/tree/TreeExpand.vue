@@ -69,7 +69,7 @@ function updateDisplay(keys: readonly TreeNodeKey[]) {
   expandedDisplay.value = `expandedKeys: [${keys.join(', ')}]`;
 }
 
-updateDisplay([...initialExpanded]);
+updateDisplay(initialExpanded);
 
 function onExpand(keys: TreeNodeKey[]) {
   updateDisplay(keys);

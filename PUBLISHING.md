@@ -6,29 +6,34 @@
 
 ```text
 virt-list/
-├── packages/           # 可发布的 npm 包
-│   ├── core/           # @virt-list/core   — 零依赖算法内核
-│   ├── vanilla/            # @virt-list/vanilla    — DOM 层实现
-│   ├── vue/            # @virt-list/vue    — Vue 组件
-│   └── react/          # @virt-list/react  — React 组件
-├── docs/               # VitePress 文档站 + demo 微应用（不发布）
-├── package.json        # 根 package.json（private: true）
-├── pnpm-workspace.yaml # workspace 配置
-└── vitest.config.ts    # 测试配置
+├── packages/               # 可发布的 npm 包
+│   ├── core/               # @virt-list/core          — 零依赖算法内核
+│   ├── vanilla/            # @virt-list/vanilla       — DOM 层实现
+│   ├── vue/                # @virt-list/vue           — Vue 3 组件
+│   ├── vue2/               # @virt-list/vue2          — Vue 2 组件
+│   ├── react/              # @virt-list/react         — React 18+ 组件
+│   └── react-legacy/       # @virt-list/react-legacy  — React 16-17 组件
+├── docs/                   # VitePress 文档站 + demo 微应用（不发布）
+├── scripts/release.mjs     # 一键发布脚本
+├── package.json            # 根 package.json（private: true）
+├── pnpm-workspace.yaml     # workspace 配置
+└── vitest.config.ts        # 测试配置
 ```
 
 ## 包依赖关系
 
 ```text
-@virt-list/core        ← 零依赖
+@virt-list/core              ← 零依赖
     ↑
-@virt-list/vanilla         ← dependencies: core
+@virt-list/vanilla           ← dependencies: core
     ↑
-@virt-list/vue         ← dependencies: core + dom, peerDep: vue ≥3.2
-@virt-list/react       ← dependencies: core + dom, peerDep: react ≥18
+@virt-list/vue               ← dependencies: core + vanilla, peerDep: vue ≥3
+@virt-list/vue2              ← dependencies: core + vanilla, peerDep: vue ^2.6/^2.7
+@virt-list/react             ← dependencies: core + vanilla, peerDep: react ≥18
+@virt-list/react-legacy      ← dependencies: core + vanilla, peerDep: react ≥16 <18
 ```
 
-构建顺序：**core → dom → vue + react（并行）**
+构建顺序：**core → vanilla → vue + vue2 + react + react-legacy（并行）**
 
 ## 日常开发
 
@@ -45,10 +50,12 @@ pnpm install
 pnpm dev
 
 # 单独启动
-pnpm dev:docs      # VitePress 文档站 (port 7800)
-pnpm dev:vanilla        # JS demo (port 7801)
-pnpm dev:vue       # Vue demo (port 7802)
-pnpm dev:react     # React demo (port 7803)
+pnpm dev:docs          # VitePress 文档站
+pnpm dev:vanilla       # 原生 JS demo
+pnpm dev:vue           # Vue 3 demo
+pnpm dev:vue2          # Vue 2 demo
+pnpm dev:react         # React 18+ demo
+pnpm dev:react-legacy  # React 16-17 demo
 ```
 
 ### 运行测试
@@ -104,7 +111,7 @@ pnpm add -Dw <package-name>
 pnpm build:packages
 ```
 
-按依赖顺序执行：core → dom → vue + react（并行）。
+按依赖顺序执行：core → vanilla → vue + vue2 + react + react-legacy（并行）。
 
 ### 构建单个包
 
@@ -126,14 +133,67 @@ pnpm build
 
 ## 版本管理与发布
 
+### 一键发布（推荐）
+
+```bash
+pnpm release            # patch：0.0.4 → 0.0.5
+pnpm release minor      # 0.0.4 → 0.1.0
+pnpm release major      # 0.0.4 → 1.0.0
+pnpm release 1.2.3      # 显式指定版本号
+```
+
+`scripts/release.mjs` 会按顺序自动完成：
+
+1. 检查 git 工作区是否干净（非 master 分支只告警）
+2. 校验 6 个包版本号一致，计算目标版本
+3. 检查 npm 登录状态
+4. 把新版本号写入全部 `packages/*/package.json`
+5. `pnpm test`
+6. `pnpm build:packages`
+7. `pnpm publish -r --filter './packages/*'`（依赖拓扑序由 pnpm 决定，`workspace:*` 自动替换为真实版本号）
+8. `git commit -m "chore: release vX.Y.Z"` + `git tag vX.Y.Z`
+9. `git push --follow-tags`
+
+**先演练再发布**：
+
+```bash
+pnpm release:dry        # 走完整流程但不发布、不打 tag，结束时回滚版本号改动
+```
+
+任一步失败（测试不过、构建报错、未登录）都会自动回滚 `package.json` 的版本号改动，不留下半截状态。只有"发布已部分成功"这一种情况会保留版本号，此时按提示重跑 `pnpm publish` 即可 —— pnpm 会自动跳过已发布的版本。
+
+可选参数：
+
+| 参数 | 作用 |
+| --- | --- |
+| `--dry-run` | 演练模式，等价于 `pnpm release:dry` |
+| `--tag <t>` | 指定 npm dist-tag，默认 `latest` |
+| `--skip-tests` | 跳过 `pnpm test` |
+| `--allow-dirty` | 允许工作区有未提交改动 |
+| `--no-push` | 发布并打 tag，但不 `git push` |
+
+环境变量 `RELEASE_REGISTRY` 可覆盖发布目标 registry，默认 `https://registry.npmjs.org/`。
+
+> **注意 registry**：如果本机 `npm config get registry` 指向内网镜像（如公司私服），脚本仍会显式发往公共 npm；但 `npm login` 需要针对公共 registry 执行：
+>
+> ```bash
+> npm login --registry https://registry.npmjs.org/ --scope=@virt-list
+> ```
+
+**约定**：6 个包始终共用同一个版本号。脚本会在版本号不一致时直接报错退出，要求先手动对齐。
+
 ### 前置条件
 
-1. 确保 npm 已登录：`npm login`（或 `npm login --scope=@virt-list`）
+1. 确保 npm 已登录：`npm login --registry https://registry.npmjs.org/ --scope=@virt-list`
 2. 确保工作区干净：`git status` 无未提交更改
 3. 确保所有测试通过：`pnpm test`
 4. 确保构建成功：`pnpm build:packages`
 
-### 方式一：使用 changeset（推荐）
+以上 2-4 项 `pnpm release` 会自动检查，手动发布时才需要自己确认。
+
+### 方式一：使用 changeset（当前未启用）
+
+> 本仓库目前采用上面的 `pnpm release` 脚本，未安装 changesets。以下内容供将来需要独立版本号 / 自动 CHANGELOG 时参考。
 
 [Changesets](https://github.com/changesets/changesets) 是管理多包版本和 changelog 的标准工具。
 
@@ -173,19 +233,15 @@ git push --follow-tags
 ### 方式二：手动发布
 
 ```bash
-# 1. 手动修改各包的 version
-# packages/core/package.json  → "version": "1.1.0"
-# packages/vanilla/package.json   → "version": "1.1.0"
-# ...
+# 1. 手动把 6 个包的 version 改成同一个值
+# packages/{core,vanilla,vue,vue2,react,react-legacy}/package.json
 
 # 2. 构建
 pnpm build:packages
 
-# 3. 发布（按依赖顺序）
-pnpm --filter @virt-list/core publish --access public
-pnpm --filter @virt-list/vanilla publish --access public
-pnpm --filter @virt-list/vue publish --access public
-pnpm --filter @virt-list/react publish --access public
+# 3. 发布（-r 会自动按依赖拓扑序发布，无需手工排序）
+pnpm publish -r --filter './packages/*' --access public \
+  --registry https://registry.npmjs.org/ --no-git-checks
 
 # 4. 创建 git tag
 git tag v1.1.0
@@ -205,32 +261,36 @@ git push --tags
 ### 预发布（Pre-release）
 
 ```bash
-# 发布 beta 版
-pnpm --filter @virt-list/core publish --tag beta --access public
-pnpm --filter @virt-list/vanilla publish --tag beta --access public
-pnpm --filter @virt-list/vue publish --tag beta --access public
-pnpm --filter @virt-list/react publish --tag beta --access public
+# 发布 beta 版：显式版本号 + beta dist-tag
+pnpm release 0.1.0-beta.0 --tag beta
 ```
+
+用户需显式安装才会拿到：`npm install @virt-list/vue@beta`。
+beta 验证通过后回到正式版：`pnpm release 0.1.0`。
 
 ### 发布前检查清单
 
-- [ ] `pnpm test` 全部通过
-- [ ] `pnpm build:packages` 构建成功
+用 `pnpm release` 时，前 5 项由脚本自动保证，只需人工确认后 4 项；先跑一次 `pnpm release:dry` 可以一次性验证到"发布前"的所有环节。
+
+- [x] `pnpm test` 全部通过 —— 脚本自动执行
+- [x] `pnpm build:packages` 构建成功 —— 脚本自动执行
+- [x] `package.json` 中 `version` 已更新 —— 脚本自动写入
+- [x] `workspace:*` 会被自动替换为实际版本号 —— pnpm publish 自动处理
+- [x] 工作区无未提交更改 —— 脚本自动检查
 - [ ] 各包 `dist/` 目录包含 `.js`、`.d.ts`、`.js.map` 文件
-- [ ] `package.json` 中 `version` 已更新
-- [ ] `workspace:*` 会被自动替换为实际版本号
 - [ ] `files` 字段正确（`dist` + `src` 用于 CSS 和源码映射）
 - [ ] `exports` 字段正确配置
 - [ ] `peerDependencies` 版本范围合理
-- [ ] 工作区无未提交更改
-- [ ] CHANGELOG 已更新（如使用 changeset 则自动生成）
 
 ## 发布后验证
 
 ```bash
-# 验证包内容
-npm pack --dry-run --workspace=packages/core
-npm pack --dry-run --workspace=packages/vanilla
+# 验证包内容（列出将被打进 tarball 的文件）
+pnpm --filter @virt-list/core pack --dry-run
+pnpm --filter @virt-list/vanilla pack --dry-run
+
+# 确认 registry 上的版本
+npm view @virt-list/vue version --registry https://registry.npmjs.org/
 
 # 在新项目中测试安装
 mkdir /tmp/test-virt-list && cd /tmp/test-virt-list
@@ -240,13 +300,15 @@ npm install @virt-list/vue
 
 ## CI/CD 集成
 
-### GitHub Actions 示例
+当前 `.github/workflows/ci.yml` 只跑测试与构建，发布是本地手动触发的（`pnpm release`）。
+
+如果将来想改成推送 tag 即自动发布，可以加下面这个 workflow，并在仓库 Settings → Secrets 里配置 `NPM_TOKEN`。注意此时本地应改用 `pnpm release --no-push` 之外的方式：让 CI 负责发布，本地只负责改版本号和推 tag。
 
 ```yaml
 name: Release
 on:
   push:
-    branches: [main]
+    tags: ['v*']
 
 jobs:
   release:
@@ -265,10 +327,9 @@ jobs:
       - run: pnpm build:packages
 
       - name: Publish
-        run: pnpm changeset publish
+        run: pnpm publish -r --filter './packages/*' --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## 常见问题
@@ -279,11 +340,25 @@ pnpm publish 会自动将 `workspace:*` 替换为当前 workspace 中对应包�
 
 ### Q: 如何只发布其中一个包？
 
+`pnpm release` 不支持只发一个包（6 包版本号是绑定的）。确有需要时手动发：
+
 ```bash
-pnpm --filter @virt-list/core publish --access public
+pnpm --filter @virt-list/core publish --access public \
+  --registry https://registry.npmjs.org/
 ```
 
 但要注意：如果该包的依赖包也有版本变化，需要先发布依赖包。
+
+### Q: 发布中途失败了怎么办？
+
+版本号改动会保留在工作区（不会自动回滚，否则和已发出去的包对不上）。直接重跑发布命令即可，pnpm 会跳过 registry 上已存在的版本：
+
+```bash
+pnpm publish -r --filter './packages/*' --access public \
+  --registry https://registry.npmjs.org/ --no-git-checks
+```
+
+补发完成后再手动 `git commit` + `git tag`。
 
 ### Q: 构建报错 "not under rootDir"？
 

@@ -11,6 +11,11 @@ import type {
 import { DEFAULT_OPTIONS } from './types';
 import { ChunkedSizeIndex } from './ChunkedSizeIndex';
 import { ListLoader } from './ListLoader';
+import {
+  NativeScrollDriver,
+  VirtualScrollDriver,
+  type ScrollDriver,
+} from './ScrollDriver';
 
 /** 平滑滚动动画的运行时状态 */
 interface AnimState {
@@ -147,8 +152,6 @@ export class VirtListCore<T extends Record<string, any>> {
   /** itemPreSize + itemGap，即未测量项的占位尺寸 */
   private _unitSize = 0;
   private _fixed = false;
-  /** 滚动偏移对应的 DOM 属性名 */
-  private _offsetKey: 'scrollTop' | 'scrollLeft' = 'scrollTop';
   /** 事件回调集合 */
   private _events: VirtListEvents<T>;
   /**
@@ -161,10 +164,6 @@ export class VirtListCore<T extends Record<string, any>> {
   private _anchor: ScrollAnchor | null = null;
   /** 正在应用锚点修正的窗口，用于把程序化滚动与用户滚动区分开 */
   private _applyingAnchor = false;
-  /** 程序化滚动窗口：这期间回送的 scroll 事件不算用户操作 */
-  private _programmaticScroll = false;
-  /** 关闭 _programmaticScroll 窗口的 rAF 句柄 */
-  private _programmaticRafId: number | null = null;
   /** 最近一次程序化写入后的真实偏移量（浏览器 clamp 之后的值） */
   private _lastProgrammaticOffset = -1;
   /** 关闭 _applyingAnchor 窗口的 rAF 句柄 */
@@ -206,6 +205,13 @@ export class VirtListCore<T extends Record<string, any>> {
   private _loader: ListLoader;
   /** 绑定的滚动容器 DOM */
   private _clientEl: HTMLElement | null = null;
+  /**
+   * 偏移量的读写驱动，bindDOM 时创建。
+   *
+   * core 从不直接碰 scrollTop / scrollLeft，全部经由它——这样「偏移量归浏览器管」
+   * 与「偏移量归 JS 管」两种模式才能共用同一套区间计算与滚动定位逻辑。
+   */
+  private _driver: ScrollDriver | null = null;
   private _resizeObserver: ResizeObserver | undefined;
   private _boundOnScroll: (e: Event) => void;
 
@@ -329,14 +335,14 @@ export class VirtListCore<T extends Record<string, any>> {
   private _syncHotOptions(): void {
     this._unitSize = this._props.itemPreSize + this._props.itemGap;
     this._fixed = this._props.fixed;
-    this._offsetKey = this._props.horizontal ? 'scrollLeft' : 'scrollTop';
+    this._driver?.setHorizontal(this._props.horizontal);
   }
 
   // ==================== 公共 API ====================
 
   /** 获取当前滚动偏移量 */
   getOffset(): number {
-    return this._clientEl ? this._clientEl[this._offsetKey] : 0;
+    return this._driver ? this._driver.getOffset() : 0;
   }
 
   /** 获取所有插槽（header + footer + sticky）的尺寸总和 */
@@ -390,6 +396,25 @@ export class VirtListCore<T extends Record<string, any>> {
     const top = this.slotSize.headerSize + this._prefixSize(index);
     const current = this.getItemSize(list[index]?.[itemKey]);
     return { top, current, bottom: top + current };
+  }
+
+  /**
+   * `getItemPosByIndex(index).top` 的逆运算：给定偏移量，返回它落在第几项。
+   *
+   * 自绘滚动条的「滑块位置 ↔ 列表项」映射两个方向都要用到，必须严格互逆，
+   * 否则拖到某处松手时滑块会跳。
+   *
+   * 注意 fixed 模式下 `getItemPosByIndex` 不计 headerSize（既有行为），
+   * 这里的基准要跟着它走，不能统一减掉 header。
+   */
+  getIndexByOffset(offset: number): number {
+    const base = this._fixed ? offset : offset - this.slotSize.headerSize;
+    return base <= 0 ? 0 : this._locateIndex(base);
+  }
+
+  /** 当前允许的最大滚动偏移量 */
+  getMaxOffset(): number {
+    return this._maxScrollOffset();
   }
 
   /** 滚动到指定偏移量（用户主动调用，取消所有待执行的自动修正） */
@@ -659,6 +684,20 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 绑定滚动容器 DOM，开始监听 scroll 和 resize 事件 */
   bindDOM(clientEl: HTMLElement): void {
     this._clientEl = clientEl;
+
+    if (this._props.scrollbar === 'custom') {
+      this._driver = new VirtualScrollDriver({
+        // 与 _maxScrollOffset 的账本分支同一个式子：虚拟模式下没有第二个说法，
+        // 两处必须给出同一个上限，否则 _setScrollOffset 写进去的值会被驱动再夹一次
+        getMaxOffset: () => this.getTotalSize() - this.slotSize.clientSize,
+        onApply: (offset) => this._events.offsetChange?.(offset),
+      });
+    } else {
+      this._driver = new NativeScrollDriver(clientEl, this._props.horizontal);
+    }
+
+    // 自绘模式下用户无法直接滚动容器，但浏览器仍会在元素获得焦点时静默改
+    // scrollTop —— DOM 层要靠这个事件把它吸收掉并折算成虚拟偏移量
     clientEl.addEventListener('scroll', this._boundOnScroll);
     this._resizeObserver?.observe(clientEl);
 
@@ -699,11 +738,6 @@ export class VirtListCore<T extends Record<string, any>> {
     this._cancelAnim();
     this._cancelEdgeFix();
     this._clearAnchor();
-    if (this._programmaticRafId !== null) {
-      cancelAnimationFrame(this._programmaticRafId);
-      this._programmaticRafId = null;
-    }
-    this._programmaticScroll = false;
     this._fixTaskFn = null;
     if (this._clientEl) {
       this._clientEl.removeEventListener('scroll', this._boundOnScroll);
@@ -712,24 +746,26 @@ export class VirtListCore<T extends Record<string, any>> {
     }
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
+    this._driver?.destroy();
+    this._driver = null;
     this._clientEl = null;
   }
 
   // ==================== 私有方法 ====================
 
   /**
-   * 设置 scrollTop / scrollLeft，并标记接下来回送的 scroll 事件属于程序化滚动。
+   * 设置 scrollTop / scrollLeft，并记下写入后的真实偏移量。
    *
    * 这里是所有程序化滚动的唯一出口，用户拖动滚动条 / 滚轮不经过它——这个差别正是
-   * `_onScroll` 用来判断"该不该放弃未完成的渐进修正"的依据。
+   * 渐进修正判断"该不该放弃"的依据（见 `_attachIndexFixTask`）。
    */
   private _setScrollOffset(offset: number): void {
-    if (!this._clientEl) return;
-    this._clientEl[this._offsetKey] = offset;
-    // 读回浏览器 clamp 后的真实值：scroll 事件回送时拿它比对，才能认出
-    // "这次滚动就是我们自己发起的那一次"
-    this._lastProgrammaticOffset = this._clientEl[this._offsetKey];
-    this._openProgrammaticWindow();
+    const driver = this._driver;
+    if (!driver) return;
+    driver.setOffset(offset);
+    // 读回驱动裁剪后的真实值：下一轮修正拿它比对，才能认出
+    // "当前位置就是我们自己上次滚到的那个位置"
+    this._lastProgrammaticOffset = driver.getOffset();
   }
 
   /**
@@ -755,19 +791,14 @@ export class VirtListCore<T extends Record<string, any>> {
   }
 
   /**
-   * 浏览器给出的可滚动上限，拿不到布局信息时返回 null。
+   * 驱动给出的可滚动上限，拿不到布局信息时返回 null。
    *
-   * scrollHeight 为 0 意味着还没布局（容器隐藏、或测试环境不做布局），
-   * 这时它不能代表"不能滚动"，得让调用方退回账本。
+   * native 模式下即 scrollHeight - clientHeight，为 0 意味着还没布局
+   * （容器隐藏、或测试环境不做布局），这时它不能代表"不能滚动"，
+   * 得让调用方退回账本。
    */
   private _domMaxScroll(): number | null {
-    const el = this._clientEl;
-    if (!el) return null;
-
-    const value = this._props.horizontal
-      ? el.scrollWidth - el.clientWidth
-      : el.scrollHeight - el.clientHeight;
-    return value > 0 ? value : null;
+    return this._driver ? this._driver.getMaxOffset() : null;
   }
 
   /** 是否已经滚到浏览器允许的最底部 —— 浏览器优先，拿不到才问账本 */
@@ -799,8 +830,8 @@ export class VirtListCore<T extends Record<string, any>> {
     if (this._offset <= max) return false;
 
     this._setScrollOffset(max);
-    // 读回浏览器 clamp 后的真实值；没有容器时就用算出来的上限
-    this._offset = this._clientEl ? this.getOffset() : max;
+    // 读回驱动裁剪后的真实值；还没绑定容器时就用算出来的上限
+    this._offset = this._driver ? this.getOffset() : max;
     return true;
   }
 
@@ -815,7 +846,7 @@ export class VirtListCore<T extends Record<string, any>> {
    * 之后回送的 scroll 事件会因为偏移量已经相等而直接返回，不会重复计算。
    */
   private _syncOffsetAndRange(): void {
-    if (!this._clientEl) return;
+    if (!this._driver) return;
 
     const real = this.getOffset();
     if (real === this._offset) return;
@@ -832,30 +863,6 @@ export class VirtListCore<T extends Record<string, any>> {
     const anchorBefore = this._anchor;
     this._calcRange();
     this._anchor = anchorBefore;
-  }
-
-  /**
-   * 打开程序化滚动窗口，下一帧自动关闭。
-   *
-   * 写 scrollTop 触发的 scroll 事件是异步回送的，靠这个窗口把它和用户操作区分开。
-   * 与 `_applyingAnchor` 是同一套手法。
-   */
-  private _openProgrammaticWindow(): void {
-    if (typeof requestAnimationFrame === 'undefined') {
-      // 没有 rAF 可用时无法延后关闭窗口，退化为不启用（宁可误判成用户滚动，
-      // 也不能让窗口一直开着——那会让渐进修正永远清不掉）
-      this._programmaticScroll = false;
-      return;
-    }
-
-    this._programmaticScroll = true;
-    if (this._programmaticRafId !== null) {
-      cancelAnimationFrame(this._programmaticRafId);
-    }
-    this._programmaticRafId = requestAnimationFrame(() => {
-      this._programmaticRafId = null;
-      this._programmaticScroll = false;
-    });
   }
 
   // -------------------- 滚动定位 / 平滑动画 --------------------
@@ -1075,10 +1082,7 @@ export class VirtListCore<T extends Record<string, any>> {
   private _attachTopFixTask(): void {
     this._attachEdgeFixTask(
       () => 0,
-      () => {
-        const key = this._props.horizontal ? 'scrollLeft' : 'scrollTop';
-        return !this._clientEl || this._clientEl[key] === 0;
-      },
+      () => this.getOffset() === 0,
     );
   }
 
@@ -1412,7 +1416,7 @@ export class VirtListCore<T extends Record<string, any>> {
       // 这个错误状态不会自愈，非得用户滚一下才恢复。
       if (!this._isInit) {
         requestAnimationFrame(() => {
-          if (this._clientEl) {
+          if (this._driver) {
             this._offset = this.getOffset();
             this._calcRange();
           } else {
@@ -1429,10 +1433,6 @@ export class VirtListCore<T extends Record<string, any>> {
   private _onScroll(evt: Event): void {
     this._events.scroll?.(evt);
 
-    // 程序化写入 scrollTop / scrollLeft 后，浏览器会异步回送一次 scroll 事件。
-    // 这类事件不应被当成用户操作，也不需要重算边界/锚点：写入时已经同步过。
-    if (this._programmaticScroll) return;
-
     const offset = this.getOffset();
     if (offset === this._offset) return;
 
@@ -1440,8 +1440,9 @@ export class VirtListCore<T extends Record<string, any>> {
     this._offset = offset;
 
     // 注意：这里刻意**不**去判断"是不是用户滚动，然后取消渐进修正"。
-    // 写 scrollTop 引发的 scroll 事件是异步回送的，和程序化窗口的关闭是竞态，
-    // 误判一次就会把轮询连同它的 rAF 兜底一起掐掉，scrollToBottom 再也到不了底。
+    // 写 scrollTop 引发的 scroll 事件是异步回送的，无论用什么标记窗口去圈住它，
+    // 窗口关闭与事件回送都是竞态；误判一次就会把轮询连同它的 rAF 兜底一起掐掉，
+    // scrollToBottom 再也到不了底。
     // 放弃修正的判断改在轮询自身的每一步里做（见 _attachEdgeFixTask）。
 
     // 用户真的动了滚动条：解开上一次空加载留下的停摆，让自动续拉重新可用
@@ -1795,7 +1796,7 @@ export class VirtListCore<T extends Record<string, any>> {
       this._setScrollOffset(this._offset + shiftSize);
       // 与 _applyAnchor 同理：写完立刻把 _offset 同步到浏览器 clamp 后的真实值，
       // 否则下一个 scroll 事件会拿旧值误判滚动方向
-      if (this._clientEl) this._offset = this.getOffset();
+      if (this._driver) this._offset = this.getOffset();
 
       // 用补偿后的偏移量重新定位视口顶部项，而不是把旧的 inViewBegin 平移 shiftCount。
       //

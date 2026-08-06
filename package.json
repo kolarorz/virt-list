@@ -1,7 +1,7 @@
 {
   "name": "virt-list-monorepo",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@9.15.2",
   "scripts": {
@@ -15,6 +15,8 @@
     "build": "pnpm -C docs build",
     "build:packages": "pnpm --filter @virt-list/core run build && pnpm --filter @virt-list/vanilla run build && pnpm --filter @virt-list/vue --filter @virt-list/vue2 --filter @virt-list/react --filter @virt-list/react-legacy run build",
     "clean:packages": "pnpm -r --filter './packages/*' run clean",
+    "release": "node scripts/release.mjs",
+    "release:dry": "node scripts/release.mjs --dry-run",
     "preview": "pnpm -C docs preview",
     "typecheck": "pnpm -C docs typecheck && pnpm -C docs/apps/react typecheck && pnpm -C docs/apps/vue typecheck",
     "test": "vitest run",

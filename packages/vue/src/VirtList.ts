@@ -129,11 +129,13 @@ export function useVirtList<T extends Record<string, any>>(
 export const VirtList = defineComponent({
   name: 'VirtList',
   emits: {
-    scroll: (e: Event) => e,
-    toTop: (firstItem: unknown) => firstItem,
-    toBottom: (lastItem: unknown) => lastItem,
+    scroll: (_e: Event) => true,
+    // 载荷是列表项，而 list prop 就是 any[]——写 unknown 会让 (item: MyItem) => void
+    // 这样的处理函数无法赋值给事件（函数参数逆变）
+    toTop: (_firstItem: any) => true,
+    toBottom: (_lastItem: any) => true,
     itemResize: (_id: string, _newSize: number) => true,
-    update: (_renderList: unknown[], _state: ListState) => true,
+    update: (_renderList: any[], _state: ListState) => true,
     loadStateChange: (_loadState: LoadState) => true,
   },
   props: {
@@ -166,6 +168,13 @@ export const VirtList = defineComponent({
     },
     stickyBottom: { type: Boolean, default: false },
     stickyThreshold: { type: Number, default: 0 },
+    /** 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar */
+    scrollbar: {
+      type: String as PropType<'native' | 'custom'>,
+      default: 'native',
+    },
+    scrollbarAutoHide: { type: Number, default: undefined },
+    scrollbarMinThumbSize: { type: Number, default: undefined },
     listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
     listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
@@ -219,6 +228,9 @@ export const VirtList = defineComponent({
         initialPosition: props.initialPosition,
         stickyBottom: props.stickyBottom,
         stickyThreshold: props.stickyThreshold,
+        scrollbar: props.scrollbar,
+        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         renderControl: props.renderControl as any,
         listStyle: props.listStyle,
         listClass: props.listClass,

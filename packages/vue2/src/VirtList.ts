@@ -157,6 +157,13 @@ export const VirtList = defineComponent({
     },
     stickyBottom: { type: Boolean, default: false },
     stickyThreshold: { type: Number, default: 0 },
+    /** 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar */
+    scrollbar: {
+      type: String as PropType<'native' | 'custom'>,
+      default: 'native',
+    },
+    scrollbarAutoHide: { type: Number, default: undefined },
+    scrollbarMinThumbSize: { type: Number, default: undefined },
     listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
     listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
@@ -199,6 +206,9 @@ export const VirtList = defineComponent({
         initialPosition: props.initialPosition,
         stickyBottom: props.stickyBottom,
         stickyThreshold: props.stickyThreshold,
+        scrollbar: props.scrollbar,
+        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         renderControl: props.renderControl as any,
         listStyle: props.listStyle,
         listClass: props.listClass,

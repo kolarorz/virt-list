@@ -827,6 +827,7 @@ export class VirtTree {
         buffer: opts.buffer ?? 2,
         scrollDuration: opts.scrollDuration,
         smoothMaxDistance: opts.smoothMaxDistance,
+        scrollbar: opts.scrollbar,
         listStyle: 'position:relative;',
         listClass,
         itemClass: (_item: TreeNode) => {
@@ -1119,7 +1120,13 @@ export class VirtTree {
 
     const clientElement = this._virtListDOM.clientEl;
     const clientElementRect = clientElement.getBoundingClientRect();
-    const scrollElement = getScrollParentElement(clientElement);
+    // custom 模式下不能走 getScrollParentElement：它靠 scrollHeight > offsetHeight
+    // 判断，而自绘模式已经没有撑开滚动空间的占位元素，clientEl 匹配不上，
+    // 于是会一路向上找到页面——拖到边缘时滚的就是整个文档而不是这棵树
+    const customScroll = this._virtListDOM.isCustomScrollbar;
+    const scrollElement = customScroll
+      ? clientElement
+      : getScrollParentElement(clientElement);
     const scrollElementRect = scrollElement?.getBoundingClientRect();
 
     const opts = this._options;
@@ -1161,6 +1168,8 @@ export class VirtTree {
       prevTreeItem: null,
       nextTreeItem: null,
       scrollElement,
+      customScroll,
+      offsetUnsubscribe: null,
       dragAreaParentElement: null,
       scrollElementRect,
       clientElementRect,
@@ -1287,7 +1296,14 @@ export class VirtTree {
       }
     };
 
-    scrollElement?.addEventListener('scroll', state.onScroll);
+    if (customScroll) {
+      // 内容靠 transform 移动，容器不会派发原生 scroll 事件
+      state.offsetUnsubscribe = this._virtListDOM.onOffsetChange(
+        state.onScroll,
+      );
+    } else {
+      scrollElement?.addEventListener('scroll', state.onScroll);
+    }
     document.addEventListener('mousemove', state.onMousemove);
     document.addEventListener('mouseup', state.onMouseup);
     document.addEventListener('keydown', state.onKeydown);
@@ -1321,6 +1337,8 @@ export class VirtTree {
       state.hoverExpandTimer = null;
     }
     this._stopAutoScroll(state);
+    state.offsetUnsubscribe?.();
+    state.offsetUnsubscribe = null;
     state.scrollElement?.removeEventListener('scroll', state.onScroll);
     document.removeEventListener('mousemove', state.onMousemove);
     document.removeEventListener('mouseup', state.onMouseup);
@@ -1451,7 +1469,13 @@ export class VirtTree {
       const move = Math.trunc(remainder);
       if (move !== 0) {
         remainder -= move;
-        scrollEl.scrollTop += move;
+        if (state.customScroll) {
+          // 偏移量归列表自己管，写 scrollTop 是没有作用的
+          const vl = this._virtListDOM;
+          vl.scrollToOffset(vl.core.getOffset() + move);
+        } else {
+          scrollEl.scrollTop += move;
+        }
       }
 
       state.autoScrollRafId = requestAnimationFrame(step);
@@ -1854,6 +1878,10 @@ interface DragState {
   prevTreeItem: HTMLElement | null;
   nextTreeItem: HTMLElement | null;
   scrollElement: HTMLElement | null;
+  /** 滚动位置是否由列表自己掌管（scrollbar: 'custom'） */
+  customScroll: boolean;
+  /** custom 模式下偏移量订阅的退订函数 */
+  offsetUnsubscribe: (() => void) | null;
   dragAreaParentElement: HTMLElement | null;
   scrollElementRect: DOMRect | undefined;
   clientElementRect: DOMRect | undefined;

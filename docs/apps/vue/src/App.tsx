@@ -1,4 +1,6 @@
 import { defineComponent } from 'vue';
+// Vue 3.4+ 不再声明全局 JSX 命名空间，需要从 jsx-runtime 显式取
+import type { JSX } from 'vue/jsx-runtime';
 import DemoBlock from './components/DemoBlock.vue';
 import type { DemoSource } from '../../_shared/demoSource';
 import Literal from './components/Literal.vue';
@@ -66,8 +68,10 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const demoRenderMap: Record<string, () => any> = {
-      'list-literal': () => <Literal />,
+    const renderLiteral = () => <Literal />;
+
+    const demoRenderMap: Record<string, () => JSX.Element> = {
+      'list-literal': renderLiteral,
       'list-widget': () => <Widget />,
       'list-basic': () => <DemoBlock source={src('./components/list/ListBasic.vue')}><ListBasic /></DemoBlock>,
       'list-buffer': () => <DemoBlock source={src('./components/list/ListBuffer.vue')}><ListBuffer /></DemoBlock>,
@@ -107,10 +111,7 @@ export default defineComponent({
     };
 
     const renderCurrentDemo = () => {
-      const renderer = (
-        demoRenderMap[props.exampleId as keyof typeof demoRenderMap]
-        ?? demoRenderMap['list-literal']
-      ) as () => any;
+      const renderer = demoRenderMap[props.exampleId] ?? renderLiteral;
       return renderer();
     };
 

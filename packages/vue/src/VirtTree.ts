@@ -29,6 +29,17 @@ import '@virt-list/vanilla/src/tree/tree.css';
 export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams, VirtTreeDOMEvents };
 
 /**
+ * 取 DOM 层某个事件的参数元组。
+ *
+ * emits 的载荷类型直接从 `VirtTreeDOMEvents` 派生，而不是在这里重写一遍：
+ * 组件只是把 DOM 层的回调原样转发出去，两份声明一旦手抄就会漂移
+ * （之前 dragstart/dragend 的载荷写成 unknown，模板里就没法给处理函数标类型了）。
+ */
+type TreeEventArgs<K extends keyof VirtTreeDOMEvents> = Parameters<
+  NonNullable<VirtTreeDOMEvents[K]>
+>;
+
+/**
  * Vue 虚拟树组件。
  *
  * 薄封装层：在 onMounted 时创建 VirtTree 实例，通过 watch 监听 prop 变化
@@ -49,18 +60,18 @@ export const VirtTree = defineComponent({
      * 点击节点。取名 nodeClick（模板里 `@node-click`）而不是 click：
      * 若声明 emits.click，落到根元素的原生点击就会被拦截成自定义事件。
      */
-    nodeClick: (_data: TreeNodeData, _node: TreeNode, _e: MouseEvent) => true,
-    expand: (_keys: TreeNodeKey[], _data: unknown) => true,
+    nodeClick: (..._args: TreeEventArgs<'click'>) => true,
+    expand: (..._args: TreeEventArgs<'expand'>) => true,
     'update:expandedKeys': (_keys: TreeNodeKey[]) => true,
-    select: (_keys: TreeNodeKey[], _data: unknown) => true,
+    select: (..._args: TreeEventArgs<'select'>) => true,
     'update:selectedKeys': (_keys: TreeNodeKey[]) => true,
-    check: (_keys: TreeNodeKey[], _data: unknown) => true,
+    check: (..._args: TreeEventArgs<'check'>) => true,
     'update:checkedKeys': (_keys: TreeNodeKey[]) => true,
-    dragstart: (_data: unknown) => true,
-    dragend: (_data: unknown) => true,
+    dragstart: (..._args: TreeEventArgs<'dragstart'>) => true,
+    dragend: (..._args: TreeEventArgs<'dragend'>) => true,
     scroll: (_e: Event) => true,
-    toTop: (_item: unknown) => true,
-    toBottom: (_item: unknown) => true,
+    toTop: (..._args: TreeEventArgs<'toTop'>) => true,
+    toBottom: (..._args: TreeEventArgs<'toBottom'>) => true,
     itemResize: (_id: string, _size: number) => true,
     update: (_renderList: TreeNode[], _state: ListState) => true,
   },

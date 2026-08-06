@@ -1,5 +1,7 @@
 export { VirtListCore } from './VirtListCore';
 export { ListLoader } from './ListLoader';
+export { NativeScrollDriver, VirtualScrollDriver } from './ScrollDriver';
+export type { ScrollDriver, VirtualScrollHost } from './ScrollDriver';
 export type { LoaderHost } from './ListLoader';
 export type {
   ClassValue,

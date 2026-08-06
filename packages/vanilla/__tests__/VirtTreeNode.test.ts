@@ -8,10 +8,14 @@ import type {
 } from '../src/tree/types';
 
 const OriginalRO = globalThis.ResizeObserver;
+const OriginalElementFromPoint = document.elementFromPoint;
 let roCallback: ResizeObserverCallback | null = null;
+/** 本轮用例挂载出来的树，afterEach 统一销毁 */
+let mounted: VirtTree[] = [];
 
 beforeEach(() => {
   roCallback = null;
+  mounted = [];
   globalThis.ResizeObserver = class {
     constructor(cb: ResizeObserverCallback) {
       roCallback = cb;
@@ -20,10 +24,16 @@ beforeEach(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+  // jsdom 没有命中测试，默认让它返回 null（等价于"没悬停在任何节点上"）
+  document.elementFromPoint = (() => null) as any;
 });
 
 afterEach(() => {
+  // 拖拽把监听挂在 document 上、并跑着 rAF 自动滚动，只清 DOM 会让它们活到下一个用例
+  for (const tree of mounted) tree.destroy();
+  mounted = [];
   globalThis.ResizeObserver = OriginalRO;
+  document.elementFromPoint = OriginalElementFromPoint;
   document.body.innerHTML = '';
   vi.useRealTimers();
 });
@@ -74,6 +84,7 @@ function mount(
     } as VirtTreeDOMOptions,
     events,
   );
+  mounted.push(tree);
 
   const clientEl = container.querySelector('[data-id="client"]') as HTMLElement;
   Object.defineProperty(clientEl, 'scrollTop', {

@@ -49,6 +49,9 @@
 | initialPosition    | 首屏定位。`'bottom'` 会在挂载后定位到底部，并随尺寸测量渐进校准（聊天室常用）<br />与 `start` / `offset` 同时给出时后两者优先 | `'top' \| 'bottom'`                                            | `'top'` | -                            |
 | stickyBottom       | 尾部追加时是否自动跟随到底部；仅在**原本就贴底**时跟随                                  | `Boolean`                                                                                   | `false` | -                            |
 | stickyThreshold    | 判定"贴底"的容差（px），缺省取 `scrollDistance`（至少 2px）                             | `Number`                                                                                    | `0`     | -                            |
+| scrollbar          | 滚动条实现方式，见下方 [自绘滚动条](#自绘滚动条)                                        | `'native' \| 'custom'`                                                                      | `'native'` | -                            |
+| scrollbarAutoHide  | 自绘滚动条停止滚动多久后淡出（ms），`0` 表示常驻；仅 `custom` 生效                      | `Number`                                                                                    | `1200`  | -                            |
+| scrollbarMinThumbSize | 自绘滑块的最小长度（px）；仅 `custom` 生效                                            | `Number`                                                                                    | `20`    | -                            |
 
 ## 插槽
 
@@ -257,3 +260,5 @@ async function onLoadMore(direction: LoadDirection) {
 `sticky-bottom` 的关键在于**仅在原本就贴底时才跟随**：用户正在向上翻历史消息时
 来了新消息，视口不会被拽到底部，新增量记在 `loadState.pendingNew` 里，
 可以据此渲染一个"N 条新消息"的角标。用户滚回底部后自动归零。
+
+<!--@include: ../../_shared/custom-scrollbar.md-->

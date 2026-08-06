@@ -79,7 +79,7 @@ export default function TreeDrag() {
           content={({ node }) => <TreeDragItem node={node} />}
           empty={() => <TreeEmpty />}
           onDragstart={(data) => {
-            setStatus(`开始拖拽: ${data.sourceNode.title ?? data.sourceNode.id}`);
+            setStatus(`开始拖拽: ${data.sourceNode.title ?? data.sourceNode.data?.id}`);
           }}
           onDragend={(data) => {
             if (!data) {
