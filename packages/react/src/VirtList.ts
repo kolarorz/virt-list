@@ -22,13 +22,17 @@ import type {
   SlotSize,
   VirtListDOMOptions,
   VirtListEvents,
+  VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
 
 // ======================== Types ========================
 
 export interface EmitFunction<T> {
-  scroll?: (e: Event) => void;
+  /** 滚动了。容器 overflow:hidden，没有原生 scroll 事件，这是它的替代品 */
+  scroll?: (event: VirtScrollEvent) => void;
+  /** 滚动偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 scroll */
+  offsetChange?: (offset: number) => void;
   toTop?: (item: T) => void;
   toBottom?: (item: T) => void;
   itemResize?: (id: string, newSize: number) => void;
@@ -44,6 +48,8 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   resizeObserver: ResizeObserver | undefined;
   getState: () => ListState;
   getOffset: () => number;
+  /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
+  scrollFromUser: (offset: number) => void;
   getSlotSize: () => number;
   reset: () => void;
   scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
@@ -81,6 +87,7 @@ export function useVirtList<T extends Record<string, any>>(
 
     const events: VirtListEvents<T> = {
       scroll: (e) => emitRef.current?.scroll?.(e),
+      offsetChange: (o) => emitRef.current?.offsetChange?.(o),
       toTop: (item) => emitRef.current?.toTop?.(item),
       toBottom: (item) => emitRef.current?.toBottom?.(item),
       itemResize: (id, size) => emitRef.current?.itemResize?.(id, size),
@@ -108,6 +115,7 @@ export function useVirtList<T extends Record<string, any>>(
     get resizeObserver() { return getVL().core.resizeObserver; },
     getState: () => getVL().state,
     getOffset: () => getVL().core.getOffset(),
+    scrollFromUser: (o: number) => getVL().core.scrollFromUser(o),
     getSlotSize: () => getVL().core.getSlotSize(),
     reset: () => vlRef.current?.reset(),
     scrollToIndex: (i, opts) => vlRef.current?.scrollToIndex(i, opts),
@@ -157,8 +165,6 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   initialPosition?: 'top' | 'bottom';
   stickyBottom?: boolean;
   stickyThreshold?: number;
-  /** 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar */
-  scrollbar?: 'native' | 'custom';
   scrollbarAutoHide?: number;
   scrollbarMinThumbSize?: number;
   listStyle?: StyleValue;
@@ -183,7 +189,15 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   renderStickyFooter?: () => ReactNode;
   renderEmpty?: () => ReactNode;
 
-  onScroll?: (e: Event) => void;
+  /**
+   * 滚动了。容器 overflow:hidden，没有原生 scroll 事件，这是它的替代品。
+   *
+   * 与 React 的合成 `onScroll` 不冲突：本组件只把 style / className 交给根 div，
+   * 事件 props 一律不透传。
+   */
+  onScroll?: (event: VirtScrollEvent) => void;
+  /** 滚动偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 onScroll */
+  onOffsetChange?: (offset: number) => void;
   onToTop?: (item: T) => void;
   onToBottom?: (item: T) => void;
   onItemResize?: (id: string, newSize: number) => void;
@@ -201,6 +215,8 @@ export interface VirtListRef<T extends Record<string, any> = Record<string, any>
   resizeObserver: ResizeObserver | undefined;
   getState: () => ListState;
   getOffset: () => number;
+  /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
+  scrollFromUser: (offset: number) => void;
   getSlotSize: () => number;
   reset: () => void;
   scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
@@ -279,7 +295,6 @@ function VirtListInner(
       initialPosition: props.initialPosition,
       stickyBottom: props.stickyBottom,
       stickyThreshold: props.stickyThreshold,
-      scrollbar: props.scrollbar,
       scrollbarAutoHide: props.scrollbarAutoHide,
       scrollbarMinThumbSize: props.scrollbarMinThumbSize,
       renderControl: props.renderControl,
@@ -334,6 +349,7 @@ function VirtListInner(
 
     const events: VirtListEvents<any> = {
       scroll: (e) => eventsRef.current.onScroll?.(e),
+      offsetChange: (o) => eventsRef.current.onOffsetChange?.(o),
       toTop: (item) => eventsRef.current.onToTop?.(item),
       toBottom: (item) => eventsRef.current.onToBottom?.(item),
       itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
@@ -393,6 +409,7 @@ function VirtListInner(
     get resizeObserver() { return vlRef.current!.core.resizeObserver; },
     getState: () => vlRef.current!.state,
     getOffset: () => vlRef.current!.core.getOffset(),
+    scrollFromUser: (o: number) => vlRef.current!.core.scrollFromUser(o),
     getSlotSize: () => vlRef.current!.core.getSlotSize(),
     reset: () => vlRef.current?.reset(),
     scrollToIndex: (i, opts) => vlRef.current?.scrollToIndex(i, opts),

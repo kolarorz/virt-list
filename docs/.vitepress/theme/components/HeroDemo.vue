@@ -110,10 +110,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .hero-demo {
   width: 100%;
-  max-width: 380px;
-  margin: 0 auto;
+  max-width: 420px;
+  /* 桌面端靠右：让卡片右边缘与下方指标条 / 特性卡片的右边缘对齐 */
+  margin: 0 0 0 auto;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 14px;
+  border-radius: var(--vt-radius-card);
   /* 与列表主体同色：主体要用 mask 做上下淡出，不能自带底色 */
   background: var(--vp-c-bg);
   overflow: hidden;

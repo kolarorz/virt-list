@@ -1,0 +1,103 @@
+/**
+ * 布局骨架：外壳留白、正文宽度、右侧目录
+ *
+ * ## 为什么要用 html:root 前缀
+ * 下面覆盖的规则都写在 VitePress 组件的 <style scoped> 里，编译后带一个
+ * [data-v-xxx] 属性选择器，特异性比同名的裸类选择器高一档。用 `html:root`
+ * 打头补上一个元素单位即可稳定压过，不必动用 !important，也不依赖样式表顺序。
+ *
+ * ## 为什么要重写这四处公式
+ * VitePress 在 @media (min-width: 1440px) 里用 `(100vw - 1440px) / 2` 计算
+ * 两侧留白，1440 与 --vp-layout-max-width 的默认值绑死。一旦把上限抬到 1536，
+ * 1440~1536 这段区间里该表达式为负，侧边栏会缩窄、正文会压到侧边栏底下。
+ * 这里统一改用 --vt-shell-inset（已 max(0px, …) 夹过下限），
+ * 于是 960 以上任意宽度都是同一套公式，不再有断点缝隙。
+ */
+
+/* ===== 外壳：侧边栏 / 导航栏 / 内容区三者的左右留白必须严格一致 ===== */
+@media (min-width: 960px) {
+  html:root .VPSidebar {
+    padding-left: calc(var(--vt-shell-inset) + 32px);
+    width: calc(var(--vt-shell-inset) + var(--vp-sidebar-width));
+  }
+
+  html:root .VPNavBar.has-sidebar .container > .title {
+    padding-left: calc(var(--vt-shell-inset) + 32px);
+    width: calc(var(--vt-shell-inset) + var(--vp-sidebar-width));
+  }
+
+  html:root .VPNavBar.has-sidebar .container > .content {
+    padding-right: calc(var(--vt-shell-inset) + 32px);
+    padding-left: calc(var(--vt-shell-inset) + var(--vp-sidebar-width));
+  }
+
+  html:root .VPContent.has-sidebar {
+    padding-right: var(--vt-shell-inset);
+    padding-left: calc(var(--vt-shell-inset) + var(--vp-sidebar-width));
+  }
+}
+
+/* ===== 正文列宽 ===== */
+html:root .VPDoc.has-aside .content-container {
+  max-width: var(--vt-doc-width);
+}
+
+@media (min-width: 960px) {
+  /* 底部 128px 在长页面末尾显得空旷，收到 96px */
+  html:root .VPDoc .content {
+    padding-bottom: 96px;
+  }
+}
+
+/*
+ * 示例页：正文只有一句说明，主体是一块交互演示——它是 UI 而不是文章，
+ * 越宽越好用（表格、水平滚动、聊天室这些示例在 688px 里根本铺不开）。
+ * 同时让出右侧目录：这些页面没有小节标题，目录恒为空，白占 256px。
+ *
+ * 用 :has() 而不是给 <html> 挂路由类名，是为了避免首屏渲染后再改类名导致的布局跳动。
+ * 老浏览器不支持 :has() 时退化成普通正文宽度，不会坏版。
+ */
+html:root .VPDoc:has(.playground-shell) .aside {
+  display: none;
+}
+
+html:root .VPDoc:has(.playground-shell) .content-container {
+  max-width: none;
+}
+
+/* ===== 右侧目录 ===== */
+@media (min-width: 1280px) {
+  /* 中文标题常常超过一行，默认的 nowrap + 省略号会把话截断，这里允许折两行 */
+  html:root .VPDocAsideOutline .outline-link {
+    display: -webkit-box;
+    padding: 4px 0;
+    line-height: 20px;
+    font-size: 13px;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 当前小节：一条竖线比单纯的颜色变化更容易在长目录里找到 */
+  html:root .VPDocAsideOutline .outline-marker {
+    width: 2px;
+    border-radius: 2px;
+    background-color: var(--vp-c-brand-1);
+  }
+
+  html:root .VPDocAsideOutline .outline-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--vp-c-text-1);
+  }
+}
+
+/* ===== 移动端 ===== */
+@media (max-width: 767px) {
+  /* 上下留白收紧（窄屏首屏很珍贵），左右保持 24px 的舒适边距 */
+  html:root .VPDoc {
+    padding: 24px 24px 72px;
+  }
+}

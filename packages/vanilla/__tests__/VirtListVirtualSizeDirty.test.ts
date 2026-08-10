@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { VirtList } from '../src/VirtList';
 
 /**
- * 渲染窗口之外的项上报尺寸时，虚拟占位高度必须跟着修正。
+ * 渲染窗口之外的项上报尺寸时，渲染块的位移量必须跟着修正。
  *
  * virtualSize（= renderBegin 之前所有项的累计高度）是增量维护的，前提是"被观察的
  * 项都在渲染窗口内"。这个前提会被打破：项滚出窗口、DOM 被移除、unobserve 也调了，
@@ -109,21 +109,27 @@ function setup(list: Item[]) {
   return { vl, clientEl };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
-/** 虚拟占位元素当前的高度（DOM 上真正生效的那个值） */
-function virtualElHeight(vl: VirtList<Item>): number {
-  const el = vl.listEl.firstElementChild as HTMLElement;
-  return Number.parseFloat(el.style.height || '0');
+/**
+ * 渲染块当前被推下去的距离（DOM 上真正生效的那个值）。
+ *
+ * 不再有"占位元素"——渲染块由 itemsEl 的 transform 推到位，
+ * 读的就是这个位移量。
+ */
+function itemsShift(vl: VirtList<Item>): number {
+  const m = /translate3d\(\s*[^,]+,\s*(-?[\d.]+)px/.exec(
+    vl.itemsEl.style.transform,
+  );
+  return m ? Number(m[1]) : 0;
 }
 
-/** 权威的占位高度：renderBegin 之前所有项的累计高度 */
+/** 权威的位移量：renderBegin 的文档位置减去当前偏移量 */
 function expectedVirtualSize(vl: VirtList<Item>): number {
   const { renderBegin } = vl.core.getState();
-  let sum = 0;
+  let sum = -vl.core.getOffset();
   for (let i = 0; i < renderBegin; i += 1) {
     sum += vl.core.getItemSize(vl.core.props.list[i]!.id);
   }
@@ -131,11 +137,11 @@ function expectedVirtualSize(vl: VirtList<Item>): number {
 }
 
 describe('渲染窗口外的尺寸上报', () => {
-  it('窗口外的项报来新尺寸后，DOM 的虚拟占位高度仍然正确', () => {
+  it('窗口外的项报来新尺寸后，DOM 上渲染块的位移量仍然正确', () => {
     const list = makeList(COUNT);
-    const { vl, clientEl } = setup(list);
+    const { vl } = setup(list);
 
-    scrollTo(clientEl, 2500);
+    scrollTo(vl, 2500);
     measure();
 
     const { renderBegin } = vl.core.getState();
@@ -148,14 +154,14 @@ describe('渲染窗口外的尺寸上报', () => {
     sizes.set(staleKey, 200);
     ro.cb?.([entryFor(staleKey, 200)], {} as ResizeObserver);
 
-    expect(virtualElHeight(vl)).toBe(expectedVirtualSize(vl));
+    expect(itemsShift(vl)).toBe(expectedVirtualSize(vl));
   });
 
-  it('多个窗口外的项接连上报，占位高度依然正确', () => {
+  it('多个窗口外的项接连上报，位移量依然正确', () => {
     const list = makeList(COUNT);
-    const { vl, clientEl } = setup(list);
+    const { vl } = setup(list);
 
-    scrollTo(clientEl, 3000);
+    scrollTo(vl, 3000);
     measure();
 
     for (const idx of [5, 12, 27, 33]) {
@@ -164,14 +170,14 @@ describe('渲染窗口外的尺寸上报', () => {
       ro.cb?.([entryFor(key, 150)], {} as ResizeObserver);
     }
 
-    expect(virtualElHeight(vl)).toBe(expectedVirtualSize(vl));
+    expect(itemsShift(vl)).toBe(expectedVirtualSize(vl));
   });
 
-  it('窗口外上报之后继续滚动，占位高度保持正确', () => {
+  it('窗口外上报之后继续滚动，位移量保持正确', () => {
     const list = makeList(COUNT);
-    const { vl, clientEl } = setup(list);
+    const { vl } = setup(list);
 
-    scrollTo(clientEl, 2500);
+    scrollTo(vl, 2500);
     measure();
 
     const staleKey = list[10]!.id;
@@ -179,11 +185,11 @@ describe('渲染窗口外的尺寸上报', () => {
     ro.cb?.([entryFor(staleKey, 220)], {} as ResizeObserver);
 
     for (const y of [2600, 2800, 2400, 3200]) {
-      scrollTo(clientEl, y);
+      scrollTo(vl, y);
       measure();
       expect(
-        virtualElHeight(vl),
-        `滚到 ${y} 时占位高度 ${virtualElHeight(vl)} != ${expectedVirtualSize(vl)}`,
+        itemsShift(vl),
+        `滚到 ${y} 时位移量 ${itemsShift(vl)} != ${expectedVirtualSize(vl)}`,
       ).toBe(expectedVirtualSize(vl));
     }
   });

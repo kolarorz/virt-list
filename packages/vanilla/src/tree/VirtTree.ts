@@ -13,7 +13,6 @@ import type {
   VirtTreeDOMEvents,
 } from './types';
 import {
-  getScrollParentElement,
   isSiblingElement,
   findAncestorWithClass,
   getPrevSibling,
@@ -437,6 +436,32 @@ export class VirtTree {
     this._virtListDOM.scrollToBottom(options);
   }
 
+  /** 底层虚拟列表的计算内核（与 VirtList.core 一致，供进阶用法与测试使用） */
+  get core() {
+    return this._virtListDOM.core;
+  }
+
+  /**
+   * 上报一次用户发起的滚动。
+   *
+   * 与 `scrollToOffset` 的区别是语义：这是「用户动了」，会触发 toTop / toBottom
+   * 与自动续拉；`scrollToOffset` 是「程序要求去某处」，不触发。
+   * 接自定义输入源（自建手势、外部滚动条）时用它。
+   */
+  scrollFromUser(offset: number): void {
+    this._virtListDOM.core.scrollFromUser(offset);
+  }
+
+  /**
+   * 当前滚动偏移量。
+   *
+   * 容器的 `scrollTop` 恒为 0（内容靠 transform 移动），
+   * 读滚动位置必须走这里。
+   */
+  getOffset(): number {
+    return this._virtListDOM.core.getOffset();
+  }
+
   /** 取消进行中的平滑滚动动画 */
   cancelScroll(): void {
     this._virtListDOM.cancelScroll();
@@ -827,7 +852,8 @@ export class VirtTree {
         buffer: opts.buffer ?? 2,
         scrollDuration: opts.scrollDuration,
         smoothMaxDistance: opts.smoothMaxDistance,
-        scrollbar: opts.scrollbar,
+        scrollbarAutoHide: opts.scrollbarAutoHide,
+        scrollbarMinThumbSize: opts.scrollbarMinThumbSize,
         listStyle: 'position:relative;',
         listClass,
         itemClass: (_item: TreeNode) => {
@@ -851,6 +877,7 @@ export class VirtTree {
       },
       {
         scroll: (e) => this._events.scroll?.(e),
+        offsetChange: (offset) => this._events.offsetChange?.(offset),
         toTop: (item) => this._events.toTop?.(item),
         toBottom: (item) => this._events.toBottom?.(item),
         itemResize: (id, size) => this._events.itemResize?.(id, size),
@@ -1091,12 +1118,8 @@ export class VirtTree {
       document.removeEventListener('mousemove', this._dragState.onMousemove);
       document.removeEventListener('mouseup', this._dragState.onMouseup);
       document.removeEventListener('keydown', this._dragState.onKeydown);
-      if (this._dragState.scrollElement) {
-        this._dragState.scrollElement.removeEventListener(
-          'scroll',
-          this._dragState.onScroll,
-        );
-      }
+      this._dragState.offsetUnsubscribe?.();
+      this._dragState.offsetUnsubscribe = null;
       this._stopAutoScroll(this._dragState);
       if (this._dragState.hoverExpandTimer) {
         clearTimeout(this._dragState.hoverExpandTimer);
@@ -1118,16 +1141,13 @@ export class VirtTree {
 
     if (!sourceTreeItem) return;
 
+    // 自动滚动的对象就是列表本身。
+    //
+    // 刻意不走「向上找可滚动祖先」那套通用查找：它靠 scrollHeight > offsetHeight
+    // 判断，而这里已经没有撑开滚动空间的占位元素，clientEl 匹配不上，
+    // 于是会一路向上找到页面——拖到边缘时滚的就是整个文档而不是这棵树。
     const clientElement = this._virtListDOM.clientEl;
     const clientElementRect = clientElement.getBoundingClientRect();
-    // custom 模式下不能走 getScrollParentElement：它靠 scrollHeight > offsetHeight
-    // 判断，而自绘模式已经没有撑开滚动空间的占位元素，clientEl 匹配不上，
-    // 于是会一路向上找到页面——拖到边缘时滚的就是整个文档而不是这棵树
-    const customScroll = this._virtListDOM.isCustomScrollbar;
-    const scrollElement = customScroll
-      ? clientElement
-      : getScrollParentElement(clientElement);
-    const scrollElementRect = scrollElement?.getBoundingClientRect();
 
     const opts = this._options;
     const indent = opts.indent ?? 16;
@@ -1167,11 +1187,8 @@ export class VirtTree {
       lastHoverTreeItem: null,
       prevTreeItem: null,
       nextTreeItem: null,
-      scrollElement,
-      customScroll,
       offsetUnsubscribe: null,
       dragAreaParentElement: null,
-      scrollElementRect,
       clientElementRect,
       sourceNode: undefined,
       prevElementNode: undefined,
@@ -1188,10 +1205,10 @@ export class VirtTree {
       onMousemove: () => {},
       onMouseup: () => {},
       onKeydown: () => {},
-      onScroll: () => {},
+      onOffsetChange: () => {},
     };
 
-    state.onScroll = () => {
+    state.onOffsetChange = () => {
       if (this._dragging) {
         this._dragProcess(state);
       }
@@ -1296,14 +1313,9 @@ export class VirtTree {
       }
     };
 
-    if (customScroll) {
-      // 内容靠 transform 移动，容器不会派发原生 scroll 事件
-      state.offsetUnsubscribe = this._virtListDOM.onOffsetChange(
-        state.onScroll,
-      );
-    } else {
-      scrollElement?.addEventListener('scroll', state.onScroll);
-    }
+    // 内容靠 transform 移动，容器不会派发原生 scroll 事件，
+    // 「跟着滚动重算落点」只能挂偏移量订阅
+    state.offsetUnsubscribe = this._virtListDOM.onOffsetChange(state.onOffsetChange);
     document.addEventListener('mousemove', state.onMousemove);
     document.addEventListener('mouseup', state.onMouseup);
     document.addEventListener('keydown', state.onKeydown);
@@ -1339,7 +1351,6 @@ export class VirtTree {
     this._stopAutoScroll(state);
     state.offsetUnsubscribe?.();
     state.offsetUnsubscribe = null;
-    state.scrollElement?.removeEventListener('scroll', state.onScroll);
     document.removeEventListener('mousemove', state.onMousemove);
     document.removeEventListener('mouseup', state.onMouseup);
     document.removeEventListener('keydown', state.onKeydown);
@@ -1441,7 +1452,7 @@ export class VirtTree {
    * 一帧的时间基准，而 mousemove 的频率通常与刷新率同阶，重启会让滚动几乎停滞。
    */
   private _autoScroll(state: DragState): void {
-    if (!state.scrollElement || !state.scrollElementRect) return;
+    if (!state.clientElementRect) return;
 
     state.autoScrollSpeed = this._calcAutoScrollSpeed(state);
     if (state.autoScrollSpeed === 0) {
@@ -1455,8 +1466,8 @@ export class VirtTree {
     let last: number | null = null;
     let remainder = 0;
     const step = (timestamp: number): void => {
-      const scrollEl = state.scrollElement;
-      if (!scrollEl) {
+      // 拖拽已收尾（矩形被清掉）时停下，避免多跑一帧
+      if (!state.clientElementRect) {
         state.autoScrollRafId = null;
         return;
       }
@@ -1464,18 +1475,13 @@ export class VirtTree {
       const seconds = last === null ? 0 : (timestamp - last) / 1000;
       last = timestamp;
 
-      // scrollTop 取整会吞掉小数位移，慢速时累积余量才不会完全不动
+      // 位移取整会吞掉小数，慢速时累积余量才不会完全不动
       remainder += state.autoScrollSpeed * seconds;
       const move = Math.trunc(remainder);
       if (move !== 0) {
         remainder -= move;
-        if (state.customScroll) {
-          // 偏移量归列表自己管，写 scrollTop 是没有作用的
-          const vl = this._virtListDOM;
-          vl.scrollToOffset(vl.core.getOffset() + move);
-        } else {
-          scrollEl.scrollTop += move;
-        }
+        const vl = this._virtListDOM;
+        vl.scrollToOffset(vl.core.getOffset() + move);
       }
 
       state.autoScrollRafId = requestAnimationFrame(step);
@@ -1485,22 +1491,20 @@ export class VirtTree {
 
   /** 计算自动滚动速度（px/s）：指针进入容器上/下 1/4 区域时生效，越靠边越快 */
   private _calcAutoScrollSpeed(state: DragState): number {
-    if (!state.scrollElementRect) return 0;
+    const rect = state.clientElementRect;
+    if (!rect) return 0;
 
     // 指针移出列表可视区域时停止
-    if (state.clientElementRect) {
-      const { left, right, top, bottom } = state.clientElementRect;
-      if (
-        state.mouseX < left ||
-        state.mouseX > right ||
-        state.mouseY < top ||
-        state.mouseY > bottom
-      ) {
-        return 0;
-      }
+    const { left, right, top, bottom } = rect;
+    if (
+      state.mouseX < left ||
+      state.mouseX > right ||
+      state.mouseY < top ||
+      state.mouseY > bottom
+    ) {
+      return 0;
     }
 
-    const rect = state.scrollElementRect;
     const equalPart = rect.height / 4;
 
     if (rect.top < state.mouseY && state.mouseY < rect.top + equalPart) {
@@ -1877,13 +1881,9 @@ interface DragState {
   lastHoverTreeItem: HTMLElement | null;
   prevTreeItem: HTMLElement | null;
   nextTreeItem: HTMLElement | null;
-  scrollElement: HTMLElement | null;
-  /** 滚动位置是否由列表自己掌管（scrollbar: 'custom'） */
-  customScroll: boolean;
-  /** custom 模式下偏移量订阅的退订函数 */
+  /** 偏移量订阅的退订函数 */
   offsetUnsubscribe: (() => void) | null;
   dragAreaParentElement: HTMLElement | null;
-  scrollElementRect: DOMRect | undefined;
   clientElementRect: DOMRect | undefined;
   sourceNode: TreeNode | undefined;
   prevElementNode: TreeNode | undefined;
@@ -1902,5 +1902,5 @@ interface DragState {
   onMousemove: (e: MouseEvent) => void;
   onMouseup: () => void;
   onKeydown: (e: KeyboardEvent) => void;
-  onScroll: () => void;
+  onOffsetChange: () => void;
 }

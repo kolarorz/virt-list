@@ -1,4 +1,4 @@
-import { useState, useMemo, type CSSProperties } from 'react';
+import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react';
 
 interface Item {
@@ -24,14 +24,23 @@ function generateList(count: number): Item[] {
   });
 }
 
-const slotBase: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontWeight: 'bold',
-  fontSize: 14,
-  color: 'var(--demo-c-on-accent)',
-};
+/** 四个插槽共用一套排版，只有色带和文案不同 */
+function Band({ variant, tag, text, note }: BandProps) {
+  return (
+    <div className={`demo-band demo-band--${variant}`}>
+      <span className="demo-band__tag">{tag}</span>
+      <span className="demo-band__text">{text}</span>
+      <span className="demo-band__note">{note}</span>
+    </div>
+  );
+}
+
+interface BandProps {
+  variant: 'sticky-header' | 'header' | 'footer' | 'sticky-footer';
+  tag: string;
+  text: string;
+  note: string;
+}
 
 export default function Slots() {
   const list = useMemo(() => generateList(1000), []);
@@ -45,19 +54,37 @@ export default function Slots() {
           list={list}
           itemKey="id"
           itemPreSize={40}
-          stickyHeaderStyle={{ background: 'var(--demo-c-band-sticky-header)', height: 50 }}
           renderStickyHeader={() => (
-            <div style={slotBase}>Sticky Header（固定头部）</div>
+            <Band
+              variant="sticky-header"
+              tag="stickyHeader"
+              text="固定头部"
+              note="吸在容器顶部，不随内容滚动"
+            />
           )}
           renderHeader={() => (
-            <div style={{ ...slotBase, background: 'var(--demo-c-band-header)', height: 40 }}>Header（头部）</div>
+            <Band
+              variant="header"
+              tag="header"
+              text="头部"
+              note="排在第一项之前，随内容一起滚动"
+            />
           )}
           renderFooter={() => (
-            <div style={{ ...slotBase, background: 'var(--demo-c-band-footer)', height: 40 }}>Footer（尾部）</div>
+            <Band
+              variant="footer"
+              tag="footer"
+              text="尾部"
+              note="排在最后一项之后，随内容一起滚动"
+            />
           )}
-          stickyFooterStyle={{ background: 'var(--demo-c-band-sticky-footer)', height: 50 }}
           renderStickyFooter={() => (
-            <div style={slotBase}>Sticky Footer（固定底部）</div>
+            <Band
+              variant="sticky-footer"
+              tag="stickyFooter"
+              text="固定底部"
+              note="吸在容器底部，不随内容滚动"
+            />
           )}
           onUpdate={(_, state) =>
             setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)

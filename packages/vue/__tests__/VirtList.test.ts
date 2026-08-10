@@ -90,7 +90,6 @@ describe('Vue VirtList', () => {
     expect(clientEl).toBeTruthy();
 
     listRef.value?.scrollToIndex(140);
-    clientEl.dispatchEvent(new Event('scroll'));
     await nextTick();
 
     expect(getRenderedItemIds(container).length).toBeGreaterThan(0);
@@ -109,20 +108,17 @@ describe('Vue VirtList', () => {
 
     listRef.value?.scrollToBottom();
     vi.runAllTimers();
-    clientEl.dispatchEvent(new Event('scroll'));
     await nextTick();
     expect(getRenderedItemIds(container).length).toBeGreaterThan(0);
 
     for (const offset of [120, 880, 1560, 2400, 3000]) {
-      clientEl.scrollTop = offset;
-      clientEl.dispatchEvent(new Event('scroll'));
+      listRef.value!.scrollFromUser(offset);
     }
     await nextTick();
     expect(getRenderedItemIds(container).length).toBeGreaterThan(0);
 
     listRef.value?.scrollToTop();
     vi.runAllTimers();
-    clientEl.dispatchEvent(new Event('scroll'));
     await nextTick();
     expect(getRenderedItemIds(container).length).toBeGreaterThan(0);
     expect(container.textContent).toContain('item-0');
@@ -335,21 +331,21 @@ describe('Vue VirtList 渲染与 API', () => {
 
   it('暴露滚动 API', () => {
     vi.useFakeTimers();
-    const { app, listRef, clientEl } = mount();
+    const { app, listRef } = mount();
 
     listRef.value.scrollToIndex(10);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(listRef.value!.getOffset()).toBe(400);
 
     listRef.value.scrollToOffset(55);
-    expect(clientEl.scrollTop).toBe(55);
+    expect(listRef.value!.getOffset()).toBe(55);
 
     listRef.value.scrollIntoView(0);
-    expect(clientEl.scrollTop).toBe(0);
+    expect(listRef.value!.getOffset()).toBe(0);
 
     listRef.value.scrollToBottom();
     // scrollToBottom 停在浏览器允许的可滚动上限（总高 - 可视高度），
     // 而不是把总高原样写进 scrollTop —— 后者在真实浏览器里会被裁掉
-    expect(clientEl.scrollTop).toBe(2000 - 200);
+    expect(listRef.value!.getOffset()).toBe(2000 - 200);
     vi.runAllTimers();
 
     app.unmount();
@@ -357,27 +353,26 @@ describe('Vue VirtList 渲染与 API', () => {
 
   it('smooth 滚动可被 cancelScroll 打断', () => {
     vi.useFakeTimers();
-    const { app, listRef, clientEl } = mount();
+    const { app, listRef } = mount();
 
     listRef.value.scrollToIndex(40, { behavior: 'smooth', duration: 200 });
     vi.advanceTimersByTime(32);
     listRef.value.cancelScroll();
-    const stopped = clientEl.scrollTop;
+    const stopped = listRef.value!.getOffset();
     vi.advanceTimersByTime(300);
 
-    expect(clientEl.scrollTop).toBe(stopped);
+    expect(listRef.value!.getOffset()).toBe(stopped);
 
     app.unmount();
   });
 
   it('暴露 reset / manualRender / deleteItemSize / forceUpdate', () => {
-    const { app, listRef, clientEl } = mount();
+    const { app, listRef } = mount();
 
     listRef.value.manualRender(5, 8);
     expect(listRef.value.getState().renderBegin).toBe(5);
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.value!.scrollFromUser(400);
     listRef.value.reset();
     expect(listRef.value.getState().inViewBegin).toBe(0);
 
@@ -391,20 +386,18 @@ describe('Vue VirtList 渲染与 API', () => {
 
   it('暴露 setList 与头部增删', () => {
     const list = makeList(50);
-    const { app, listRef, clientEl } = mount({ list });
+    const { app, listRef } = mount({ list });
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.value!.scrollFromUser(400);
 
     const added = [{ id: 'new-0', text: 'new-0' }];
     list.unshift(...added);
     listRef.value.addedList2Top(added);
-    expect(clientEl.scrollTop).toBe(440);
-    clientEl.dispatchEvent(new Event('scroll'));
+    expect(listRef.value!.getOffset()).toBe(440);
 
     const deleted = list.splice(0, 1);
     listRef.value.deletedList2Top(deleted);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(listRef.value!.getOffset()).toBe(400);
 
     listRef.value.setList(makeList(2));
     expect(listRef.value.getState().listTotalSize).toBe(80);
@@ -413,13 +406,13 @@ describe('Vue VirtList 渲染与 API', () => {
   });
 
   it('事件被 emit：scroll / toTop / toBottom / update / itemResize', () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onToTop = vi.fn();
     const onToBottom = vi.fn();
     const onUpdate = vi.fn();
     const onItemResize = vi.fn();
-    const { app, clientEl } = mount({
-      onScroll,
+    const { app, listRef } = mount({
+      onOffsetChange,
       onToTop,
       onToBottom,
       onUpdate,
@@ -428,16 +421,13 @@ describe('Vue VirtList 渲染与 API', () => {
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(onScroll).toHaveBeenCalled();
+    listRef.value!.scrollFromUser(400);
+    expect(onOffsetChange).toHaveBeenCalled();
 
-    clientEl.scrollTop = 1800;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.value!.scrollFromUser(1800);
     expect(onToBottom).toHaveBeenCalled();
 
-    clientEl.scrollTop = 0;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.value!.scrollFromUser(0);
     expect(onToTop).toHaveBeenCalled();
 
     flushResize('0', 90);
@@ -454,12 +444,13 @@ describe('Vue VirtList 渲染与 API', () => {
       value: 0,
     });
 
-    const listEl = container.querySelector('[data-id="client"]')!
-      .children[0] as HTMLElement;
-    expect(listEl.getAttribute('style')).toContain('min-width');
+    // 横向也不再靠 min-width 撑开滚动空间：各段用 translate3d 的 X 分量定位
+    const itemsEl = container.querySelector('[data-id="client"]')!
+      .querySelector('[data-id]')!.parentElement as HTMLElement;
+    expect(itemsEl.style.transform).toContain('translate3d');
 
     listRef.value.scrollToIndex(5);
-    expect(clientEl.scrollLeft).toBe(200);
+    expect(listRef.value!.getOffset()).toBe(200);
 
     app.unmount();
   });

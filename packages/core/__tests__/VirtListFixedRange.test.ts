@@ -29,9 +29,8 @@ function setup(n: number, opts: Record<string, unknown> = {}) {
   return { core, el };
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+function scrollTo(core: VirtListCore<any>, offset: number) {
+  core.scrollFromUser(offset);
 }
 
 function snapshot(state: ListState) {
@@ -61,8 +60,8 @@ describe('fixed 区间计算与不定高逐项搜索等价', () => {
       const dynamic = setup(N);
 
       for (const offset of offsets) {
-        scrollTo(fixed.el, offset);
-        scrollTo(dynamic.el, offset);
+        scrollTo(fixed.core, offset);
+        scrollTo(dynamic.core, offset);
         expect(snapshot(fixed.core.state), `offset=${offset}`).toEqual(
           snapshot(dynamic.core.state),
         );
@@ -77,8 +76,8 @@ describe('fixed 区间计算与不定高逐项搜索等价', () => {
     dynamic.core.slotSize.headerSize = 60;
 
     for (const offset of [0, 60, 100, 500, 5000, 19000, 200]) {
-      scrollTo(fixed.el, offset);
-      scrollTo(dynamic.el, offset);
+      scrollTo(fixed.core, offset);
+      scrollTo(dynamic.core, offset);
       expect(snapshot(fixed.core.state), `offset=${offset}`).toEqual(
         snapshot(dynamic.core.state),
       );
@@ -90,8 +89,8 @@ describe('fixed 区间计算与不定高逐项搜索等价', () => {
     const dynamic = setup(N, { itemGap: 8 });
 
     for (const offset of [0, 48, 96, 500, 4800, 23000]) {
-      scrollTo(fixed.el, offset);
-      scrollTo(dynamic.el, offset);
+      scrollTo(fixed.core, offset);
+      scrollTo(dynamic.core, offset);
       expect(snapshot(fixed.core.state), `offset=${offset}`).toEqual(
         snapshot(dynamic.core.state),
       );
@@ -101,13 +100,13 @@ describe('fixed 区间计算与不定高逐项搜索等价', () => {
   it('fixed 定位与 getItemPosByIndex 自洽', () => {
     const { core, el } = setup(N, { fixed: true });
     // 第 137 项顶部
-    scrollTo(el, core.getItemPosByIndex(137).top);
+    scrollTo(core, core.getItemPosByIndex(137).top);
     expect(core.state.inViewBegin).toBe(137);
     // 该项内部偏移 1px，仍应停在同一项
-    scrollTo(el, core.getItemPosByIndex(137).top + 1);
+    scrollTo(core, core.getItemPosByIndex(137).top + 1);
     expect(core.state.inViewBegin).toBe(137);
     // 下一项顶部
-    scrollTo(el, core.getItemPosByIndex(138).top);
+    scrollTo(core, core.getItemPosByIndex(138).top);
     expect(core.state.inViewBegin).toBe(138);
   });
 });
@@ -116,31 +115,50 @@ describe('fixed 区间计算与不定高逐项搜索等价', () => {
  * 目标偏移超出内容总高时，backward 的逐项搜索会一无所获。
  * 修复前 start 保持原值 → 区间永远停在原地不更新（白跑一趟循环还什么都没做）。
  */
-describe('偏移超出内容总高时的兜底', () => {
-  it('不定高：落到末项而不是停在原地', () => {
-    const { core, el } = setup(200);
+/**
+ * 偏移量在写入时就被夹进 [0, totalSize - clientSize]。
+ *
+ * 滚动位置归 JS 掌管之后这是**唯一入口**的不变量，"偏移量超出内容总高"这种
+ * 中间状态从 API 层面不再可能——原生滚动下才需要额外一道 clamp 追平（浏览器
+ * 异步夹 scrollTop，内部状态得等 scroll 事件回送才知道）。
+ */
+describe('偏移量的越界夹取', () => {
+  // 200 项 × 40px = 8000，视口 800 → 上限 7200，落在第 180 项
+  const MAX_OFFSET = 200 * 40 - 800;
+
+  it('不定高：写入超界值时夹到上限，末项完整可见', () => {
+    const { core } = setup(200);
     expect(core.state.inViewBegin).toBe(0);
 
-    // 内容总高 200*40=8000，这里给一个远超的偏移
-    scrollTo(el, 999999);
+    scrollTo(core, 999999);
 
-    expect(core.state.inViewBegin).toBe(199);
+    expect(core.getOffset()).toBe(MAX_OFFSET);
+    expect(core.state.inViewBegin).toBe(180);
+    expect(core.state.inViewEnd).toBe(199);
   });
 
-  it('fixed：同样落到末项', () => {
-    const { core, el } = setup(200, { fixed: true });
-    scrollTo(el, 999999);
-    expect(core.state.inViewBegin).toBe(199);
+  it('fixed：同样夹到上限', () => {
+    const { core } = setup(200, { fixed: true });
+    scrollTo(core, 999999);
+    expect(core.getOffset()).toBe(MAX_OFFSET);
+    expect(core.state.inViewEnd).toBe(199);
   });
 
-  it('超界后还能正常滚回来', () => {
-    const { core, el } = setup(200);
-    scrollTo(el, 999999);
-    expect(core.state.inViewBegin).toBe(199);
+  it('负值夹到 0', () => {
+    const { core } = setup(200);
+    scrollTo(core, -500);
+    expect(core.getOffset()).toBe(0);
+    expect(core.state.inViewBegin).toBe(0);
+  });
 
-    scrollTo(el, 400);
+  it('夹取之后还能正常滚回来', () => {
+    const { core } = setup(200);
+    scrollTo(core, 999999);
+    expect(core.state.inViewBegin).toBe(180);
+
+    scrollTo(core, 400);
     expect(core.state.inViewBegin).toBe(10);
-    scrollTo(el, 0);
+    scrollTo(core, 0);
     expect(core.state.inViewBegin).toBe(0);
   });
 });

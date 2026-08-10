@@ -65,20 +65,17 @@ describe('稳态滚动的区间增量搜索', () => {
   const { el } = setup();
   // 先滚到中段，让搜索起点远离 0
   el.scrollTop = (BIG / 2) * 40;
-  el.dispatchEvent(new Event('scroll'));
   let offset = el.scrollTop;
 
   bench('每帧前进一屏', () => {
     offset += 800;
     el.scrollTop = offset;
-    el.dispatchEvent(new Event('scroll'));
   });
 });
 
 describe('滚动定位到指定索引', () => {
   const { core, el } = setup();
   el.scrollTop = 100_000 * 40;
-  el.dispatchEvent(new Event('scroll'));
   const nearby = core.getState().inViewBegin + 5;
 
   bench('窗口内（virtualSize 快路径）', () => {

@@ -55,9 +55,8 @@ function setup(list: Item[], opts?: { headerSize?: number }) {
   return { core, el, events };
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+function scrollTo(core: VirtListCore<any>, offset: number) {
+  core.scrollFromUser(offset);
 }
 
 /**
@@ -74,13 +73,13 @@ function relOffsetOf(
 ): number {
   const index = core.props.list.findIndex((it) => it.id === key);
   if (index < 0) throw new Error(`列表中找不到 ${key}`);
-  return core.getItemPosByIndex(index).top - el.scrollTop;
+  return core.getItemPosByIndex(index).top - core.getOffset();
 }
 
 /** 视口顶部那一项是否真的被摆在视口里——白屏就是这个不变量被破坏 */
 function viewportIsConsistent(core: VirtListCore<Item>, el: HTMLElement) {
   const state = core.getState();
-  const offset = el.scrollTop;
+  const offset = core.getOffset();
   // 渲染窗口必须覆盖可视区
   const covers =
     state.renderBegin <= state.inViewBegin &&
@@ -98,8 +97,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
 
     // 先向下滚，再向上滚到顶——把 _direction 置为 forward，
     // 这正是「滚到顶触发加载上一页」的真实时序
-    scrollTo(el, 1000);
-    scrollTo(el, 0);
+    scrollTo(core, 1000);
+    scrollTo(core, 0);
     expect(core.getState().inViewBegin).toBe(0);
     const relBefore = relOffsetOf(core, el, 'a-0');
 
@@ -118,8 +117,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
     const list = makeList(60);
     const { core, el } = setup(list);
 
-    scrollTo(el, 1000);
-    scrollTo(el, 800); // forward，但不在顶部
+    scrollTo(core, 1000);
+    scrollTo(core, 800); // forward，但不在顶部
     const keyAtTop = core.props.list[core.getState().inViewBegin]!.id;
     const relBefore = relOffsetOf(core, el, keyAtTop);
 
@@ -138,8 +137,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
     const list = makeList(60);
     const { core, el } = setup(list, { headerSize: 30 });
 
-    scrollTo(el, 1000);
-    scrollTo(el, 0);
+    scrollTo(core, 1000);
+    scrollTo(core, 0);
     // 停在顶部时视口顶部落在 header 里，a-0 在其下方——补偿要保持这个相对位置
     const relBefore = relOffsetOf(core, el, 'a-0');
 
@@ -161,8 +160,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
     const list = makeList(100);
     const { core, el } = setup(list);
 
-    scrollTo(el, 2000);
-    scrollTo(el, 1500); // forward
+    scrollTo(core, 2000);
+    scrollTo(core, 1500); // forward
     const keyAtTop = core.props.list[core.getState().inViewBegin]!.id;
 
     const relBefore = relOffsetOf(core, el, keyAtTop);
@@ -184,8 +183,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
     const list = makeList(100);
     const { core, el } = setup(list);
 
-    scrollTo(el, 2000);
-    scrollTo(el, 1500);
+    scrollTo(core, 2000);
+    scrollTo(core, 1500);
     const keyAtTop = core.props.list[core.getState().inViewBegin]!.id;
     const relBefore = relOffsetOf(core, el, keyAtTop);
 
@@ -214,8 +213,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
       const list = makeList(60);
       const { core, el } = setup(list, { headerSize: 30 });
 
-      scrollTo(el, 1000);
-      scrollTo(el, 0);
+      scrollTo(core, 1000);
+      scrollTo(core, 0);
       const relBefore = relOffsetOf(core, el, 'a-0');
 
       // 插入项按 itemPreSize(40) 估算，真实高度 120——补偿只能按估算值算，
@@ -263,15 +262,15 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
       const list = makeList(60);
       const { core, el } = setup(list);
 
-      scrollTo(el, 1000);
-      scrollTo(el, 0);
+      scrollTo(core, 1000);
+      scrollTo(core, 0);
 
       // 插入项按 itemPreSize(40) 估算，真实高度是 120——聊天室里长短消息混排
       // 就是这个情形，估算与实测差得远
       const inserted = makeList(20, 'older');
       core.updateOptions({ list: [...inserted, ...list] });
 
-      const offsetBefore = el.scrollTop;
+      const offsetBefore = core.getOffset();
       expect(core.props.list[core.getState().inViewBegin]!.id).toBe('a-0');
 
       // 插入项进入渲染窗口后陆续报上真实尺寸
@@ -288,7 +287,7 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
 
       // 视口上方的项变高了，scrollTop 必须跟着增大，否则内容会向下跳；
       // 而视口顶部指向的仍应是 a-0
-      expect(el.scrollTop).toBeGreaterThan(offsetBefore);
+      expect(core.getOffset()).toBeGreaterThan(offsetBefore);
       const { covers, near, state } = viewportIsConsistent(core, el);
       expect(core.props.list[state.inViewBegin]!.id).toBe('a-0');
       expect(covers).toBe(true);
@@ -302,8 +301,8 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
     const list = makeList(60);
     const { core, el } = setup(list);
 
-    scrollTo(el, 1000);
-    scrollTo(el, 0);
+    scrollTo(core, 1000);
+    scrollTo(core, 0);
 
     // 不预设尺寸，插入项按 itemPreSize 估算
     const inserted = makeList(20, 'older');

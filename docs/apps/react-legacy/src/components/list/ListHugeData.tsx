@@ -24,7 +24,7 @@ export default function HugeData() {
       '数据量越大，虚拟列表相对于全量渲染的性能优势越明显。',
     ];
     const out: HugeItem[] = [];
-    for (let i = 0; i < 300000; i++) {
+    for (let i = 0; i < 1000000; i++) {
       const n = (i % 4) + 1;
       const parts: string[] = [];
       for (let s = 0; s < n; s++) parts.push(hugeTexts[(i + s * 2) % hugeTexts.length]);
@@ -39,7 +39,7 @@ export default function HugeData() {
     setTimeout(() => {
       setLoaded(true);
       setLoading(false);
-      setLoadStatus('已生成 300,000 条数据');
+      setLoadStatus('已生成 100 万条数据');
     }, 50);
   };
 
@@ -52,7 +52,7 @@ export default function HugeData() {
           disabled={loading || loaded}
           onClick={onLoad}
         >
-          生成 30w 数据
+          生成 100 万条数据
         </button>
         <button
           type="button"

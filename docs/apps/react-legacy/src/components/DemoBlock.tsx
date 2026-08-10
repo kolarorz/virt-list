@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import type { DemoSource } from '../../../_shared/demoSource';
-
 export default function DemoBlock({ source, children }: { source: DemoSource; children: ReactNode }) {
   const [showCode, setShowCode] = useState(false);
   const [copyText, setCopyText] = useState('复制');
@@ -24,7 +23,7 @@ export default function DemoBlock({ source, children }: { source: DemoSource; ch
 
   return (
     <div className="demo-block">
-      {children}
+      <div>{children}</div>
       <div className="demo-block__actions">
         <span className="demo-block__divider" />
         <button className="demo-block__toggle" onClick={() => setShowCode(!showCode)}>

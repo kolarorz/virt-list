@@ -4,7 +4,7 @@ import { VirtList } from '../src/VirtList';
 import type { VirtListDOMOptions } from '@virt-list/core';
 
 /**
- * custom 模式下的输入接管。
+ * 输入接管。
  *
  * `overflow: hidden` 之后浏览器不再提供任何滚动手段，滚轮 / 键盘 / 触摸都得自己实现。
  * 这是"完全接管"的主要成本，也是最容易留坑的地方——尤其两条：
@@ -98,7 +98,10 @@ function sizeEntry(id: string, size: number) {
   } as unknown as ResizeObserverEntry;
 }
 
-function mount(options: Partial<VirtListDOMOptions<Item>> = {}) {
+function mount(
+  options: Partial<VirtListDOMOptions<Item>> = {},
+  events: Record<string, unknown> = {},
+) {
   const container = document.createElement('div');
   document.body.appendChild(container);
 
@@ -110,12 +113,11 @@ function mount(options: Partial<VirtListDOMOptions<Item>> = {}) {
     itemKey: 'id',
     itemPreSize: PRE_SIZE,
     fixed: true,
-    scrollbar: 'custom',
     renderItem: ((item: Item, _i: number, el: HTMLElement) => {
       el.textContent = item.text;
     }) as any,
     ...options,
-  } as VirtListDOMOptions<Item>);
+  } as VirtListDOMOptions<Item>, events as any);
   mounted.push(vl);
 
   roCallback?.([sizeEntry('client', CLIENT)], {} as ResizeObserver);
@@ -211,6 +213,43 @@ describe('滚轮', () => {
     // 普通鼠标滚轮只有 deltaY，横向列表也该能滚
     wheel(clientEl, { deltaX: 0, deltaY: 50 });
     expect(vl.core.getOffset()).toBe(150);
+  });
+});
+
+describe('边界事件与自动续拉', () => {
+  /**
+   * 用户输入必须触发 toTop / toBottom。
+   *
+   * 这条曾经是坏的：InputController 一度经由 scrollToOffset（程序化路径）
+   * 驱动 core，而 _judgePosition 只在「用户滚动」路径上跑——于是滚轮滚到底
+   * 不发 toBottom，无限加载整个失效，而偏移量看起来完全正常。
+   */
+  it('滚轮滚到底触发 toBottom', () => {
+    const toBottom = vi.fn();
+    const { clientEl } = mount({}, { toBottom });
+
+    wheel(clientEl, { deltaY: MAX_OFFSET });
+
+    expect(toBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('滚轮滚回顶部触发 toTop', () => {
+    const toTop = vi.fn();
+    const { vl, clientEl } = mount({}, { toTop });
+    vl.scrollToOffset(MAX_OFFSET);
+
+    wheel(clientEl, { deltaY: -MAX_OFFSET });
+
+    expect(toTop).toHaveBeenCalledTimes(1);
+  });
+
+  it('键盘翻页到底同样触发 toBottom', () => {
+    const toBottom = vi.fn();
+    const { clientEl } = mount({}, { toBottom });
+
+    for (let i = 0; i < 40; i++) key(clientEl, { key: 'PageDown' });
+
+    expect(toBottom).toHaveBeenCalled();
   });
 });
 
@@ -367,12 +406,3 @@ describe('focus 吸收', () => {
   });
 });
 
-describe('native 模式', () => {
-  it('不接管任何输入，滚轮交给浏览器', () => {
-    const { vl, clientEl } = mount({ scrollbar: 'native' });
-    const e = wheel(clientEl, { deltaY: 120 });
-
-    expect(e.defaultPrevented).toBe(false);
-    expect(vl.core.getOffset()).toBe(0);
-  });
-});

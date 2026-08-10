@@ -86,9 +86,10 @@ const ROWS: Row[] = [
 
 <style scoped>
 .cx {
-  max-width: 1152px;
+  max-width: var(--vt-home-width);
   margin: 56px auto 0;
-  padding: 0 24px;
+  /* 横向内边距由外层 .vp-doc.container 统一提供，这里再加会和指标条对不齐 */
+  padding: 0;
 }
 
 .cx-title {
@@ -112,14 +113,31 @@ const ROWS: Row[] = [
 .cx-wrap {
   overflow-x: auto;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
+  border-radius: var(--vt-radius-card);
 }
 
 .cx-table {
+  /*
+   * 必须显式声明：VitePress 的 .vp-doc table 默认是 display:block（为了让宽表格
+   * 横向滚动），落到这里会让 width:100% 失效、列宽塌成内容宽度。
+   * 本组件的横向滚动由外层容器负责，表格自己保持正常的 table 布局。
+   */
+  display: table;
   width: 100%;
   min-width: 640px;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+/*
+ * VitePress 的 .vp-doc 表格默认给每个单元格描四条边、给表头填底色、给偶数行加斑马纹。
+ * 本组件只要横向分隔线，先在这里把继承来的这些都清掉，再单独声明需要的那条。
+ * tbody tr 这一层不能省：斑马纹是画在行上的，单元格透明只会让它透出来。
+ */
+.cx-table tbody tr,
+.cx-table :is(th, td) {
+  border: 0;
+  background: transparent;
 }
 
 .cx-table th {

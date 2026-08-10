@@ -58,7 +58,8 @@ const METRICS: Metric[] = [
 }
 
 .metrics-inner {
-  max-width: 1152px;
+  /* 与 hero / features / 复杂度表 / 跑分面板共用同一条宽度基线，见 styles/vars.css */
+  max-width: var(--vt-home-width);
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -68,7 +69,7 @@ const METRICS: Metric[] = [
 .metric {
   padding: 20px 22px;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
+  border-radius: var(--vt-radius-card);
   background: var(--vp-c-bg-soft);
   transition: border-color 0.25s, transform 0.25s;
 }

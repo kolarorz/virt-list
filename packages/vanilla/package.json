@@ -11,7 +11,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./src/tree/tree.css": "./src/tree/tree.css"
+    "./src/tree/tree.css": "./src/tree/tree.css",
+    "./scrollbar.css": "./src/scrollbar/scrollbar.css"
   },
   "files": [
     "dist",

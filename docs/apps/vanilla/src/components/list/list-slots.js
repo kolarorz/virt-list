@@ -18,9 +18,15 @@ function generateList(count) {
   });
 }
 
-function createSlotEl(text, style) {
+/** 四个插槽共用一套排版，只有色带和文案不同 */
+function createBand(variant, tag, text, note) {
   const el = document.createElement('div');
-  el.textContent = text;
+  el.className = `demo-band demo-band--${variant}`;
+  el.innerHTML = `
+    <span class="demo-band__tag">${tag}</span>
+    <span class="demo-band__text">${text}</span>
+    <span class="demo-band__note">${note}</span>
+  `;
   return el;
 }
 
@@ -45,18 +51,24 @@ export function bootstrapSlots(root) {
       itemKey: 'id',
       itemPreSize: 40,
       buffer: 2,
-      stickyHeaderStyle:
-        'display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); color: var(--demo-c-on-accent); font-weight: 600;',
-      renderStickyHeader: () => createSlotEl('Sticky Header (固定头部)'),
-      headerStyle:
-        'display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); color: var(--demo-c-on-accent); font-weight: 600;',
-      renderHeader: () => createSlotEl('Header (头部)'),
-      footerStyle:
-        'display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); color: var(--demo-c-on-accent); font-weight: 600;',
-      renderFooter: () => createSlotEl('Footer (尾部)'),
-      stickyFooterStyle:
-        'display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); color: var(--demo-c-on-accent); font-weight: 600;',
-      renderStickyFooter: () => createSlotEl('Sticky Footer (固定底部)'),
+      renderStickyHeader: () =>
+        createBand(
+          'sticky-header',
+          'stickyHeader',
+          '固定头部',
+          '吸在容器顶部，不随内容滚动',
+        ),
+      renderHeader: () =>
+        createBand('header', 'header', '头部', '排在第一项之前，随内容一起滚动'),
+      renderFooter: () =>
+        createBand('footer', 'footer', '尾部', '排在最后一项之后，随内容一起滚动'),
+      renderStickyFooter: () =>
+        createBand(
+          'sticky-footer',
+          'stickyFooter',
+          '固定底部',
+          '吸在容器底部，不随内容滚动',
+        ),
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item';

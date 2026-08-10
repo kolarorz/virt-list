@@ -95,30 +95,31 @@ function mount(
   return { container, vl, clientEl, renderItem };
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
-/** listEl 里按 DOM 顺序排列的项 key（virtualEl 没有 data-id，自然被排除） */
+/** itemsEl 里按 DOM 顺序排列的项 key */
 function renderedKeys(vl: VirtList<Item>): string[] {
-  return Array.from(vl.listEl.children)
+  return Array.from(vl.itemsEl.children)
     .map((el) => (el as HTMLElement).dataset.id)
     .filter((id): id is string => Boolean(id));
 }
 
 describe('VirtList DOM 结构', () => {
-  it('构建 client → list → virtual 的基本骨架', () => {
+  it('构建 client → scrollContent → list → items 的基本骨架', () => {
     const { container, vl } = mount();
 
     const clientEl = container.querySelector('[data-id="client"]') as HTMLElement;
     expect(clientEl).toBe(vl.clientEl);
     expect(clientEl.className).toBe('virt-list__client');
-    expect(clientEl.getAttribute('style')).toContain('overflow:auto');
+    // 滚动位置归 JS 掌管，容器自己不滚
+    expect(clientEl.getAttribute('style')).toContain('overflow:hidden');
 
-    // listEl 是 clientEl 的子节点，virtualEl 是 listEl 的第一个子节点
-    expect(vl.listEl.parentElement).toBe(clientEl);
-    expect(vl.listEl.firstElementChild).toBeTruthy();
+    // 内容流挂在位移层下，列表项挂在 itemsEl 下
+    expect(vl.scrollContentEl.parentElement).toBe(clientEl);
+    expect(vl.listEl.parentElement).toBe(vl.scrollContentEl);
+    expect(vl.itemsEl.parentElement).toBe(vl.listEl);
   });
 
   it('插槽按 stickyHeader → header → list → footer → stickyFooter 排列', () => {
@@ -137,16 +138,17 @@ describe('VirtList DOM 结构', () => {
       },
     });
 
-    const ids = Array.from(vl.clientEl.children).map(
+    // 参与滚动的三段按序挂在这一层里，各自绝对定位、各自带残差 transform
+    const flow = Array.from(vl.scrollContentEl.children).map(
       (el) => (el as HTMLElement).dataset.id ?? 'list',
     );
-    expect(ids).toEqual([
-      'stickyHeader',
-      'header',
-      'list',
-      'footer',
-      'stickyFooter',
-    ]);
+    expect(flow).toEqual(['header', 'list', 'footer']);
+
+    // 吸顶 / 吸底是视口的直接子节点，不随内容位移
+    const pinned = Array.from(vl.clientEl.children)
+      .map((el) => (el as HTMLElement).dataset.id)
+      .filter(Boolean);
+    expect(pinned).toEqual(['stickyHeader', 'stickyFooter']);
   });
 
   it('插槽渲染函数返回元素时自动挂载', () => {
@@ -175,7 +177,9 @@ describe('VirtList DOM 结构', () => {
     const sf = vl.clientEl.querySelector('[data-id="stickyFooter"]') as HTMLElement;
 
     expect(sh.className).toBe('my-sticky-header');
-    expect(sh.getAttribute('style')).toContain('position: sticky');
+    // position:sticky 的粘附由原生滚动驱动，overflow:hidden 下永不触发，
+    // 所以改成相对视口的绝对定位
+    expect(sh.getAttribute('style')).toContain('position: absolute');
     expect(sh.getAttribute('style')).toContain('top: 0');
     expect(sh.getAttribute('style')).toContain('background:red;');
     expect(sf.className).toBe('my-sticky-footer');
@@ -210,9 +214,13 @@ describe('VirtList DOM 结构', () => {
     const footer = vl.clientEl.querySelector('[data-id="footer"]') as HTMLElement;
 
     expect(header.className).toBe('my-header');
-    expect(header.getAttribute('style')).toBe('min-height:20px;');
+    // 各段是绝对定位 + 残差 transform，自定义 style 合并在后面
+    expect(header.style.position).toBe('absolute');
+    expect(header.style.minHeight).toBe('20px');
     expect(footer.className).toBe('my-footer');
-    expect(footer.getAttribute('style')).toBe('color:red;');
+    expect(footer.style.color).toBe('red');
+    // footer 的文档位置在整段列表之后
+    expect(footer.style.transform).toContain('2000px');
   });
 
   it('listClass / listStyle 作用在列表容器上', () => {
@@ -242,40 +250,47 @@ describe('VirtList DOM 结构', () => {
 });
 
 describe('VirtList 尺寸样式', () => {
-  it('listEl 的 min-height 跟随 listTotalSize', () => {
+  /**
+   * 关键性质：**没有任何元素的几何尺寸随列表长度增长**。
+   *
+   * 滚动空间不需要实体高度来撑开，所有位移都用 transform 表达——这也正是
+   * 浏览器元素高度上限（Chrome 实测 33,554,428px）不再是长列表天花板的原因。
+   */
+  it('listEl 高度恒为 0，不随 listTotalSize 增长', () => {
     const { vl } = mount();
 
-    expect(vl.listEl.getAttribute('style')).toContain('min-height: 2000px');
-    expect(vl.listEl.getAttribute('style')).toContain('will-change: height');
+    expect(vl.state.listTotalSize).toBe(2000);
+    expect(vl.listEl.getAttribute('style')).toContain('height: 0');
+    expect(vl.listEl.getAttribute('style')).not.toContain('min-height');
   });
 
-  it('virtualEl 的高度跟随 virtualSize（把渲染项推到正确位置）', () => {
-    const { vl, clientEl } = mount();
-    const virtualEl = vl.listEl.firstElementChild as HTMLElement;
+  it('itemsEl 的位移是「渲染块文档位置 - offset」的残差', () => {
+    const { vl } = mount();
 
-    expect(virtualEl.getAttribute('style')).toContain('height: 0px');
+    expect(vl.itemsEl.style.transform).toBe('translate3d(0, 0px, 0)');
 
-    scrollTo(clientEl, 400);
+    scrollTo(vl, 400);
 
+    // 渲染块正好从第 10 项起（400/40），所以残差为 0——
+    // 关键是它**不再**是 virtualSize（400）那个会随列表长度无限增长的值
     expect(vl.state.virtualSize).toBe(400);
-    expect(virtualEl.getAttribute('style')).toContain('height: 400px');
+    expect(vl.itemsEl.style.transform).toBe('translate3d(0, 0px, 0)');
   });
 
-  it('horizontal 模式改用 min-width / width 与 flex 布局', () => {
+  it('horizontal 模式沿 X 轴位移并用 flex 布局', () => {
     const { vl } = mount({ horizontal: true });
-    const virtualEl = vl.listEl.firstElementChild as HTMLElement;
 
-    expect(vl.listEl.getAttribute('style')).toContain('min-width: 2000px');
-    expect(vl.listEl.getAttribute('style')).toContain('display: flex');
-    expect(virtualEl.getAttribute('style')).toContain('width: 0px');
+    expect(vl.listEl.getAttribute('style')).toContain('width: 0');
+    expect(vl.itemsEl.getAttribute('style')).toContain('display: flex');
   });
 
-  it('实测尺寸回填后 min-height 同步变大', () => {
+  it('实测尺寸回填只改账本，不改任何元素的几何高度', () => {
     const { vl } = mount();
 
     flushResize([sizeEntry('0', 100)]);
 
-    expect(vl.listEl.getAttribute('style')).toContain('min-height: 2060px');
+    expect(vl.state.listTotalSize).toBe(2060);
+    expect(vl.listEl.getAttribute('style')).toContain('height: 0');
   });
 });
 
@@ -296,11 +311,11 @@ describe('VirtList 列表项增量 patch', () => {
   });
 
   it('滚动后只为新进入的项调用 renderItem，已有项复用 DOM', () => {
-    const { vl, clientEl, renderItem } = mount();
+    const { vl, renderItem } = mount();
     const reusedEl = vl.listEl.querySelector('[data-id="3"]');
     renderItem.mockClear();
 
-    scrollTo(clientEl, 40);
+    scrollTo(vl, 40);
 
     // 1..7：只有 7 是新的
     expect(renderedKeys(vl)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
@@ -310,10 +325,10 @@ describe('VirtList 列表项增量 patch', () => {
   });
 
   it('离开渲染区间的项被移除并取消观察', () => {
-    const { vl, clientEl } = mount();
+    const { vl } = mount();
     const leaving = vl.listEl.querySelector('[data-id="0"]')!;
 
-    scrollTo(clientEl, 200);
+    scrollTo(vl, 200);
 
     expect(vl.listEl.querySelector('[data-id="0"]')).toBeNull();
     expect(leaving.parentElement).toBeNull();
@@ -321,13 +336,13 @@ describe('VirtList 列表项增量 patch', () => {
   });
 
   it('向上滚动时新项插到正确位置（DOM 顺序与数据顺序一致）', () => {
-    const { vl, clientEl } = mount();
-    scrollTo(clientEl, 800);
+    const { vl } = mount();
+    scrollTo(vl, 800);
     expect(renderedKeys(vl)).toEqual([
       '20', '21', '22', '23', '24', '25', '26',
     ]);
 
-    scrollTo(clientEl, 720);
+    scrollTo(vl, 720);
 
     expect(renderedKeys(vl)).toEqual([
       '18', '19', '20', '21', '22', '23', '24',
@@ -335,11 +350,11 @@ describe('VirtList 列表项增量 patch', () => {
   });
 
   it('virtualEl 始终排在所有列表项之前', () => {
-    const { vl, clientEl } = mount();
+    const { vl } = mount();
     const virtualEl = vl.listEl.firstElementChild;
 
-    scrollTo(clientEl, 800);
-    scrollTo(clientEl, 400);
+    scrollTo(vl, 800);
+    scrollTo(vl, 400);
 
     expect(vl.listEl.firstElementChild).toBe(virtualEl);
   });
@@ -367,10 +382,10 @@ describe('VirtList 列表项增量 patch', () => {
   });
 
   it('renderItem 收到的索引是列表中的真实下标', () => {
-    const { clientEl, renderItem } = mount();
+    const { vl, renderItem } = mount();
     renderItem.mockClear();
 
-    scrollTo(clientEl, 400);
+    scrollTo(vl, 400);
 
     const indexes = renderItem.mock.calls.map((c) => c[1]);
     const items = renderItem.mock.calls.map((c) => c[0].id);
@@ -412,13 +427,13 @@ describe('VirtList 列表项增量 patch', () => {
   it('onItemMounted / onItemUnmounted 在项进出时回调', () => {
     const onItemMounted = vi.fn();
     const onItemUnmounted = vi.fn();
-    const { vl, clientEl } = mount({ onItemMounted, onItemUnmounted });
+    const { vl } = mount({ onItemMounted, onItemUnmounted });
 
     expect(onItemMounted).toHaveBeenCalledTimes(7);
     onItemMounted.mockClear();
 
     const leaving = vl.listEl.querySelector('[data-id="0"]');
-    scrollTo(clientEl, 200);
+    scrollTo(vl, 200);
 
     expect(onItemMounted.mock.calls.length).toBeGreaterThan(0);
     expect(onItemUnmounted).toHaveBeenCalledWith(leaving);
@@ -436,7 +451,8 @@ describe('VirtList 空状态', () => {
       [],
     );
 
-    expect(vl.listEl.textContent).toBe('no data');
+    // 空状态挂在视口容器上：listEl 高度恒为 0，撑不起 height:100%
+    expect(vl.clientEl.textContent).toBe('no data');
     expect(renderedKeys(vl)).toEqual([]);
   });
 
@@ -452,7 +468,7 @@ describe('VirtList 空状态', () => {
       [],
     );
 
-    expect(vl.listEl.querySelector('p')!.textContent).toBe('empty');
+    expect(vl.clientEl.querySelector('p')!.textContent).toBe('empty');
   });
 
   it('数据回来后空状态被移除', () => {
@@ -482,14 +498,14 @@ describe('VirtList 空状态', () => {
     vl.setList([]);
 
     expect(renderedKeys(vl)).toEqual([]);
-    expect(vl.listEl.textContent).toBe('no data');
+    expect(vl.clientEl.textContent).toBe('no data');
   });
 
   it('未提供 renderEmpty 时空列表只是没有内容，不报错', () => {
     const { vl } = mount({}, []);
 
     expect(renderedKeys(vl)).toEqual([]);
-    expect(vl.listEl.children.length).toBe(1); // 只剩 virtualEl
+    expect(vl.itemsEl.children.length).toBe(0); // 项全部移除
   });
 });
 
@@ -536,8 +552,8 @@ describe('VirtList 数据与缓存池维护', () => {
   });
 
   it('reset 清零状态', () => {
-    const { vl, clientEl } = mount();
-    scrollTo(clientEl, 400);
+    const { vl } = mount();
+    scrollTo(vl, 400);
 
     vl.reset();
 
@@ -547,61 +563,58 @@ describe('VirtList 数据与缓存池维护', () => {
 
   it('addedList2Top / deletedList2Top 透传到 core 并修正偏移', () => {
     const list = makeList(50);
-    const { vl, clientEl } = mount({}, list);
-    scrollTo(clientEl, 400);
+    const { vl } = mount({}, list);
+    scrollTo(vl, 400);
 
     const added = [{ id: 'new-0', text: 'new-0' }];
     list.unshift(...added);
     vl.addedList2Top(added);
-    expect(clientEl.scrollTop).toBe(440);
-
-    // 浏览器写 scrollTop 后会异步派发 scroll，内部偏移随之同步
-    clientEl.dispatchEvent(new Event('scroll'));
+    expect(vl.core.getOffset()).toBe(440);
 
     const deleted = list.splice(0, 1);
     vl.deletedList2Top(deleted);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(vl.core.getOffset()).toBe(400);
   });
 });
 
 describe('VirtList 滚动 API 与事件透传', () => {
   it('scrollToIndex / scrollToOffset 走 core 的定位', () => {
-    const { vl, clientEl } = mount();
+    const { vl } = mount();
 
     vl.scrollToIndex(10);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(vl.core.getOffset()).toBe(400);
 
     vl.scrollToOffset(123);
-    expect(clientEl.scrollTop).toBe(123);
+    expect(vl.core.getOffset()).toBe(123);
   });
 
   it('scrollIntoView 对已可见项不滚动', () => {
-    const { vl, clientEl } = mount();
+    const { vl } = mount();
 
     vl.scrollIntoView(1);
 
-    expect(clientEl.scrollTop).toBe(0);
+    expect(vl.core.getOffset()).toBe(0);
   });
 
   it('scrollToTop / scrollToBottom 到达两端', () => {
     vi.useFakeTimers();
-    const { vl, clientEl } = mount();
+    const { vl } = mount();
 
     vl.scrollToBottom();
-    expect(clientEl.scrollTop).toBe(
+    expect(vl.core.getOffset()).toBe(
       vl.core.getTotalSize() - vl.core.slotSize.clientSize,
     );
 
     vl.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(vl.core.getOffset()).toBe(0);
   });
 
   it('外部事件被原样转发', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const events = {
-      scroll: vi.fn(),
+      offsetChange: vi.fn(),
       toTop: vi.fn(),
       toBottom: vi.fn(),
       itemResize: vi.fn(),
@@ -629,13 +642,13 @@ describe('VirtList 滚动 API 与事件透传', () => {
 
     expect(events.update).toHaveBeenCalled();
 
-    scrollTo(vl.clientEl, 400);
-    expect(events.scroll).toHaveBeenCalled();
+    scrollTo(vl, 400);
+    expect(events.offsetChange).toHaveBeenCalledWith(400);
 
-    scrollTo(vl.clientEl, 1800);
+    scrollTo(vl, 1800);
     expect(events.toBottom).toHaveBeenCalledWith(list[49]);
 
-    scrollTo(vl.clientEl, 0);
+    scrollTo(vl, 0);
     expect(events.toTop).toHaveBeenCalledWith(list[0]);
 
     flushResize([sizeEntry('0', 88)]);
@@ -653,7 +666,7 @@ describe('VirtList destroy', () => {
       renderStickyHeader: () => {},
       renderStickyFooter: () => {},
     });
-    const items = Array.from(vl.listEl.querySelectorAll('[data-id]'));
+    const items = Array.from(vl.itemsEl.querySelectorAll('[data-id]'));
 
     vl.destroy();
 
@@ -663,10 +676,10 @@ describe('VirtList destroy', () => {
   });
 
   it('destroy 后滚动不再更新状态', () => {
-    const { vl, clientEl } = mount();
+    const { vl } = mount();
     vl.destroy();
 
-    scrollTo(clientEl, 400);
+    scrollTo(vl, 400);
 
     expect(vl.state.inViewBegin).toBe(0);
   });

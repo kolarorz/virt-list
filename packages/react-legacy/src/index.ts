@@ -6,6 +6,8 @@ export { VirtGrid } from './VirtGrid';
 export type { VirtGridProps, VirtGridRef } from './VirtGrid';
 export type {
   VirtScrollOptions,
+  VirtScrollEvent,
+  VirtScrollSource,
   LoadState,
   LoadDirection,
 } from '@virt-list/core';

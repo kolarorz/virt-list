@@ -20,7 +20,7 @@
 
 ## 事件
 
-- 同 VirtList 事件即可（`onScroll` / `onToTop` / `onToBottom` / `onItemResize` / `onUpdate`）
+- 同 VirtList 事件即可（`onScroll` / `onOffsetChange` / `onToTop` / `onToBottom` / `onItemResize` / `onUpdate`）
 - `onUpdate` 签名：`(renderList: unknown[], state: ListState) => void`
 
 ## Ref 方法

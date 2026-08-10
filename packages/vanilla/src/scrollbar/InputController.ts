@@ -55,16 +55,28 @@ function isEditable(el: EventTarget | null): boolean {
 }
 
 /**
- * custom 模式下的输入接管。
+ * 输入接管。
  *
  * 容器是 `overflow: hidden`，浏览器不再提供任何滚动手段，滚轮 / 键盘 / 触摸
  * 都得自己实现。这是"完全接管"的主要成本，换来的是所有输入路径都经过 JS，
  * 内容位置与 DOM 永远在同一帧提交。
  */
+export interface InputControllerOptions {
+  /**
+   * 是否接管键盘（方向键 / PageUp-Down / Space / Home-End）。默认 `true`。
+   *
+   * 需要关掉的情形：宿主自己已经在**祖先**元素上处理这些键（表格的单元格键盘导航
+   * 就是这样）。事件冒泡时本控制器挂的监听在后代上、**先**触发，两边都响应的话
+   * 一次按键会既滚一段又移动一格。滚轮 / 触摸不受这个开关影响。
+   */
+  keyboard?: boolean;
+}
+
 export class InputController {
   private _el: HTMLElement;
   private _host: InputHost;
   private _horizontal: boolean;
+  private _keyboard: boolean;
   private _scheduler: FrameScheduler = createFrameScheduler();
 
   /** 本帧累计但尚未应用的位移 */
@@ -76,14 +88,22 @@ export class InputController {
   private _samples: { pos: number; time: number }[] = [];
   private _inertiaRafId: number | null = null;
 
-  constructor(el: HTMLElement, host: InputHost, horizontal: boolean) {
+  constructor(
+    el: HTMLElement,
+    host: InputHost,
+    horizontal: boolean,
+    options: InputControllerOptions = {},
+  ) {
     this._el = el;
     this._host = host;
     this._horizontal = horizontal;
+    this._keyboard = options.keyboard !== false;
 
     // passive: false —— 到不了边界时要 preventDefault，否则页面会跟着一起滚
     el.addEventListener('wheel', this._onWheel, { passive: false });
-    el.addEventListener('keydown', this._onKeyDown);
+    // 不接管键盘时干脆不挂监听：挂了再在回调里 return 也行，但那样宿主用
+    // getEventListeners 排查「谁吃了我的方向键」时会多一个假线索
+    if (this._keyboard) el.addEventListener('keydown', this._onKeyDown);
     el.addEventListener('touchstart', this._onTouchStart, { passive: false });
     el.addEventListener('touchmove', this._onTouchMove, { passive: false });
     el.addEventListener('touchend', this._onTouchEnd);
@@ -311,7 +331,8 @@ export class InputController {
     this._scheduler.cancel();
     const el = this._el;
     el.removeEventListener('wheel', this._onWheel);
-    el.removeEventListener('keydown', this._onKeyDown);
+    // 没挂过也可以安全 remove，但保持与挂载条件对称，读起来不用回头确认
+    if (this._keyboard) el.removeEventListener('keydown', this._onKeyDown);
     el.removeEventListener('touchstart', this._onTouchStart);
     el.removeEventListener('touchmove', this._onTouchMove);
     el.removeEventListener('touchend', this._onTouchEnd);

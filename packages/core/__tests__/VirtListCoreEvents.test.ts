@@ -26,16 +26,15 @@ function makeScrollEl(initial = 0) {
   return el;
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+function scrollTo(core: VirtListCore<any>, offset: number) {
+  core.scrollFromUser(offset);
 }
 
 /** 50 项 × 40px = 2000，视口 200 → 可滚动到 1800 */
 function setup(list = makeList(50), extra: Record<string, unknown> = {}) {
   const el = makeScrollEl();
   const events = {
-    scroll: vi.fn(),
+    offsetChange: vi.fn(),
     toTop: vi.fn(),
     toBottom: vi.fn(),
     update: vi.fn(),
@@ -51,28 +50,49 @@ afterEach(() => {
 });
 
 describe('滚动事件与区间推进', () => {
-  describe('scroll 事件转发', () => {
-    it('每次滚动都把原始事件交给上层', () => {
-      const { el, events } = setup();
+  describe('offsetChange：同帧提交的落点', () => {
+    /*
+     * 容器是 overflow:hidden，浏览器既不会自己滚也不会派发 scroll 事件。
+     * offsetChange 是「内容与偏移量同帧提交」的落点，带的是裸偏移量；
+     * 想拿方向 / 边界 / 来源用 scroll 事件（见 VirtListCoreScrollEvent.test.ts）。
+     * 这里锁住原生 scroll 事件已经彻底不参与了。
+     */
+    it('每次偏移变化都带着新偏移量通知上层', () => {
+      const { core, events } = setup();
+      events.offsetChange.mockClear();
 
-      scrollTo(el, 100);
+      scrollTo(core, 400);
 
-      expect(events.scroll).toHaveBeenCalledTimes(1);
-      expect(events.scroll.mock.calls[0]![0]).toBeInstanceOf(Event);
+      expect(events.offsetChange).toHaveBeenCalledTimes(1);
+      expect(events.offsetChange.mock.calls[0]![0]).toBe(400);
     });
 
-    it('偏移没变的滚动事件仍转发，但不重算区间', () => {
-      const { el, core, events } = setup();
-      scrollTo(el, 400);
+    it('偏移没变时不重复通知，也不重算区间', () => {
+      const { core, events } = setup();
+      scrollTo(core, 400);
       const stateAfterFirst = { ...core.getState() };
+      events.offsetChange.mockClear();
       events.update.mockClear();
 
-      // 同一偏移再派发一次（浏览器在惯性滚动收尾时会这样）
-      el.dispatchEvent(new Event('scroll'));
+      scrollTo(core, 400);
 
-      expect(events.scroll).toHaveBeenCalledTimes(2);
+      expect(events.offsetChange).not.toHaveBeenCalled();
       expect(events.update).not.toHaveBeenCalled();
       expect(core.getState()).toEqual(stateAfterFirst);
+    });
+
+    it('容器上的原生 scroll 事件不再引起任何反应', () => {
+      const { el, core, events } = setup();
+      scrollTo(core, 400);
+      const stateBefore = { ...core.getState() };
+      events.offsetChange.mockClear();
+      events.update.mockClear();
+
+      el.dispatchEvent(new Event('scroll'));
+
+      expect(events.offsetChange).not.toHaveBeenCalled();
+      expect(events.update).not.toHaveBeenCalled();
+      expect(core.getState()).toEqual(stateBefore);
     });
   });
 
@@ -80,7 +100,7 @@ describe('滚动事件与区间推进', () => {
     it('向下滚动时 inViewBegin 前进', () => {
       const { el, core } = setup();
 
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
       expect(core.getState().inViewBegin).toBe(10);
       expect(core.renderList[0]!.id).toBe('10');
@@ -88,9 +108,9 @@ describe('滚动事件与区间推进', () => {
 
     it('向上滚动时 inViewBegin 回退', () => {
       const { el, core } = setup();
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
-      scrollTo(el, 120);
+      scrollTo(core, 120);
 
       expect(core.getState().inViewBegin).toBe(3);
       expect(core.renderList[0]!.id).toBe('3');
@@ -100,16 +120,16 @@ describe('滚动事件与区间推进', () => {
       const { el, core } = setup();
 
       // 第 10 项覆盖 [400, 440)
-      scrollTo(el, 430);
+      scrollTo(core, 430);
 
       expect(core.getState().inViewBegin).toBe(10);
     });
 
     it('偏移回到 0 时区间归零', () => {
       const { el, core } = setup();
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
-      scrollTo(el, 0);
+      scrollTo(core, 0);
 
       expect(core.getState().inViewBegin).toBe(0);
     });
@@ -117,7 +137,7 @@ describe('滚动事件与区间推进', () => {
     it('一次大跨度跳跃也能定位到正确项', () => {
       const { el, core } = setup();
 
-      scrollTo(el, 1600);
+      scrollTo(core, 1600);
 
       expect(core.getState().inViewBegin).toBe(40);
     });
@@ -127,7 +147,7 @@ describe('滚动事件与区间推进', () => {
       core.slotSize.headerSize = 100;
 
       // 前 100px 是 header，列表内容从 100 开始
-      scrollTo(el, 100 + 400);
+      scrollTo(core, 100 + 400);
 
       expect(core.getState().inViewBegin).toBe(10);
     });
@@ -138,7 +158,7 @@ describe('滚动事件与区间推进', () => {
       for (let i = 0; i < 5; i += 1) core.setItemSize(String(i), 100);
       core.forceUpdate();
 
-      scrollTo(el, 500);
+      scrollTo(core, 500);
 
       expect(core.getState().inViewBegin).toBe(5);
     });
@@ -147,65 +167,65 @@ describe('滚动事件与区间推进', () => {
   describe('toTop / toBottom', () => {
     it('滚到底部触发 toBottom，参数是最后一项', () => {
       const list = makeList(50);
-      const { el, events } = setup(list);
+      const { el, events, core } = setup(list);
 
-      scrollTo(el, 1800);
+      scrollTo(core, 1800);
 
       expect(events.toBottom).toHaveBeenCalledTimes(1);
       expect(events.toBottom.mock.calls[0]![0]).toBe(list[49]);
     });
 
     it('距底部还远时不触发', () => {
-      const { el, events } = setup();
+      const { el, events, core } = setup();
 
-      scrollTo(el, 1000);
+      scrollTo(core, 1000);
 
       expect(events.toBottom).not.toHaveBeenCalled();
     });
 
     it('默认阈值下差 1px 也算到底（threshold 最小为 2）', () => {
-      const { el, events } = setup();
+      const { el, events, core } = setup();
 
-      scrollTo(el, 1799);
+      scrollTo(core, 1799);
 
       expect(events.toBottom).toHaveBeenCalledTimes(1);
     });
 
     it('scrollDistance 放宽触发距离', () => {
-      const { el, events } = setup(makeList(50), { scrollDistance: 200 });
+      const { el, events, core } = setup(makeList(50), { scrollDistance: 200 });
 
       // 距底 200，默认阈值不会触发，scrollDistance=200 则触发
-      scrollTo(el, 1600);
+      scrollTo(core, 1600);
 
       expect(events.toBottom).toHaveBeenCalledTimes(1);
     });
 
     it('向上滚到顶部触发 toTop，参数是第一项', () => {
       const list = makeList(50);
-      const { el, events } = setup(list);
-      scrollTo(el, 400);
+      const { el, events, core } = setup(list);
+      scrollTo(core, 400);
 
-      scrollTo(el, 1);
+      scrollTo(core, 1);
 
       expect(events.toTop).toHaveBeenCalledTimes(1);
       expect(events.toTop.mock.calls[0]![0]).toBe(list[0]);
     });
 
     it('向上滚但离顶还远时不触发 toTop', () => {
-      const { el, events } = setup();
-      scrollTo(el, 1000);
+      const { el, events, core } = setup();
+      scrollTo(core, 1000);
 
-      scrollTo(el, 600);
+      scrollTo(core, 600);
 
       expect(events.toTop).not.toHaveBeenCalled();
     });
 
     it('向上滚动不会误触发 toBottom', () => {
-      const { el, events } = setup();
-      scrollTo(el, 1800);
+      const { el, events, core } = setup();
+      scrollTo(core, 1800);
       events.toBottom.mockClear();
 
-      scrollTo(el, 1700);
+      scrollTo(core, 1700);
 
       expect(events.toBottom).not.toHaveBeenCalled();
     });
@@ -215,11 +235,11 @@ describe('滚动事件与区间推进', () => {
       core.slotSize.footerSize = 300;
 
       // 不含 footer 时 1800 就是底部，含 footer 后还差 300
-      scrollTo(el, 1800);
+      scrollTo(core, 1800);
 
       expect(events.toBottom).not.toHaveBeenCalled();
 
-      scrollTo(el, 2100);
+      scrollTo(core, 2100);
       expect(events.toBottom).toHaveBeenCalledTimes(1);
     });
   });
@@ -228,7 +248,7 @@ describe('滚动事件与区间推进', () => {
     it('空列表滚动不抛错，状态保持归零', () => {
       const { el, core } = setup([]);
 
-      expect(() => scrollTo(el, 100)).not.toThrow();
+      expect(() => scrollTo(core, 100)).not.toThrow();
       expect(core.getState().listTotalSize).toBe(0);
       expect(core.renderList).toEqual([]);
     });
@@ -244,7 +264,7 @@ describe('滚动事件与区间推进', () => {
 
     it('列表被清空时走 reset 路径', () => {
       const { el, core } = setup();
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
       core.updateOptions({ list: [] });
 
@@ -256,14 +276,15 @@ describe('滚动事件与区间推进', () => {
   });
 
   describe('destroy 之后', () => {
-    it('不再响应容器的滚动事件', () => {
-      const { el, core, events } = setup();
+    it('不再接受滚动写入', () => {
+      const { core, events } = setup();
       core.destroy();
-      events.scroll.mockClear();
+      events.offsetChange.mockClear();
 
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
-      expect(events.scroll).not.toHaveBeenCalled();
+      expect(events.offsetChange).not.toHaveBeenCalled();
+      expect(core.getOffset()).toBe(0);
       expect(core.getState().inViewBegin).toBe(0);
     });
 
@@ -273,5 +294,44 @@ describe('滚动事件与区间推进', () => {
 
       expect(() => core.destroy()).not.toThrow();
     });
+  });
+});
+
+/**
+ * 头部增删对偏移量的补偿。
+ *
+ * 这两个方法「读当前偏移 → 加减尺寸 → 写回」，所以每一次写入之后内部的位置状态
+ * 必须立刻跟着走。靠原生滚动时不需要操心：写 scrollTop 会让浏览器异步派发一次
+ * scroll 事件，顺手把内部状态对齐了。偏移量归 JS 之后没有这一步，漏了同步就会
+ * 让下一次调用从旧值上再算一遍——add 再 delete 应当回到原处，却会少掉一截。
+ */
+describe('addedList2Top / deletedList2Top 的偏移补偿', () => {
+  it('头部加一项再删掉，偏移量回到原处', () => {
+    const list = makeList(50);
+    const { core } = setup(list);
+    scrollTo(core, 400);
+
+    const added = [{ id: 'new-0', text: 'new-0' }];
+    list.unshift(...added);
+    core.addedList2Top(added);
+    expect(core.getOffset()).toBe(440);
+
+    const deleted = list.splice(0, 1);
+    core.deletedList2Top(deleted);
+    expect(core.getOffset()).toBe(400);
+  });
+
+  it('连续两次头部插入逐次累加，不会漏掉前一次', () => {
+    const list = makeList(50);
+    const { core } = setup(list);
+    scrollTo(core, 400);
+
+    for (const id of ['a', 'b']) {
+      const added = [{ id, text: id }];
+      list.unshift(...added);
+      core.addedList2Top(added);
+    }
+
+    expect(core.getOffset()).toBe(480);
   });
 });

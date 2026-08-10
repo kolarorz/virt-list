@@ -138,7 +138,8 @@
 
 | 事件名       | 说明               | 回调参数                                      |
 | ------------ | ------------------ | --------------------------------------------- |
-| scroll       | 滚动               | **`(e: Event)`**                              |
+| scroll       | 滚动               | **`(event: VirtScrollEvent)`**                |
+| offsetChange | 偏移量变化          | **`(offset: number)`**                        |
 | toTop        | 触顶               | **`(item: TreeNode)`**                        |
 | toBottom     | 触底               | **`(item: TreeNode)`**                        |
 | itemResize   | Item 尺寸变化      | **`(id: string, size: number)`**             |

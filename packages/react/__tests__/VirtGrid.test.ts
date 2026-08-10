@@ -213,16 +213,16 @@ describe('React VirtGrid', () => {
   });
 
   it('暴露滚动 API（扁平索引换算成行）', async () => {
-    const { gridRef, clientEl, root } = await mount({ list: makeList(120) });
+    const { gridRef, root } = await mount({ list: makeList(120) });
 
     gridRef.current!.scrollToIndex(15);
-    expect(clientEl.scrollTop).toBe(200);
+    expect(gridRef.current!.getOffset()).toBe(200);
 
     gridRef.current!.scrollToOffset(99);
-    expect(clientEl.scrollTop).toBe(99);
+    expect(gridRef.current!.getOffset()).toBe(99);
 
     gridRef.current!.scrollIntoView(60);
-    expect(clientEl.scrollTop).toBe(800);
+    expect(gridRef.current!.getOffset()).toBe(800);
 
     await unmount(root);
   });
@@ -243,35 +243,33 @@ describe('React VirtGrid', () => {
 
   it('smooth 滚动可被 cancelScroll 打断', async () => {
     vi.useFakeTimers();
-    const { gridRef, clientEl, root } = await mount({ list: makeList(120) });
+    const { gridRef, root } = await mount({ list: makeList(120) });
 
     gridRef.current!.scrollToIndex(90, { behavior: 'smooth', duration: 200 });
     vi.advanceTimersByTime(32);
     gridRef.current!.cancelScroll();
-    const stopped = clientEl.scrollTop;
+    const stopped = gridRef.current!.getOffset();
     vi.advanceTimersByTime(300);
 
-    expect(clientEl.scrollTop).toBe(stopped);
+    expect(gridRef.current!.getOffset()).toBe(stopped);
 
     vi.useRealTimers();
     await unmount(root);
   });
 
   it('事件回调被调用', async () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onToBottom = vi.fn();
     const onUpdate = vi.fn();
-    const { clientEl, root } = await mount({ onScroll, onToBottom, onUpdate });
+    const { root, gridRef } = await mount({ onOffsetChange, onToBottom, onUpdate });
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 100;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(onScroll).toHaveBeenCalled();
+    gridRef.current!.scrollFromUser(100);
+    expect(onOffsetChange).toHaveBeenCalled();
 
     // 10 行 × 40 = 400，视口 200
-    clientEl.scrollTop = 200;
-    clientEl.dispatchEvent(new Event('scroll'));
+    gridRef.current!.scrollFromUser(200);
     expect(onToBottom).toHaveBeenCalled();
 
     await unmount(root);

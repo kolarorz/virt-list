@@ -20,7 +20,7 @@
 
 ## 事件
 
-- 同 VirtList 事件即可（`scroll` / `toTop` / `toBottom` / `itemResize` / `update`）
+- 同 VirtList 事件即可（`scroll` / `offsetChange` / `toTop` / `toBottom` / `itemResize` / `update`）
 - `update` 签名：`(renderList: unknown[], state: ListState)`
 
 ## 暴露方法

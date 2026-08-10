@@ -39,7 +39,7 @@ import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
 import type { LoadDirection, LoadState } from '@virt-list/vue';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 const PAGE_MAX = 10;
 
 let uid = 0;

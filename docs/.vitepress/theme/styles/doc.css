@@ -1,0 +1,248 @@
+/**
+ * 正文排版
+ *
+ * 这些选择器命中的是 VitePress 的非 scoped 样式表（styles/components/vp-doc.css 等），
+ * 本文件在主题 index.ts 里后引入，同特异性即可覆盖，不需要 html:root 前缀。
+ */
+
+/* ===== 两级宽度 =====
+ * 正文列（--vt-doc-width，880px）是按「本站最宽的内容」定的：API 页面全是
+ * 五列中文表格，688px 下每格都要折两三行。但同样的宽度放文字就太长了——
+ * 16px 中文在 880px 里一行能排 55 个字，远超舒适区间（35~45 字）。
+ *
+ * 所以宽度分两级：文字收在 --vt-prose-width，表格 / 代码块 / 示例保持整列宽。
+ * 左边界始终对齐，只有右边界不齐，读起来是「正文 + 附图」的层次而不是错版。
+ * 标题不收窄：h2 的上边框是分节线，让它跨满整列才能框住下面的宽内容。
+ *
+ * 结构是 .vp-doc > div(markdown 组件的根) > 块级元素，两层都写，
+ * 以免 VitePress 哪天去掉那层匿名 div 规则就整体失效。
+ */
+.vp-doc > :is(p, ul, ol, dl, blockquote, details, .custom-block),
+.vp-doc > div > :is(p, ul, ol, dl, blockquote, details, .custom-block) {
+  max-width: var(--vt-prose-width);
+}
+
+/* ===== 标题节奏 =====
+ * 中文没有词间空格，字距和行高比西文更吃紧：负字距会把笔画挤在一起，
+ * 所以只对含数字/英文的大标题做极轻的收紧，正文行高整体放松一档。
+ */
+.vp-doc h1 {
+  letter-spacing: -0.01em;
+}
+
+.vp-doc h2 {
+  margin: 56px 0 20px;
+  padding-top: 28px;
+  letter-spacing: -0.01em;
+}
+
+.vp-doc h3 {
+  margin: 40px 0 0;
+  letter-spacing: -0.005em;
+}
+
+/* 紧跟标题的第一段不需要再撑 16px，视觉上标题和它的第一句应该是一组 */
+.vp-doc h2 + p,
+.vp-doc h3 + p,
+.vp-doc h4 + p {
+  margin-top: 12px;
+}
+
+.vp-doc p {
+  line-height: 1.75;
+}
+
+.vp-doc li {
+  line-height: 1.75;
+}
+
+/* ===== 链接：下划线离基线远一点，中文的竖笔画才不会和线糊在一起 ===== */
+.vp-doc a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* ===== 表格 =====
+ * 这里是本站最需要收拾的一块：API 文档全是五列以上的中文表格。
+ *
+ * 1) 必须保留 VitePress 默认的 display:block + overflow-x:auto。
+ *    改成 display:table 会让 overflow 失效，宽表格只能靠压缩列宽求生。
+ * 2) th 必须 nowrap。表格自动布局会把列压到 min-content，而中文的
+ *    min-content 是「一个字」——「是否必须」会被排成四行竖排。nowrap 之后
+ *    表头撑出了列的下限，装不下时才转为横向滚动。
+ * 3) 外框做成圆角卡片，内部只留分隔线，比默认的满格网线清爽。
+ */
+/*
+ * 作用域必须限定在 markdown 生成的表格上：只写 `.vp-doc table` 会连首页
+ * 复杂度表、跑分面板这些自定义组件里的表格一起改掉（它们也在 .vp-doc 内），
+ * 结果是双层边框 + 多余的列分隔线，而 display:block 还会让它们的 width:100% 失效。
+ * markdown 的块级元素恰好是 .vp-doc 或其匿名包裹 div 的直接子元素，据此区分。
+ */
+.vp-doc > table,
+.vp-doc > div > table {
+  display: block;
+  margin: 24px 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--vt-radius-md);
+  border-collapse: collapse;
+  overflow-x: auto;
+  /* 滚动容器本身就是圆角裁剪的边界 */
+  overscroll-behavior-x: contain;
+}
+
+/* 默认的斑马纹配上分隔线会显得很花，改成 hover 反馈 —— 长表格里指哪读哪 */
+.vp-doc > table tr,
+.vp-doc > div > table tr,
+.vp-doc > table tr:nth-child(2n),
+.vp-doc > div > table tr:nth-child(2n) {
+  background-color: transparent;
+}
+
+.vp-doc > table tbody tr:hover,
+.vp-doc > div > table tbody tr:hover {
+  background-color: var(--vp-c-default-soft);
+}
+
+.vp-doc > table :is(th, td),
+.vp-doc > div > table :is(th, td) {
+  border: 0;
+  border-bottom: 1px solid var(--vp-c-divider);
+  padding: 11px 16px;
+  vertical-align: top;
+  /*
+   * 列宽下限。中文没有词的概念，min-content 就是「一个字」，表格自动布局
+   * 会毫不客气地把说明列压到一字一行（窄屏上尤其明显）。给每列兜一个下限，
+   * 装不下时整张表转为横向滚动，比原地压扁可读得多。
+   */
+  min-width: 6em;
+}
+
+.vp-doc > table :is(th + th, td + td),
+.vp-doc > div > table :is(th + th, td + td) {
+  border-left: 1px solid var(--vp-c-divider);
+}
+
+.vp-doc > table th,
+.vp-doc > div > table th {
+  white-space: nowrap;
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.vp-doc > table tbody tr:last-child > :is(th, td),
+.vp-doc > div > table tbody tr:last-child > :is(th, td) {
+  border-bottom: 0;
+}
+
+/*
+ * 表格里的类型签名动辄几十个字符，得允许折行，否则整列被它撑开。
+ * 但这里只能用 overflow-wrap，不能用 word-break/anywhere：后者会把
+ * min-content 宽度降到「一个字符」，表格自动布局据此分配列宽，
+ * 结果连 `9.22.6` 这种短内容都会被压成两行。
+ * overflow-wrap: break-word 不参与 min-content 计算，只在真的溢出时才断。
+ * 万一遇到不含空格的超长标识符，由表格自身的横向滚动兜底。
+ */
+.vp-doc > table :is(th, td) > code,
+.vp-doc > div > table :is(th, td) > code {
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* ===== 行内代码 =====
+ * 移动端最容易出事的地方：`Record<string, string | number | null>` 这种长签名
+ * 默认不会断行，直接顶出屏幕右侧被裁掉。
+ */
+.vp-doc :not(pre) > code {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--vt-radius-sm);
+  font-size: 0.86em;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  /* 折行后每一段都补齐圆角和左右内边距，否则断点处像是被裁掉了 */
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ===== 代码块 ===== */
+@media (min-width: 640px) {
+  .vp-doc div[class*='language-'] {
+    border-radius: var(--vt-radius-md);
+  }
+}
+
+.vp-doc div[class*='language-'] pre {
+  line-height: 1.7;
+}
+
+/* ===== 提示容器：左侧色条比纯底色更快分辨语气 ===== */
+.vp-doc .custom-block {
+  border-radius: var(--vt-radius-md);
+  border-left-width: 3px;
+  padding: 16px 18px 10px;
+}
+
+.vp-doc .custom-block .custom-block-title {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/*
+ * ===== md 里写死的 <font color="#f00"> =====
+ * 全站 20 个文件里有 42 处，用来标注「必须唯一!!!」这类强提示。
+ * 纯红在暗色底上既刺眼又不满足对比度，统一接到主题的危险色上。
+ * <font> 的 color 属性属于表现性提示，优先级低于任何 CSS 规则，不需要 !important。
+ */
+.vp-doc font[color='#f00'] {
+  color: var(--vp-c-danger-1);
+  font-weight: 600;
+}
+
+/* ===== 图片：文档里的截图统一圆角，避免直角硬边 ===== */
+.vp-doc img {
+  border-radius: var(--vt-radius-md);
+}
+
+/* ===== 上一篇/下一篇（VPDocFooter 是 scoped 组件，需要 html:root 提权） ===== */
+html:root .VPDocFooter {
+  margin-top: 56px;
+}
+
+html:root .VPDocFooter .pager-link {
+  border-radius: var(--vt-radius-card);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+html:root .VPDocFooter .pager-link:hover {
+  background-color: var(--vp-c-bg-soft);
+}
+
+/* ===== 移动端 ===== */
+@media (max-width: 639px) {
+  .vp-doc h1 {
+    font-size: 26px;
+    line-height: 34px;
+  }
+
+  .vp-doc h2 {
+    margin: 40px 0 16px;
+    padding-top: 22px;
+    font-size: 21px;
+  }
+
+  .vp-doc h3 {
+    margin: 28px 0 0;
+    font-size: 18px;
+  }
+
+  /* 窄屏下 16px 的单元格内边距太占地方，五列表格几乎全在滚动区外 */
+  .vp-doc > table :is(th, td),
+  .vp-doc > div > table :is(th, td) {
+    padding: 9px 12px;
+  }
+}
+

@@ -67,7 +67,6 @@ describe('React VirtList', () => {
 
     await act(async () => {
       listRef.current?.scrollToIndex(150);
-      clientEl.dispatchEvent(new Event('scroll'));
     });
 
     const renderedIds = getRenderedItemIds(container);
@@ -113,15 +112,13 @@ describe('React VirtList', () => {
     await act(async () => {
       listRef.current?.scrollToBottom();
       vi.runAllTimers();
-      clientEl.dispatchEvent(new Event('scroll'));
     });
 
     expect(getRenderedItemIds(container).length).toBeGreaterThan(0);
 
     await act(async () => {
       for (const offset of [120, 960, 1800, 2800, 3600]) {
-        clientEl.scrollTop = offset;
-        clientEl.dispatchEvent(new Event('scroll'));
+        listRef.current!.scrollFromUser(offset);
       }
     });
 
@@ -130,7 +127,6 @@ describe('React VirtList', () => {
     await act(async () => {
       listRef.current?.scrollToTop();
       vi.runAllTimers();
-      clientEl.dispatchEvent(new Event('scroll'));
     });
 
     expect(getRenderedItemIds(container).length).toBeGreaterThan(0);

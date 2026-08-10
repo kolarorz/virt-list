@@ -250,26 +250,26 @@ describe('React VirtList ref API', () => {
 
   it('暴露滚动 API', async () => {
     vi.useFakeTimers();
-    const { listRef, clientEl, root } = await mount();
+    const { listRef, root } = await mount();
     const api = listRef.current!;
 
     api.scrollToIndex(10);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(listRef.current!.getOffset()).toBe(400);
 
     api.scrollToOffset(66);
-    expect(clientEl.scrollTop).toBe(66);
+    expect(listRef.current!.getOffset()).toBe(66);
 
     api.scrollIntoView(0);
-    expect(clientEl.scrollTop).toBe(0);
+    expect(listRef.current!.getOffset()).toBe(0);
 
     api.scrollToBottom();
     // scrollToBottom 停在浏览器允许的可滚动上限（总高 - 可视高度），
     // 而不是把总高原样写进 scrollTop —— 后者在真实浏览器里会被裁掉
-    expect(clientEl.scrollTop).toBe(2000 - 200);
+    expect(listRef.current!.getOffset()).toBe(2000 - 200);
 
     api.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(listRef.current!.getOffset()).toBe(0);
 
     vi.useRealTimers();
     await unmount(root);
@@ -277,29 +277,28 @@ describe('React VirtList ref API', () => {
 
   it('smooth 滚动可被 cancelScroll 打断', async () => {
     vi.useFakeTimers();
-    const { listRef, clientEl, root } = await mount();
+    const { listRef, root } = await mount();
 
     listRef.current!.scrollToIndex(40, { behavior: 'smooth', duration: 200 });
     vi.advanceTimersByTime(32);
     listRef.current!.cancelScroll();
-    const stopped = clientEl.scrollTop;
+    const stopped = listRef.current!.getOffset();
     vi.advanceTimersByTime(300);
 
-    expect(clientEl.scrollTop).toBe(stopped);
+    expect(listRef.current!.getOffset()).toBe(stopped);
 
     vi.useRealTimers();
     await unmount(root);
   });
 
   it('暴露 manualRender / reset / deleteItemSize / forceUpdate / setList', async () => {
-    const { listRef, clientEl, root } = await mount();
+    const { listRef, root } = await mount();
     const api = listRef.current!;
 
     api.manualRender(5, 8);
     expect(api.getState().renderBegin).toBe(5);
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.current!.scrollFromUser(400);
     api.reset();
     expect(api.getState().inViewBegin).toBe(0);
 
@@ -316,21 +315,19 @@ describe('React VirtList ref API', () => {
 
   it('暴露头部增删修正', async () => {
     const list = makeList(50);
-    const { listRef, clientEl, root } = await mount({ list });
+    const { listRef, root } = await mount({ list });
     const api = listRef.current!;
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.current!.scrollFromUser(400);
 
     const added = [{ id: 'new-0', text: 'new-0' }];
     list.unshift(...added);
     api.addedList2Top(added);
-    expect(clientEl.scrollTop).toBe(440);
-    clientEl.dispatchEvent(new Event('scroll'));
+    expect(listRef.current!.getOffset()).toBe(440);
 
     const deleted = list.splice(0, 1);
     api.deletedList2Top(deleted);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(listRef.current!.getOffset()).toBe(400);
 
     await unmount(root);
   });
@@ -338,13 +335,13 @@ describe('React VirtList ref API', () => {
 
 describe('React VirtList 事件与卸载', () => {
   it('事件回调被调用', async () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onToTop = vi.fn();
     const onToBottom = vi.fn();
     const onUpdate = vi.fn();
     const onItemResize = vi.fn();
-    const { clientEl, root } = await mount({
-      onScroll,
+    const { root, listRef } = await mount({
+      onOffsetChange,
       onToTop,
       onToBottom,
       onUpdate,
@@ -353,16 +350,13 @@ describe('React VirtList 事件与卸载', () => {
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(onScroll).toHaveBeenCalled();
+    listRef.current!.scrollFromUser(400);
+    expect(onOffsetChange).toHaveBeenCalled();
 
-    clientEl.scrollTop = 1800;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.current!.scrollFromUser(1800);
     expect(onToBottom).toHaveBeenCalled();
 
-    clientEl.scrollTop = 0;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.current!.scrollFromUser(0);
     expect(onToTop).toHaveBeenCalled();
 
     flushResize('0', 90);
@@ -372,16 +366,17 @@ describe('React VirtList 事件与卸载', () => {
   });
 
   it('horizontal 模式走横向布局', async () => {
-    const { container, listRef, clientEl, root } = await mount({
+    const { container, listRef, root } = await mount({
       horizontal: true,
     });
 
-    const listEl = container.querySelector('[data-id="client"]')!
-      .children[0] as HTMLElement;
-    expect(listEl.getAttribute('style')).toContain('min-width');
+    // 横向也不再靠 min-width 撑开滚动空间：各段用 translate3d 的 X 分量定位
+    const itemsEl = container.querySelector('[data-id="client"]')!
+      .querySelector('[data-id]')!.parentElement as HTMLElement;
+    expect(itemsEl.style.transform).toContain('translate3d');
 
     listRef.current!.scrollToIndex(5);
-    expect(clientEl.scrollLeft).toBe(200);
+    expect(listRef.current!.getOffset()).toBe(200);
 
     await unmount(root);
   });

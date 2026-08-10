@@ -1,6 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
-const WIDTHS = [60, 80, 100, 110, 130];
+const WIDTHS = [76, 92, 108, 124, 148];
 
 function generateList(count) {
   return Array.from({ length: count }, (_, i) => ({
@@ -28,7 +28,7 @@ export function bootstrapHorizontal(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 60,
+      itemPreSize: 108,
       horizontal: true,
       buffer: 2,
       renderItem: (item) => {
@@ -37,8 +37,10 @@ export function bootstrapHorizontal(root) {
         col.style.minWidth = `${item.width}px`;
         col.style.width = `${item.width}px`;
         col.innerHTML = `
-          <div style="font-weight:bold;">${item.id}</div>
-          <div style="font-size:11px;color:var(--demo-c-text-3);">w:${item.width}</div>
+          <div class="demo-col-card">
+            <span class="demo-col-index">${item.id}</span>
+            <span class="demo-col-size">${item.width}px</span>
+          </div>
         `;
         return col;
       },

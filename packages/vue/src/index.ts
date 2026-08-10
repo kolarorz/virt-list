@@ -7,6 +7,8 @@ export type { CheckedInfo, TreeInfo } from '@virt-list/vanilla';
 export type {
   StyleValue,
   VirtScrollOptions,
+  VirtScrollEvent,
+  VirtScrollSource,
   LoadState,
   LoadDirection,
 } from '@virt-list/core';

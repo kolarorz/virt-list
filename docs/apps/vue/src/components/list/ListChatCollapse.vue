@@ -19,7 +19,7 @@
         sticky-bottom
         @load-state-change="onLoadStateChange"
         @update="onUpdate"
-        @scroll="onScroll"
+        @offset-change="onOffsetChange"
       >
         <template #header="{ loadState }">
           <div class="demo-loading-bar">
@@ -232,7 +232,7 @@ function onUpdate(_list: any[], state: any) {
 }
 
 /** 区间没变、只是位置错了的情况 update 不会触发，所以滚动时也要量 */
-function onScroll() {
+function onOffsetChange() {
   diagnostics.schedule(virtListRef.value?.getState());
 }
 

@@ -213,7 +213,7 @@ export default function ChatCollapse() {
             updateStats(state);
             diagnostics.schedule(state);
           }}
-          onScroll={() => diagnostics.schedule(virtListRef.current?.getState())}
+          onOffsetChange={() => diagnostics.schedule(virtListRef.current?.getState())}
           renderHeader={(loadState) => (
             <div className="demo-loading-bar">
               {loadState.loadingTop

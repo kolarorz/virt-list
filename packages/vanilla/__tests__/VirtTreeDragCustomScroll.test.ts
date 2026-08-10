@@ -1,16 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VirtTree } from '../src/tree/VirtTree';
-import { getScrollParentElement, isScrollElement } from '../src/tree/utils';
 import type { VirtTreeDOMOptions } from '../src/tree/types';
 
 /**
- * custom 模式下树拖拽的边缘自动滚动。
+ * 树拖拽到边缘时的自动滚动。
  *
- * 这里锁的是一个很容易漏掉的连带损伤：`getScrollParentElement` 靠
- * `scrollHeight > offsetHeight` 判断谁是滚动容器，而自绘模式已经没有撑开滚动空间的
- * 占位元素了，clientEl 匹配不上——不特判的话它会一路向上找到页面，
- * 拖到边缘时滚的就是整个文档，树自己纹丝不动。
+ * 这里锁的是一个很容易漏掉的连带损伤：滚动位置归 JS 掌管后就没有撑开滚动空间的
+ * 占位元素了，靠 `scrollHeight > offsetHeight` 找「可滚动祖先」的通用做法会越过
+ * 容器、一路找到页面——那样拖到边缘滚的就是整个文档，树自己纹丝不动。
+ * 所以自动滚动必须直接以列表为对象。
  */
 
 const ROW = 32;
@@ -138,19 +137,11 @@ function mouseMove(x: number, y: number) {
   );
 }
 
-describe('custom 模式下树拖拽的自动滚动', () => {
-  it('前提：自绘模式的容器不再被识别为滚动容器', () => {
-    const { clientEl } = mount({ scrollbar: 'custom' });
-    // 没有占位元素撑开高度，scrollHeight 不大于 offsetHeight
-    expect(isScrollElement(clientEl)).toBe(false);
-    // 于是通用查找会越过它——这正是必须特判的原因
-    expect(getScrollParentElement(clientEl)).not.toBe(clientEl);
-  });
+describe('树拖拽到边缘时的自动滚动', () => {
 
   it('拖到下边缘时滚动的是这棵树，而不是外层文档', () => {
     const { container, tree, clientEl } = mount({ scrollbar: 'custom' });
     const vl = (tree as any)._virtListDOM;
-    expect(vl.isCustomScrollbar).toBe(true);
     expect(vl.core.getOffset()).toBe(0);
 
     startDrag(container, '0');
@@ -161,7 +152,8 @@ describe('custom 模式下树拖拽的自动滚动', () => {
 
     expect(vl.core.getOffset()).toBeGreaterThan(0);
     // 容器自身的 scrollTop 必须一直是 0：偏移量归列表管，
-    // 写 scrollTop 在 overflow:hidden 且无内容高度的容器上是无效动作
+    // 写 scrollTop 在 overflow:hidden 且无内容高度的容器上是无效动作。
+    // 这里读的就是 clientEl 本身，不能替换成 getOffset()——两者语义相反
     expect(clientEl.scrollTop).toBe(0);
   });
 

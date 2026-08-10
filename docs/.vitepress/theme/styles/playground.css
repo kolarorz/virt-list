@@ -2,6 +2,12 @@
  * 示例宿主（PlaygroundHost）样式
  *
  * 全部基于 VitePress 主题变量（--vp-*），因此亮/暗模式自动跟随文档主题。
+ *
+ * 注意：这个文件里的规则只能作用在示例页上。早先这里有两条无作用域的覆盖
+ * （`.content-container { margin: 0 !important }` 和全局 `.vp-doc h1`），
+ * 前者把所有文档页的正文都顶到了左边、正文与右侧目录之间空出一百多像素，
+ * 后者让移动端标题也吃到桌面字号。宽度与标题现在分别由 layout.css / doc.css 统一管，
+ * 示例页专属的调整都收在下面的 :has(.playground-shell) 作用域里。
  */
 
 .playground-shell {
@@ -93,20 +99,18 @@
   font-size: 13px;
 }
 
-/* 示例页正文容器：去掉 VitePress 默认外边距，让示例贴合标题 */
-.content-container {
-  margin: 0 !important;
+/* ===== 示例页专属的排版 =====
+ * 示例页的结构固定是「标题 + 一句说明 + 演示」，说明句和演示应该看成一组，
+ * 所以标题下方的间距比普通文章页收紧，演示本身则贴着说明句。
+ */
+.vp-doc:has(.playground-shell) h1 {
+  margin-bottom: 8px;
 }
 
-/* 示例页标题：比正文 h1 更紧凑 */
-.vp-doc h1 {
-  position: relative;
-  margin-bottom: 12px;
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 40px;
-  letter-spacing: -0.02em;
-  outline: none;
+.vp-doc:has(.playground-shell) h1 + p {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--vp-c-text-2);
 }
 
 @media (prefers-reduced-motion: reduce) {

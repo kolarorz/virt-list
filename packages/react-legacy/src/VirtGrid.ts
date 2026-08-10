@@ -14,6 +14,7 @@ import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
 import type {
   ListState,
   StyleValue,
+  VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
 import { createReactMounter } from './compat';
@@ -28,6 +29,8 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   buffer?: number;
   scrollDuration?: number;
   smoothMaxDistance?: number;
+  scrollbarAutoHide?: number;
+  scrollbarMinThumbSize?: number;
   itemStyle?: StyleValue;
   children?: (props: { itemData: T; rowIndex: number; listIndex: number }) => ReactNode;
   renderItem?: (item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void;
@@ -38,7 +41,15 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   renderEmpty?: (el: HTMLElement) => HTMLElement | void;
   stickyHeaderStyle?: StyleValue;
 
-  onScroll?: (e: Event) => void;
+  /**
+   * 滚动了。容器 overflow:hidden，没有原生 scroll 事件，这是它的替代品。
+   *
+   * 与 React 的合成 `onScroll` 不冲突：本组件只把 style / className 交给根 div，
+   * 事件 props 一律不透传。
+   */
+  onScroll?: (event: VirtScrollEvent) => void;
+  /** 滚动偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 onScroll */
+  onOffsetChange?: (offset: number) => void;
   onToTop?: (item: unknown) => void;
   onToBottom?: (item: unknown) => void;
   onItemResize?: (id: string, size: number) => void;
@@ -56,6 +67,10 @@ export interface VirtGridRef {
   scrollToTop: (options?: VirtScrollOptions) => void;
   scrollToBottom: (options?: VirtScrollOptions) => void;
   scrollToOffset: (o: number, options?: VirtScrollOptions) => void;
+  /** 当前滚动偏移量。容器的 scrollTop 恒为 0（内容靠 transform 移动），必须走这里读 */
+  getOffset: () => number;
+  /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
+  scrollFromUser: (offset: number) => void;
   cancelScroll: () => void;
   forceUpdate: () => void;
 }
@@ -88,6 +103,8 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         buffer: props.buffer ?? 2,
         scrollDuration: props.scrollDuration,
         smoothMaxDistance: props.smoothMaxDistance,
+        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         itemStyle: props.itemStyle,
         renderItem: props.renderItem ?? ((item: any, rowIndex: number, listIndex: number, el: HTMLElement) => {
           if (eventsRef.current.children) {
@@ -107,6 +124,7 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
       },
       {
         scroll: (e) => eventsRef.current.onScroll?.(e),
+        offsetChange: (o) => eventsRef.current.onOffsetChange?.(o),
         toTop: (item) => eventsRef.current.onToTop?.(item),
         toBottom: (item) => eventsRef.current.onToBottom?.(item),
         itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
@@ -142,6 +160,8 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
     scrollToTop: (opts) => gridRef.current?.scrollToTop(opts),
     scrollToBottom: (opts) => gridRef.current?.scrollToBottom(opts),
     scrollToOffset: (o, opts) => gridRef.current?.scrollToOffset(o, opts),
+    getOffset: () => gridRef.current?.getOffset() ?? 0,
+    scrollFromUser: (o) => gridRef.current?.scrollFromUser(o),
     cancelScroll: () => gridRef.current?.cancelScroll(),
     forceUpdate: () => gridRef.current?.forceUpdate(),
   }));

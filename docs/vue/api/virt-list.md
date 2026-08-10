@@ -49,9 +49,8 @@
 | initialPosition    | 首屏定位。`'bottom'` 会在挂载后定位到底部，并随尺寸测量渐进校准（聊天室常用）<br />与 `start` / `offset` 同时给出时后两者优先 | `'top' \| 'bottom'`                                            | `'top'` | -                            |
 | stickyBottom       | 尾部追加时是否自动跟随到底部；仅在**原本就贴底**时跟随                                  | `Boolean`                                                                                   | `false` | -                            |
 | stickyThreshold    | 判定"贴底"的容差（px），缺省取 `scrollDistance`（至少 2px）                             | `Number`                                                                                    | `0`     | -                            |
-| scrollbar          | 滚动条实现方式，见下方 [自绘滚动条](#自绘滚动条)                                        | `'native' \| 'custom'`                                                                      | `'native'` | -                            |
-| scrollbarAutoHide  | 自绘滚动条停止滚动多久后淡出（ms），`0` 表示常驻；仅 `custom` 生效                      | `Number`                                                                                    | `1200`  | -                            |
-| scrollbarMinThumbSize | 自绘滑块的最小长度（px）；仅 `custom` 生效                                            | `Number`                                                                                    | `20`    | -                            |
+| scrollbarAutoHide  | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                      | `Number`                                                                                    | `1200`  | -                            |
+| scrollbarMinThumbSize | 滑块的最小长度（px）                                            | `Number`                                                                                    | `20`    | -                            |
 
 ## 插槽
 
@@ -66,11 +65,12 @@
 
 ## 事件
 
-Vue 3 推荐使用 **`emits`** 声明事件；模板中使用 **`@scroll`、`@toTop`** 等与下表名称对应。
+Vue 3 推荐使用 **`emits`** 声明事件；模板中使用 **`@scroll`、`@offset-change`、`@toTop`** 等与下表名称对应。
 
 | 事件名       | 说明               | 回调参数                                                        |
 | ------------ | ------------------ | --------------------------------------------------------------- |
-| scroll       | 滚动               | `(e: Event)`                                                    |
+| scroll       | 滚动。载荷是普通对象而不是 `Event`。字段见本页下方「滚动是怎么工作的」 | `(event: VirtScrollEvent)`                   |
+| offsetChange | 偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 `scroll` | `(offset: number)`                |
 | toTop        | 触顶               | `(firstItem: T)`                                                |
 | toBottom     | 触底               | `(lastItem: T)`                                                 |
 | itemResize   | Item 尺寸变化      | `(id: string, newSize: number)`                                 |

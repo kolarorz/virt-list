@@ -45,8 +45,11 @@
 }
 
 .demo-horizontal-container {
+  /* 卡片高度要跟着容器算，抽成变量让两处保持同步 */
+  --demo-horizontal-h: 152px;
+
   width: 100%;
-  height: 120px;
+  height: var(--demo-horizontal-h);
   overflow: hidden;
 }
 
@@ -438,20 +441,69 @@
   line-height: 1.6;
 }
 
-/* 横向列表 */
+/* -------------------------------------------------------------------
+ * 横向列表：外层 item 只留白，卡片本体在内层
+ *
+ * 卡片间距用 item 的左右 padding 而不是 margin：横向虚拟列表按 item 的
+ * borderBox 宽度记账，margin 不计入其中，会让偏移算少。
+ * 底部多留一段，避免悬浮的横向滚动条压在卡片上。
+ * ------------------------------------------------------------------- */
+
 .demo-col-item {
+  box-sizing: border-box;
+  height: var(--demo-horizontal-h, 152px);
+  padding: 16px 5px 26px;
+}
+
+.demo-col-card {
   display: flex;
   box-sizing: border-box;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 8px;
+  width: 100%;
   height: 100%;
-  padding: 8px;
-  border-right: 1px solid var(--demo-c-divider);
-  color: var(--demo-c-text-1);
-  font-size: var(--demo-fs-sm);
+  padding: 8px 6px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-fill-1);
   text-align: center;
+  transition:
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-col-item:hover .demo-col-card {
+  border-color: var(--demo-c-brand-1);
+  background-color: var(--demo-c-brand-soft);
+}
+
+/* 序号：等宽 + 定宽数字，滚动时不因字宽差异抖动 */
+.demo-col-index {
+  color: var(--demo-c-text-1);
+  font-family: var(--demo-font-mono);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+  transition: color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-col-item:hover .demo-col-index {
+  color: var(--demo-c-brand-text);
+}
+
+/* 这个示例的看点就是每项宽度不同，把宽度显式标出来 */
+.demo-col-size {
+  padding: 0 8px;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-fill-3);
+  color: var(--demo-c-text-2);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-xs);
+  line-height: 18px;
+  white-space: nowrap;
 }
 
 /* 动态高度：可编辑行 */
@@ -608,6 +660,101 @@
   font-size: var(--demo-fs-sm);
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* -------------------------------------------------------------------
+ * 插槽色带（ListSlots / ListFlatRender 示例）
+ *
+ * 四个插槽共用一套排版：等宽标签给出插槽名，后面跟中文名与一句说明。
+ * 配色刻意克制——插槽是列表的框，不该比内容更抢眼，所以不用满饱和度的实色：
+ * 两个 sticky 段做成中性的抬升工具条（描边 + 投影，正是它们的真实用途），
+ * 随内容滚动的 header / footer 用一层淡主色，和列表行区分开就够了。
+ *
+ * 这几个类通过 headerClass / stickyHeaderClass 等 props 挂到插槽容器上，
+ * 所以示例里不再有成片的行内样式。
+ * ------------------------------------------------------------------- */
+
+.demo-band {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 16px;
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* 吸顶 / 吸底：投影朝各自背对内容的一侧，读起来才像浮在内容之上 */
+.demo-band--sticky-header,
+.demo-band--sticky-footer {
+  height: 44px;
+  background-color: var(--demo-c-fill-1);
+}
+
+.demo-band--sticky-header {
+  border-bottom: 1px solid var(--demo-c-border);
+  box-shadow: 0 4px 12px -6px var(--demo-c-band-shadow);
+}
+
+.demo-band--sticky-footer {
+  border-top: 1px solid var(--demo-c-border);
+  box-shadow: 0 -4px 12px -6px var(--demo-c-band-shadow);
+}
+
+/* header / footer：随内容一起滚动，用淡主色和吸顶吸底区分开 */
+.demo-band--header,
+.demo-band--footer {
+  height: 40px;
+  background-color: var(--demo-c-brand-soft);
+  color: var(--demo-c-brand-text);
+}
+
+.demo-band--header {
+  border-bottom: 1px solid var(--demo-c-border);
+}
+
+.demo-band--footer {
+  border-top: 1px solid var(--demo-c-border);
+}
+
+/* 插槽名：等宽字 + 描边胶囊，和中文名拉开层次 */
+.demo-band__tag {
+  flex-shrink: 0;
+  padding: 0 8px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-bg-elv);
+  color: var(--demo-c-text-2);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-xs);
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.demo-band--header .demo-band__tag,
+.demo-band--footer .demo-band__tag {
+  border-color: var(--demo-c-brand-ring);
+  color: var(--demo-c-brand-text);
+}
+
+.demo-band__text {
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* 补充说明：次级文字，窄容器下先被省略号裁掉 */
+.demo-band__note {
+  min-width: 0;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===================================================================
@@ -776,6 +923,7 @@
   transform: rotate(180deg);
 }
 
+/* 「展示代码」展开后的源码区 */
 .demo-block__source {
   position: relative;
   margin-top: 8px;
@@ -870,6 +1018,8 @@ html.dark .demo-block__pre .shiki span,
 @media (prefers-reduced-motion: reduce) {
   .demo-block__arrow,
   .demo-row-item,
+  .demo-col-card,
+  .demo-col-index,
   .demo-table-row,
   .grid-cell,
   .demo-ka-card,

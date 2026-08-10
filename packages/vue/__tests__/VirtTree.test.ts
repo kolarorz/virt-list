@@ -389,20 +389,20 @@ describe('Vue VirtTree', () => {
 
   it('暴露 scrollTo / scrollToTop / scrollToBottom', () => {
     vi.useFakeTimers();
-    const { app, treeRef, clientEl } = mount({ list: makeTree(40, 0), fixed: true });
+    const { app, treeRef } = mount({ list: makeTree(40, 0), fixed: true });
 
     treeRef.value.scrollTo({ offset: 100 });
-    expect(clientEl.scrollTop).toBe(100);
+    expect(treeRef.value!.getOffset()).toBe(100);
 
     treeRef.value.scrollTo({ key: '20', align: 'top' });
-    expect(clientEl.scrollTop).toBe(20 * 32);
+    expect(treeRef.value!.getOffset()).toBe(20 * 32);
 
     treeRef.value.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(treeRef.value!.getOffset()).toBe(0);
 
     treeRef.value.scrollToBottom();
-    expect(clientEl.scrollTop).toBeGreaterThan(0);
+    expect(treeRef.value!.getOffset()).toBeGreaterThan(0);
     vi.runAllTimers();
 
     app.unmount();
@@ -479,16 +479,20 @@ describe('Vue VirtTree', () => {
   });
 
   it('滚动事件被 emit', () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onUpdate = vi.fn();
-    const { app, clientEl } = mount({ onScroll, onUpdate });
+    // 默认的 3 行树装不满视口，根本滚不动——要验滚动通知就得先让它真的可滚
+    const { app, treeRef } = mount({
+      list: makeTree(40, 0),
+      onOffsetChange,
+      onUpdate,
+    });
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 40;
-    clientEl.dispatchEvent(new Event('scroll'));
+    treeRef.value!.scrollFromUser(40);
 
-    expect(onScroll).toHaveBeenCalled();
+    expect(onOffsetChange).toHaveBeenCalledWith(40);
 
     app.unmount();
   });

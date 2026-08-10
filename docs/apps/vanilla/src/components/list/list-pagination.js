@@ -1,6 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 const PAGE_MAX = 10;
 
 let uid = 0;

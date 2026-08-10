@@ -55,4 +55,16 @@ function navigate(e: MouseEvent) {
 .VPNavBarMenuLink:hover {
   color: var(--vp-c-brand-1);
 }
+
+/*
+ * 移动端导航抽屉复用同一个组件（VitePress 会给 component 型 nav item 传
+ * screen-menu 属性）。那里是纵向列表，64px 的导航栏行高会在三个链接之间
+ * 撑出 100px 以上的空隙，所以按抽屉里原生链接的样式重排。
+ */
+.VPNavBarMenuLink[screen-menu] {
+  display: block;
+  padding: 12px 0 11px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  line-height: 24px;
+}
 </style>

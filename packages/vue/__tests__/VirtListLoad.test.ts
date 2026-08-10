@@ -93,9 +93,9 @@ function mount(opts: MountOptions) {
   return { app, container, listRef, clientEl };
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+/** 模拟一次用户滚动（只有用户滚动才会触发边界事件与自动续拉） */
+function scrollTo(listRef: Ref<any>, offset: number) {
+  listRef.value!.scrollFromUser(offset);
 }
 
 /** 让挂起的 promise 与 vue 的更新队列都跑完 */
@@ -114,10 +114,10 @@ describe('Vue VirtList 声明式加载', () => {
       list.value = [...list.value, ...makeList(40, 'next', list.value.length)];
       return true;
     });
-    const { app, clientEl, container } = mount({ list, loadMore });
+    const { app, container, listRef } = mount({ list, loadMore });
     await flush();
 
-    scrollTo(clientEl, 40 * ITEM_SIZE);
+    scrollTo(listRef, 40 * ITEM_SIZE);
     await flush();
 
     expect(loadMore).toHaveBeenCalledWith('bottom');
@@ -134,7 +134,7 @@ describe('Vue VirtList 声明式加载', () => {
     const loadMore = vi.fn(
       () => new Promise<boolean>((r) => { resolve = r; }),
     );
-    const { app, clientEl, container } = mount({
+    const { app, container, listRef } = mount({
       list,
       loadMore,
       hasMoreBottom: false,
@@ -142,8 +142,8 @@ describe('Vue VirtList 声明式加载', () => {
     });
     await flush();
 
-    scrollTo(clientEl, 200);
-    scrollTo(clientEl, 0);
+    scrollTo(listRef, 200);
+    scrollTo(listRef, 0);
     await flush();
 
     expect(headerStates.some((s) => s.loadingTop)).toBe(true);
@@ -167,15 +167,15 @@ describe('Vue VirtList 声明式加载', () => {
       list.value = [...makeList(20, 'older'), ...list.value];
       return true;
     });
-    const { app, clientEl, listRef } = mount({
+    const { app, listRef } = mount({
       list,
       loadMore,
       hasMoreBottom: false,
     });
     await flush();
 
-    scrollTo(clientEl, 200);
-    scrollTo(clientEl, 0);
+    scrollTo(listRef, 200);
+    scrollTo(listRef, 0);
     const keyAtTop =
       listRef.value.getState().inViewBegin === 0 ? 'a-0' : null;
     expect(keyAtTop).toBe('a-0');
@@ -183,7 +183,7 @@ describe('Vue VirtList 声明式加载', () => {
     await flush();
 
     // 插入 20 项 * 20px，视口应当被推到新内容之下，仍停在 a-0
-    expect(clientEl.scrollTop).toBe(20 * ITEM_SIZE);
+    expect(listRef.value!.getOffset()).toBe(20 * ITEM_SIZE);
     const state = listRef.value.getState();
     expect(list.value[state.inViewBegin]!.id).toBe('a-0');
 
@@ -199,11 +199,9 @@ describe('Vue VirtList 声明式加载', () => {
     await flush();
 
     // 挂载即定位到了底部
-    expect(clientEl.scrollTop).toBe(listRef.value.getState().listTotalSize);
+    expect(listRef.value!.getOffset()).toBe(listRef.value.getState().listTotalSize);
 
     // clientSize 在 jsdom 里是挂载后手动补的（浏览器由 ResizeObserver 给出），
-    // 派发一次 scroll 让 core 用真实可视尺寸重算区间
-    clientEl.dispatchEvent(new Event('scroll'));
     await flush();
 
     expect(listRef.value.getState().inViewEnd).toBeGreaterThan(50);
@@ -213,7 +211,7 @@ describe('Vue VirtList 声明式加载', () => {
 
   it('sticky-bottom：贴底时跟随，未贴底时计入 pendingNew', async () => {
     const list = ref(makeList(60));
-    const { app, clientEl, listRef } = mount({
+    const { app, listRef } = mount({
       list,
       stickyBottom: true,
       hasMoreTop: false,
@@ -222,20 +220,20 @@ describe('Vue VirtList 声明式加载', () => {
     await flush();
 
     // 贴到底再追加 → 跟随
-    scrollTo(clientEl, 60 * ITEM_SIZE);
+    scrollTo(listRef, 60 * ITEM_SIZE);
     await flush();
     list.value = [...list.value, ...makeList(1, 'new')];
     await flush();
     expect(listRef.value.getLoadState().pendingNew).toBe(0);
 
     // 翻到中间再追加 → 不动视口，计数
-    scrollTo(clientEl, 200);
+    scrollTo(listRef, 200);
     await flush();
-    const before = clientEl.scrollTop;
+    const before = listRef.value!.getOffset();
     list.value = [...list.value, ...makeList(3, 'new2')];
     await flush();
 
-    expect(clientEl.scrollTop).toBe(before);
+    expect(listRef.value!.getOffset()).toBe(before);
     expect(listRef.value.getLoadState().pendingNew).toBe(3);
 
     app.unmount();

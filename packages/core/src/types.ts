@@ -94,6 +94,60 @@ export interface VirtScrollOptions {
 export type LoadDirection = 'top' | 'bottom';
 
 /**
+ * 谁动了滚动位置。
+ *
+ * 这个信息是**确定的**，不是猜的：偏移量的每一次写入都经由库自己的手，
+ * 用户输入走 `scrollFromUser`，程序化定位走 `scrollToXxx`，内部补偿是第三类。
+ * 原生滚动下做不到——写 `scrollTop` 引发的 `scroll` 事件异步回送，
+ * 与任何标记窗口都是竞态，只能靠比对"上次程序化写入的值"去猜。
+ *
+ * - `'user'`：滚轮 / 键盘 / 触摸 / 拖拽滑块，即 `scrollFromUser`
+ * - `'program'`：`scrollToOffset` / `scrollToIndex` / `scrollToTop` / `scrollToBottom`
+ *   等显式调用（平滑动画的每一帧也算）
+ * - `'adjust'`：库为了「让用户正在看的内容留在原处」做的内部补偿——头部增删的
+ *   位移补偿、尺寸测量后的锚点校正、列表变短后的越界回夹、贴底跟随
+ *
+ * `'adjust'` 值得单独判掉：这类事件里视口内容其实没动，"回到底部"按钮、
+ * 阅读进度这类 UI 不该被它搅动。
+ */
+export type VirtScrollSource = 'user' | 'program' | 'adjust';
+
+/**
+ * `scroll` 事件的载荷。
+ *
+ * 刻意**不是** DOM `Event`：容器是 `overflow: hidden`，没有原生 scroll 事件可转发，
+ * 伪造一个出来只会让 `e.target.scrollTop` 读到恒定的 0。这里给的是内部账本本身。
+ *
+ * 字段名一律用 `offset` / `start` / `end` 而不是 `top` / `up` / `down`，
+ * 这样 `horizontal: true` 下语义不会自相矛盾。
+ */
+export interface VirtScrollEvent {
+  /** 当前偏移量，对应过去的 `scrollTop`（水平模式下是 `scrollLeft`） */
+  offset: number;
+  /** 相对上一次的位移，正数表示朝列表尾部移动。恒不为 0 */
+  delta: number;
+  /** 位移方向，`'end'` 朝尾部（原生语境的"向下"） */
+  direction: 'start' | 'end';
+  /** 视口尺寸，对应过去的 `clientHeight` */
+  clientSize: number;
+  /** 内容总尺寸（列表项 + 各插槽），对应过去的 `scrollHeight` */
+  scrollSize: number;
+  /** 当前允许的最大偏移量，即 `scrollSize - clientSize`（不为负） */
+  maxOffset: number;
+  /** 是否已在顶部（水平模式下为最左） */
+  atStart: boolean;
+  /**
+   * 是否已在底部（水平模式下为最右）。
+   *
+   * 判据是 0.5px 的容差，与 `toTop` / `toBottom` 用的 `scrollDistance`
+   * 阈值是两回事——后者是"快到了就提前触发取数"，这里是"确实到了"。
+   */
+  atEnd: boolean;
+  /** 谁动的 */
+  source: VirtScrollSource;
+}
+
+/**
  * 分页 / 无限加载的运行状态，透出给上层渲染加载提示条。
  */
 export interface LoadState {
@@ -193,27 +247,6 @@ export interface VirtListOptions<T extends Record<string, any>> {
   stickyBottom?: boolean;
   /** 判定"贴底"的容差（px），缺省取 scrollDistance（至少 2px） */
   stickyThreshold?: number;
-  /**
-   * 滚动条实现方式。
-   *
-   * - `'native'`（默认）：容器 `overflow: auto`，滚动位置由浏览器掌管。
-   * - `'custom'`：容器 `overflow: hidden`，滚动位置由 JS 掌管，滚动条自绘。
-   *
-   * 选 `'custom'` 解决的是快速拖拽滚动条时的露白：原生滚动下浏览器在合成器线程上
-   * 先把画面滚过去、再异步回送 scroll 事件，那一帧的视口就落在还没有 DOM 的位置上，
-   * 这是时序问题，优化渲染速度消不掉。自绘模式下内容只在 JS 写入时才移动，
-   * 位置与 DOM 永远同帧提交。
-   *
-   * 附带解除浏览器的元素高度上限：native 靠一个与内容等高的占位元素撑开滚动空间，
-   * 超过上限的部分被直接截掉，尾部的项就永远滚不到（Chrome 实测上限
-   * 33,554,428px，约合 33.5 万个 100px 的行）。自绘模式最高的元素只有一屏，
-   * 不受这个约束。
-   *
-   * 代价见文档「已知取舍」：拖选文本到容器边缘不再自动滚动。
-   *
-   * 该选项在绑定 DOM 时读取一次，运行时改变不生效。
-   */
-  scrollbar?: 'native' | 'custom';
 }
 
 export type RequiredOptions<T extends Record<string, any>> = Required<
@@ -224,8 +257,6 @@ export type RequiredOptions<T extends Record<string, any>> = Required<
  * 虚拟列表事件回调。
  */
 export interface VirtListEvents<T extends Record<string, any>> {
-  /** 滚动事件 */
-  scroll?: (e: Event) => void;
   /** 滚动到顶部时触发，参数为第一项 */
   toTop?: (item: T) => void;
   /** 滚动到底部时触发，参数为最后一项 */
@@ -237,10 +268,27 @@ export interface VirtListEvents<T extends Record<string, any>> {
   /** 加载状态变化时触发（loading / hasMore / pendingNew） */
   loadStateChange?: (state: LoadState) => void;
   /**
-   * 偏移量生效时**同步**触发，DOM 层据此把内容移到新位置。
+   * 列表滚动了。**同步**触发，载荷是完整的滚动状态。
    *
-   * 仅 `scrollbar: 'custom'` 模式触发——native 模式下位置由浏览器直接应用，
-   * 不需要这一步。
+   * 容器是 `overflow: hidden`、内容靠 `transform` 移动，浏览器不会派发原生
+   * `scroll` 事件，所以这是它的替代品——但载荷是普通对象而不是 `Event`，
+   * 见 {@link VirtScrollEvent}。
+   *
+   * 与 `offsetChange` 的分工：
+   * - 只关心「滚到哪了」、要读方向 / 边界 / 是谁动的 → 用这个；
+   * - 要跟着偏移量重写 DOM、必须与内容落在同一帧 → 用 `offsetChange`。
+   *
+   * 只在偏移量**真的变了**时触发，所以 `resume()`（重挂 DOM 后原位复位）
+   * 不会触发它，而 `offsetChange` 会。
+   */
+  scroll?: (event: VirtScrollEvent) => void;
+  /**
+   * 偏移量生效时**同步**触发，参数是新的偏移量。
+   *
+   * 这是「内容与偏移量同帧提交」的落点：DOM 层在这里把内容移到新位置。
+   * 它在 `scroll` 之前触发，且比 `scroll` 多一种情形——见上。
+   *
+   * 只想知道「滚动了」的话用 `scroll`，载荷里方向、边界、来源都是现成的。
    */
   offsetChange?: (offset: number) => void;
 }
@@ -306,15 +354,9 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
   stickyHeaderStyle?: StyleValue;
   stickyFooterClass?: ClassValue;
   stickyFooterStyle?: StyleValue;
-  /**
-   * 自绘滚动条停止滚动多久后淡出（ms），`0` 表示常驻。默认 1200。
-   * 仅 `scrollbar: 'custom'` 生效。
-   */
+  /** 滚动条停止滚动多久后淡出（ms），`0` 表示常驻。默认 1200 */
   scrollbarAutoHide?: number;
-  /**
-   * 自绘滑块的最小长度（px），默认 20。太短会没法用鼠标抓住。
-   * 仅 `scrollbar: 'custom'` 生效。
-   */
+  /** 滑块的最小长度（px），默认 20。太短会没法用鼠标抓住 */
   scrollbarMinThumbSize?: number;
 }
 
@@ -338,5 +380,4 @@ export const DEFAULT_OPTIONS = {
   initialPosition: 'top',
   stickyBottom: false,
   stickyThreshold: 0,
-  scrollbar: 'native',
 } as const;

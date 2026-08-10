@@ -67,11 +67,11 @@ describe('normalizeClass', () => {
 
 describe('mergeStyles', () => {
   it('逐段归一化后补分号拼接', () => {
-    expect(mergeStyles('color:red', { top: 0 })).toBe('color:red;top:0;;');
+    expect(mergeStyles('color:red', { top: 0 })).toBe('color:red;top:0;');
   });
 
   it('跳过 undefined / null / 空字符串', () => {
-    expect(mergeStyles(undefined, null, '', 'color:red;')).toBe('color:red;;');
+    expect(mergeStyles(undefined, null, '', 'color:red;')).toBe('color:red;');
   });
 
   it('归一化结果为空的项不产生多余分号', () => {

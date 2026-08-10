@@ -4,16 +4,20 @@ import { VirtList } from '../src/VirtList';
 import type { VirtListDOMOptions } from '@virt-list/core';
 
 /**
- * 自绘滚动条模式（scrollbar: 'custom'）的 DOM 布局。
+ * transform 定位的 DOM 布局。
  *
- * 这个模式与 native 的根本差别在于：容器 overflow:hidden，偏移量是一个纯 JS 数字，
- * 内容靠 transform 移动。由此带来两件事必须在这里锁住：
+ * 容器 overflow:hidden，偏移量是一个纯 JS 数字，内容靠 transform 移动。
+ * 由此带来两件事必须在这里锁住：
  *
- * 1. **没有任何元素的几何尺寸随列表长度增长**——这是解除浏览器元素高度上限
- *    （Chrome 约 3350 万 px、Firefox 约 1780 万 px）的前提；
+ * 1. **没有任何元素的几何尺寸随列表长度增长**——靠占位元素撑开滚动空间时，
+ *    超过浏览器上限（Chrome 实测 33,554,428px）的那部分会被直接截掉，
+ *    尾部的项永远滚不到；
  * 2. **偏移量一变，内容立刻跟着动**——不能依赖 core 的 update 事件，因为渲染区间
  *    没变化时 core 不发 update（_calcRange 走 _refreshViewEnd 返回 false），
- *    小幅滚动就会丢帧。
+ *    小幅滚动就会丢帧；
+ * 3. **每一段只带自己的残差**（`该段的文档位置 - offset`）——这样任何单个 transform
+ *    的位移量都不超过一屏多一点，碰不到浏览器对单个 transform 的位移上限
+ *    （Chrome 实测 33,554,400px）。
  */
 
 interface Item {
@@ -77,7 +81,6 @@ function mount(
     list,
     itemKey: 'id',
     itemPreSize: 40,
-    scrollbar: 'custom',
     renderItem: ((item: Item, _i: number, el: HTMLElement) => {
       el.textContent = item.text;
     }) as any,
@@ -102,7 +105,7 @@ function translateX(el: HTMLElement): number {
   return m ? Number(m[1]) : NaN;
 }
 
-describe('custom 滚动条模式的 DOM 布局', () => {
+describe('transform 定位的 DOM 布局', () => {
   it('容器为 overflow:hidden 且可聚焦（键盘滚动的前提）', () => {
     const { clientEl } = mount();
 
@@ -112,13 +115,11 @@ describe('custom 滚动条模式的 DOM 布局', () => {
     // 读 style 属性而不是 style.touchAction：jsdom 不认识 touch-action，
     // 会把它从 cssText 里悄悄丢掉，但属性字符串本身是原样送进浏览器的
     expect(clientEl.getAttribute('style')).toContain('touch-action:none');
-    expect(clientEl.className).toContain('virt-list__client--custom');
   });
 
-  it('没有任何元素的几何尺寸随列表长度增长（解除浏览器高度上限）', () => {
+  it('没有任何元素的几何尺寸随列表长度增长', () => {
     // 50w × 100px = 5000 万 px，超过 Chrome 实测的元素高度上限 33,554,428px。
-    // native 模式下 listEl 的 min-height 就是这个值，会被浏览器截断，
-    // 尾部约 16 万项永远滚不到；custom 模式必须是 0
+    // 若靠占位元素撑开滚动空间，它会被浏览器截断，尾部约 16 万项永远滚不到
     const { vl } = mount({ itemPreSize: 100 }, makeList(500_000));
 
     expect(vl.core.getState().listTotalSize).toBe(50_000_000);
@@ -136,34 +137,38 @@ describe('custom 滚动条模式的 DOM 布局', () => {
     }
   });
 
-  it('渲染项由 itemsEl 的 transform 定位，取代 native 的 virtualEl 占位', () => {
+  it('itemsEl 的位移就是渲染块相对视口顶部的位置', () => {
     const { vl } = mount();
-    // itemsEl 是 listEl 的唯一子节点，列表项都挂在它下面
-    const itemsEl = vl.listEl.firstElementChild as HTMLElement;
+    const itemsEl = vl.itemsEl;
 
     expect(translateY(itemsEl)).toBe(0);
     expect(itemsEl.querySelectorAll('[data-id]').length).toBeGreaterThan(0);
 
     vl.scrollToIndex(20);
-    // virtualSize = renderBegin 之前的累计尺寸，itemsEl 必须同步推下去
-    expect(translateY(itemsEl)).toBe(vl.core.getState().virtualSize);
-    expect(translateY(itemsEl)).toBeGreaterThan(0);
+
+    // 残差 = renderBegin 那一项的文档位置 - offset。
+    // 它必须落在 (-一项高度, 0] 内，否则视口顶部就露白了
+    const { renderBegin } = vl.core.getState();
+    const expected = vl.core.getItemPosByIndex(renderBegin).top - vl.core.getOffset();
+    expect(translateY(itemsEl)).toBeCloseTo(expected, 6);
+    expect(translateY(itemsEl)).toBeLessThanOrEqual(0);
+    expect(translateY(itemsEl)).toBeGreaterThan(-40);
   });
 
   it('偏移量变化时内容同步位移（不依赖 update 事件）', () => {
     const { vl } = mount();
-    const contentEl = vl.clientEl.firstElementChild as HTMLElement;
 
     vl.scrollToOffset(120);
     expect(vl.core.getOffset()).toBe(120);
-    expect(translateY(contentEl)).toBe(-120);
+    // 渲染块从第 3 项起（120 / 40），残差 = 120 - 120 = 0
+    expect(translateY(vl.itemsEl)).toBe(0);
 
     // 关键用例：小幅滚动不会改变渲染区间，core 因此不发 update 事件。
     // 若把 transform 挂在 update 上，这一步内容就不动了
     const before = vl.core.getState().renderBegin;
     vl.scrollToOffset(121);
     expect(vl.core.getState().renderBegin).toBe(before);
-    expect(translateY(contentEl)).toBe(-121);
+    expect(translateY(vl.itemsEl)).toBe(-1);
   });
 
   it('偏移量被夹在 [0, 账本上限] 内', () => {
@@ -189,7 +194,7 @@ describe('custom 滚动条模式的 DOM 布局', () => {
     expect(translateY(footerEl)).toBe(vl.core.getState().listTotalSize);
   });
 
-  it('吸顶区改绝对定位，并用占位块还回它占的滚动空间', () => {
+  it('吸顶区改绝对定位，其占的滚动空间计入各段的文档位置', () => {
     const { vl } = mount({
       renderStickyHeader: ((el: HTMLElement) => {
         el.textContent = 'sticky';
@@ -207,17 +212,19 @@ describe('custom 滚动条模式的 DOM 布局', () => {
     roCallback?.([sizeEntry('stickyHeader', 36)], {} as ResizeObserver);
     vl.forceUpdate();
 
-    const contentEl = vl.clientEl.firstElementChild as HTMLElement;
-    const spacer = contentEl.firstElementChild as HTMLElement;
-    expect(spacer.style.height).toBe('36px');
+    // 不再有占位块：吸顶区占的 36px 直接加到列表段的文档位置上，
+    // 于是 offset 为 0 时渲染块被推到吸顶区下方
+    expect(vl.core.slotSize.stickyHeaderSize).toBe(36);
+    expect(translateY(vl.itemsEl)).toBe(36);
   });
 
   it('水平模式沿 X 轴位移', () => {
     const { vl } = mount({ horizontal: true });
-    const contentEl = vl.clientEl.firstElementChild as HTMLElement;
 
     vl.scrollToOffset(150);
-    expect(translateX(contentEl)).toBe(-150);
+    const { renderBegin } = vl.core.getState();
+    const expected = vl.core.getItemPosByIndex(renderBegin).top - 150;
+    expect(translateX(vl.itemsEl)).toBeCloseTo(expected, 6);
     expect(vl.listEl.style.width).toBe('0px');
   });
 
@@ -237,14 +244,4 @@ describe('custom 滚动条模式的 DOM 布局', () => {
     expect(empty).toBeTruthy();
   });
 
-  it('native 模式不受影响：仍用 min-height 与 virtualEl 占位', () => {
-    const { vl } = mount({ scrollbar: 'native' });
-
-    expect(vl.clientEl.style.overflow).toBe('auto');
-    expect(vl.listEl.style.minHeight).toBe('2000px');
-    // 首个子节点是 virtualEl 占位块，不是 itemsEl
-    const first = vl.listEl.firstElementChild as HTMLElement;
-    expect(first.style.height).toBe('0px');
-    expect(first.dataset.id).toBeUndefined();
-  });
 });

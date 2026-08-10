@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
 
-const WIDTHS = [60, 80, 100, 110, 130];
+const WIDTHS = [76, 92, 108, 124, 148];
 
 interface Item {
   id: number;
@@ -26,7 +26,7 @@ export default function Horizontal() {
         <VirtList<Item>
           list={list}
           itemKey="id"
-          itemPreSize={60}
+          itemPreSize={108}
           horizontal
           onUpdate={(_, state) =>
             setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
@@ -37,8 +37,10 @@ export default function Horizontal() {
               className="demo-col-item"
               style={{ minWidth: itemData.width, width: itemData.width }}
             >
-              <div style={{ fontWeight: 'bold' }}>{itemData.id}</div>
-              <div style={{ fontSize: 11, color: 'var(--demo-c-text-3)' }}>w:{itemData.width}</div>
+              <div className="demo-col-card">
+                <span className="demo-col-index">{itemData.id}</span>
+                <span className="demo-col-size">{itemData.width}px</span>
+              </div>
             </div>
           )}
         </VirtList>

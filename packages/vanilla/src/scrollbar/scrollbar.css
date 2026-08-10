@@ -1,5 +1,5 @@
 /**
- * @virt-list —— 自绘滚动条默认样式（scrollbar: 'custom'）
+ * @virt-list —— 滚动条默认样式
  *
  * 设计约定与 tree.css 一致：
  * 1. 所有可定制项以 CSS 变量暴露（--virt-scrollbar-*），覆盖变量即可换肤；
@@ -67,7 +67,7 @@ html.dark .virt-scrollbar,
  * 由 JS 加）、指针悬在列表上、正在拖拽。
  * 默认淡出是为了不遮挡内容，这与 macOS 的浮层滚动条一致。
  */
-.virt-list__client--custom:hover > .virt-scrollbar.is-enabled,
+.virt-list__client:hover > .virt-scrollbar.is-enabled,
 .virt-scrollbar.is-enabled.is-persistent,
 .virt-scrollbar.is-enabled.is-active,
 .virt-scrollbar.is-enabled.is-dragging {
@@ -119,11 +119,11 @@ html.dark .virt-scrollbar,
  * （整块列表被框起来很难看），键盘 Tab 进来时必须出现——:focus-visible
  * 正好是这条界线。
  */
-.virt-list__client--custom:focus {
+.virt-list__client:focus {
   outline: none;
 }
 
-.virt-list__client--custom:focus-visible {
+.virt-list__client:focus-visible {
   outline: 2px solid rgb(42 99 240 / 55%);
   outline-offset: -2px;
 }

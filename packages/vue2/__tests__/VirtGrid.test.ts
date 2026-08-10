@@ -218,13 +218,13 @@ describe('Vue2 VirtGrid', () => {
   });
 
   it('暴露滚动与数据 API', () => {
-    const { container, vm, api, clientEl } = mount({ list: makeList(120) });
+    const { container, vm, api } = mount({ list: makeList(120) });
 
     api().scrollToIndex(15);
-    expect(clientEl.scrollTop).toBe(200);
+    expect(api().getOffset()).toBe(200);
 
     api().scrollToOffset(88);
-    expect(clientEl.scrollTop).toBe(88);
+    expect(api().getOffset()).toBe(88);
 
     api().setList(makeList(4));
     expect(rowIds(container)).toEqual(['0', '3']);
@@ -238,19 +238,17 @@ describe('Vue2 VirtGrid', () => {
   });
 
   it('事件被 emit', () => {
-    const scroll = vi.fn();
+    const offsetChange = vi.fn();
     const toBottom = vi.fn();
     const update = vi.fn();
-    const { vm, clientEl } = mount({}, undefined, { scroll, toBottom, update });
+    const { vm, api } = mount({}, undefined, { offsetChange, toBottom, update });
 
     expect(update).toHaveBeenCalled();
 
-    clientEl.scrollTop = 100;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(scroll).toHaveBeenCalled();
+    api().scrollFromUser(100);
+    expect(offsetChange).toHaveBeenCalled();
 
-    clientEl.scrollTop = 200;
-    clientEl.dispatchEvent(new Event('scroll'));
+    api().scrollFromUser(200);
     expect(toBottom).toHaveBeenCalled();
 
     vm.$destroy();

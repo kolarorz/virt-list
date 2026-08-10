@@ -364,16 +364,21 @@ describe('React VirtTree 交互事件', () => {
   });
 
   it('滚动与更新事件被转发', async () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onUpdate = vi.fn();
-    const { clientEl, root } = await mount({ onScroll, onUpdate });
+    // 默认的 3 行树只有 96px，装不满 400 的视口，根本滚不动——
+    // 要验滚动通知就得先让它真的可滚
+    const { root, treeRef } = await mount({
+      list: makeTree(40, 0),
+      onOffsetChange,
+      onUpdate,
+    });
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 32;
-    clientEl.dispatchEvent(new Event('scroll'));
+    treeRef.current!.scrollFromUser(32);
 
-    expect(onScroll).toHaveBeenCalled();
+    expect(onOffsetChange).toHaveBeenCalledWith(32);
 
     await unmount(root);
   });
@@ -475,24 +480,24 @@ describe('React VirtTree ref API', () => {
 
   it('滚动方法', async () => {
     vi.useFakeTimers();
-    const { treeRef, clientEl, root } = await mount({
+    const { treeRef, root } = await mount({
       list: makeTree(40, 0),
       fixed: true,
     });
     const api = treeRef.current!;
 
     api.scrollTo({ offset: 100 });
-    expect(clientEl.scrollTop).toBe(100);
+    expect(treeRef.current!.getOffset()).toBe(100);
 
     api.scrollTo({ key: '20', align: 'top' });
-    expect(clientEl.scrollTop).toBe(20 * 32);
+    expect(treeRef.current!.getOffset()).toBe(20 * 32);
 
     api.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(treeRef.current!.getOffset()).toBe(0);
 
     api.scrollToBottom();
-    expect(clientEl.scrollTop).toBeGreaterThan(0);
+    expect(treeRef.current!.getOffset()).toBeGreaterThan(0);
     vi.runAllTimers();
 
     vi.useRealTimers();

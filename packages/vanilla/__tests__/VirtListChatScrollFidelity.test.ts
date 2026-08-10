@@ -146,7 +146,6 @@ function setup(list: Item[]) {
   for (let i = 0; i < 8; i += 1) {
     measure(list);
     flushRaf();
-    clientEl.dispatchEvent(new Event('scroll'));
   }
   return { vl, clientEl };
 }
@@ -166,8 +165,7 @@ function wheel(
   list: Item[],
   delta: number,
 ) {
-  clientEl.scrollTop = clientEl.scrollTop + delta;
-  clientEl.dispatchEvent(new Event('scroll'));
+  clientEl.scrollTop = vl.core.getOffset() + delta;
 
   // 这一刻浏览器就要绘制了
   const painted = realLayoutCoversViewport(vl, clientEl, list);
@@ -215,7 +213,7 @@ function realLayoutCoversViewport(
   }
   const blockBottom = y;
 
-  const viewTop = clientEl.scrollTop;
+  const viewTop = vl.core.getOffset();
   const viewBottom = viewTop + CLIENT_SIZE;
   const state = vl.core.getState();
   const atListEnd = state.renderEnd >= list.length - 1;
@@ -243,7 +241,7 @@ function domCoversViewport(
       .filter((id) => !SLOT_IDS.includes(id)),
   );
 
-  const offset = clientEl.scrollTop;
+  const offset = vl.core.getOffset();
   const viewBottom = offset + CLIENT_SIZE;
   const missing: string[] = [];
 
@@ -283,7 +281,6 @@ describe('聊天室高保真滚动（项按需测量）', () => {
 
     // 滚到 #110 附近，让它先渲染出来
     clientEl.scrollTop = vl.core.getItemPosByIndex(TALL).top - 100;
-    clientEl.dispatchEvent(new Event('scroll'));
     measure(list);
     flushRaf();
 
@@ -318,7 +315,6 @@ describe('聊天室高保真滚动（项按需测量）', () => {
     const { vl, clientEl } = setup(list);
 
     clientEl.scrollTop = vl.core.getItemPosByIndex(TALL).top - 100;
-    clientEl.dispatchEvent(new Event('scroll'));
     measure(list);
     flushRaf();
 
@@ -330,7 +326,6 @@ describe('聊天室高保真滚动（项按需测量）', () => {
     for (let i = 0; i < 6; i += 1) {
       measure(list);
       flushRaf();
-      clientEl.dispatchEvent(new Event('scroll'));
     }
 
     for (let step = 0; step < 60; step += 1) {
@@ -350,7 +345,6 @@ describe('聊天室高保真滚动（项按需测量）', () => {
     const { vl, clientEl } = setup(list);
 
     clientEl.scrollTop = vl.core.getItemPosByIndex(TALL).top - 100;
-    clientEl.dispatchEvent(new Event('scroll'));
     measure(list);
     flushRaf();
 

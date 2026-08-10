@@ -69,7 +69,10 @@ export const VirtTree = defineComponent({
     'update:checkedKeys': (_keys: TreeNodeKey[]) => true,
     dragstart: (..._args: TreeEventArgs<'dragstart'>) => true,
     dragend: (..._args: TreeEventArgs<'dragend'>) => true,
-    scroll: (_e: Event) => true,
+    // 与 VirtList 同理：根元素 overflow:hidden 不会原生滚动，
+    // 原生 scroll 又不冒泡，所以叫 scroll 不会拦掉任何东西
+    scroll: (..._args: TreeEventArgs<'scroll'>) => true,
+    offsetChange: (_offset: number) => true,
     toTop: (..._args: TreeEventArgs<'toTop'>) => true,
     toBottom: (..._args: TreeEventArgs<'toBottom'>) => true,
     itemResize: (_id: string, _size: number) => true,
@@ -86,6 +89,14 @@ export const VirtTree = defineComponent({
     fixed: { type: Boolean, default: false },
     scrollDuration: { type: Number, default: 300 },
     smoothMaxDistance: { type: Number, default: 0 },
+    /**
+     * 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar。
+     *
+     * 缺省值刻意留空而非写 'native'：写死会让本组件永远显式传值，
+     * 从而盖掉 DEFAULT_OPTIONS 里的默认值。留空则交由下层统一兜底（结果同样是 native）。
+     */
+    scrollbarAutoHide: { type: Number, default: undefined },
+    scrollbarMinThumbSize: { type: Number, default: undefined },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -151,6 +162,8 @@ export const VirtTree = defineComponent({
         fixed: props.fixed,
         scrollDuration: props.scrollDuration,
         smoothMaxDistance: props.smoothMaxDistance,
+        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         showLine: props.showLine,
         itemClass: props.itemClass,
         listClass: props.listClass,
@@ -233,6 +246,7 @@ export const VirtTree = defineComponent({
         dragstart: (data) => emit('dragstart', data),
         dragend: (data) => emit('dragend', data),
         scroll: (e) => emit('scroll', e),
+        offsetChange: (o) => emit('offsetChange', o),
         toTop: (item) => emit('toTop', item),
         toBottom: (item) => emit('toBottom', item),
         itemResize: (id, size) => emit('itemResize', id, size),
@@ -290,6 +304,8 @@ export const VirtTree = defineComponent({
       scrollToTop: (options?: VirtScrollOptions) => tree?.scrollToTop(options),
       scrollToBottom: (options?: VirtScrollOptions) =>
         tree?.scrollToBottom(options),
+      getOffset: () => tree?.getOffset() ?? 0,
+      scrollFromUser: (o: number) => tree?.scrollFromUser(o),
       cancelScroll: () => tree?.cancelScroll(),
       setList: (list: TreeData) => tree?.setList(list),
       forceUpdate: () => tree?.forceUpdate(),

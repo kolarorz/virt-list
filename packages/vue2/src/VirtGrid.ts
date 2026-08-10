@@ -33,6 +33,14 @@ export const VirtGrid = defineComponent({
     buffer: { type: Number, default: 2 },
     scrollDuration: { type: Number, default: 300 },
     smoothMaxDistance: { type: Number, default: 0 },
+    /**
+     * 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar。
+     *
+     * 缺省值刻意留空而非写 'native'：写死会让本组件永远显式传值，
+     * 从而盖掉 DEFAULT_OPTIONS 里的默认值。留空则交由下层统一兜底（结果同样是 native）。
+     */
+    scrollbarAutoHide: { type: Number, default: undefined },
+    scrollbarMinThumbSize: { type: Number, default: undefined },
     itemStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: undefined },
     renderItem: { type: Function as PropType<(item: any, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
@@ -58,6 +66,8 @@ export const VirtGrid = defineComponent({
           itemPreSize: props.itemPreSize,
           scrollDuration: props.scrollDuration,
           smoothMaxDistance: props.smoothMaxDistance,
+          scrollbarAutoHide: props.scrollbarAutoHide,
+          scrollbarMinThumbSize: props.scrollbarMinThumbSize,
           itemGap: props.itemGap,
           fixed: props.fixed,
           buffer: props.buffer,
@@ -80,6 +90,7 @@ export const VirtGrid = defineComponent({
         },
         {
           scroll: (e) => emit('scroll', e),
+          offsetChange: (o) => emit('offsetChange', o),
           toTop: (item) => emit('toTop', item),
           toBottom: (item) => emit('toBottom', item),
           itemResize: (id, size) => emit('itemResize', id, size),
@@ -114,6 +125,8 @@ export const VirtGrid = defineComponent({
         grid?.scrollToBottom(options),
       scrollToOffset: (o: number, options?: VirtScrollOptions) =>
         grid?.scrollToOffset(o, options),
+      getOffset: () => grid?.getOffset() ?? 0,
+      scrollFromUser: (o: number) => grid?.scrollFromUser(o),
       cancelScroll: () => grid?.cancelScroll(),
       forceUpdate: () => grid?.forceUpdate(),
     };

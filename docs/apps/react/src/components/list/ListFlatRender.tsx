@@ -37,14 +37,18 @@ export default function FlatRender() {
           itemKey="id"
           itemPreSize={40}
           buffer={2}
-          stickyHeaderStyle="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); font-weight: bold; color: var(--demo-c-on-accent);"
-          renderStickyHeader={() => <>Sticky Header (固定头部)</>}
-          headerStyle="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); font-weight: bold; color: var(--demo-c-on-accent);"
-          renderHeader={() => <>Header (头部)</>}
-          footerStyle="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); font-weight: bold; color: var(--demo-c-on-accent);"
-          renderFooter={() => <>Footer (尾部)</>}
-          stickyFooterStyle="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); font-weight: bold; color: var(--demo-c-on-accent);"
-          renderStickyFooter={() => <>Sticky Footer (固定底部)</>}
+          stickyHeaderClass="demo-band demo-band--sticky-header"
+          renderStickyHeader={() => (
+            <span className="demo-band__text">stickyHeader（固定头部）</span>
+          )}
+          headerClass="demo-band demo-band--header"
+          renderHeader={() => <span className="demo-band__text">header（头部）</span>}
+          footerClass="demo-band demo-band--footer"
+          renderFooter={() => <span className="demo-band__text">footer（尾部）</span>}
+          stickyFooterClass="demo-band demo-band--sticky-footer"
+          renderStickyFooter={() => (
+            <span className="demo-band__text">stickyFooter（固定底部）</span>
+          )}
           itemClass="demo-row-item"
           onUpdate={(_, state) =>
             setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)

@@ -111,9 +111,8 @@ function setup(list: Item[], opts?: { initialPosition?: 'top' | 'bottom' }) {
   return { vl, container, clientEl };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
 /** 当前 DOM 的几何快照 */
@@ -126,7 +125,7 @@ function snapshot(vl: VirtList<Item>, clientEl: HTMLElement) {
     .map((el) => el.dataset.id!)
     .filter((id) => !['client', 'header', 'footer'].includes(id));
   return {
-    scrollTop: clientEl.scrollTop,
+    scrollTop: vl.core.getOffset(),
     virtualSize: state.virtualSize,
     renderBegin: state.renderBegin,
     renderEnd: state.renderEnd,
@@ -155,9 +154,9 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
     const { vl, clientEl } = setup(list);
 
     // 向下滚再向上滚到顶，复现「滚到顶触发加载」的真实时序
-    scrollTo(clientEl, 1200);
+    scrollTo(vl, 1200);
     measure();
-    scrollTo(clientEl, 0);
+    scrollTo(vl, 0);
     measure();
 
     const older = makeList(20, 'older');
@@ -181,7 +180,7 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
     // 关键判据：此刻再滚 1px 不应该让区间发生跳变。
     // 若跳变，说明上面那一刻的区间本就是错的——正是「滚一下才出现内容」的现象
     const before = snapshot(vl, clientEl);
-    scrollTo(clientEl, before.scrollTop - 1);
+    scrollTo(vl, before.scrollTop - 1);
     const after = snapshot(vl, clientEl);
 
     expect(
@@ -201,7 +200,7 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
     // 首屏定位到底部会挂渐进修正任务，多测量几轮让它收敛
     for (let i = 0; i < 4; i += 1) measure();
 
-    scrollTo(clientEl, 0);
+    scrollTo(vl, 0);
     measure();
 
     const older = makeList(20, 'older');
@@ -221,7 +220,7 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
     ).toBe(true);
 
     const before = snapshot(vl, clientEl);
-    scrollTo(clientEl, before.scrollTop - 1);
+    scrollTo(vl, before.scrollTop - 1);
     const after = snapshot(vl, clientEl);
     expect(
       Math.abs(after.renderBegin - before.renderBegin),
@@ -233,15 +232,15 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1200);
+    scrollTo(vl, 1200);
     measure();
-    scrollTo(clientEl, 0);
+    scrollTo(vl, 0);
     measure();
 
     /** a-0 的顶部相对视口顶部的偏移——「内容不动」就是这个值不变 */
     const relOfA0 = () => {
       const index = vl.core.props.list.findIndex((it) => it.id === 'a-0');
-      return vl.core.getItemPosByIndex(index).top - clientEl.scrollTop;
+      return vl.core.getItemPosByIndex(index).top - vl.core.getOffset();
     };
     const relBefore = relOfA0();
 
@@ -267,11 +266,11 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
     let list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1200);
+    scrollTo(vl, 1200);
     measure();
 
     for (let page = 0; page < 2; page += 1) {
-      scrollTo(clientEl, 0);
+      scrollTo(vl, 0);
       measure();
       const older = makeList(20, `p${page}`);
       list = [...older, ...list];

@@ -68,9 +68,8 @@ function setup(opts: SetupOptions) {
   return { core, el, loadStateChange };
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+function scrollTo(core: VirtListCore<any>, offset: number) {
+  core.scrollFromUser(offset);
 }
 
 /** 让挂起的 promise 回调跑完 */
@@ -90,7 +89,7 @@ describe('声明式加载（core 集成）', () => {
     });
     const { core, el } = setup({ list, loadMore });
 
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
     await flush();
 
     expect(loadMore).toHaveBeenCalled();
@@ -105,9 +104,9 @@ describe('声明式加载（core 集成）', () => {
     const { core, el } = setup({ list: makeList(20), loadMore });
 
     const bottom = core.getTotalSize();
-    scrollTo(el, bottom);
-    scrollTo(el, bottom - 1);
-    scrollTo(el, bottom);
+    scrollTo(core, bottom);
+    scrollTo(core, bottom - 1);
+    scrollTo(core, bottom);
 
     expect(loadMore).toHaveBeenCalledTimes(1);
     resolve(true);
@@ -126,8 +125,8 @@ describe('声明式加载（core 集成）', () => {
     });
     const { core, el } = setup({ list, loadMore });
 
-    scrollTo(el, 400);
-    scrollTo(el, 0);
+    scrollTo(core, 400);
+    scrollTo(core, 0);
     // 触边这一刻视口顶部是哪一项，加载完成后应当还是它
     const keyAtTop = core.props.list[core.getState().inViewBegin]!.id;
     await flush();
@@ -135,19 +134,19 @@ describe('声明式加载（core 集成）', () => {
     expect(loadMore).toHaveBeenCalledWith('top');
     // 加载历史消息后视口内容没有被推走——过去要手写 addedList2Top + forceUpdate
     expect(core.props.list[core.getState().inViewBegin]!.id).toBe(keyAtTop);
-    expect(el.scrollTop).toBe(20 * ITEM_SIZE);
+    expect(core.getOffset()).toBe(20 * ITEM_SIZE);
   });
 
   it('loadMore 返回 false 后该方向不再触发', async () => {
     const loadMore = vi.fn(async () => false);
     const { core, el } = setup({ list: makeList(20), loadMore });
 
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
     await flush();
     expect(core.getLoadState().hasMoreBottom).toBe(false);
 
-    scrollTo(el, core.getTotalSize() - 1);
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize() - 1);
+    scrollTo(core, core.getTotalSize());
     await flush();
 
     expect(loadMore).toHaveBeenCalledTimes(1);
@@ -161,7 +160,7 @@ describe('声明式加载（core 集成）', () => {
       hasMoreBottom: false,
     });
 
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
 
     expect(loadMore).not.toHaveBeenCalled();
     expect(core.getLoadState().hasMoreBottom).toBe(false);
@@ -176,7 +175,7 @@ describe('声明式加载（core 集成）', () => {
     });
 
     core.updateOptions({ hasMoreBottom: true });
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
     await flush();
 
     expect(loadMore).toHaveBeenCalled();
@@ -217,7 +216,7 @@ describe('声明式加载（core 集成）', () => {
       loadMore,
     });
 
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
 
     expect(loadStateChange).toHaveBeenCalled();
     expect(loadStateChange.mock.calls.at(-1)![0].loadingBottom).toBe(true);
@@ -251,7 +250,7 @@ describe('声明式加载（core 集成）', () => {
       initialPosition: 'bottom',
     });
 
-    expect(el.scrollTop).toBe(core.getTotalSize() - CLIENT_SIZE);
+    expect(core.getOffset()).toBe(core.getTotalSize() - CLIENT_SIZE);
   });
 
   it('start 优先于 initialPosition', () => {
@@ -268,7 +267,7 @@ describe('声明式加载（core 集成）', () => {
     core.slotSize.clientSize = CLIENT_SIZE;
     core.bindDOM(el);
 
-    expect(el.scrollTop).toBe(10 * ITEM_SIZE);
+    expect(core.getOffset()).toBe(10 * ITEM_SIZE);
   });
 });
 
@@ -277,13 +276,13 @@ describe('贴底跟随', () => {
     const list = makeList(50);
     const { core, el } = setup({ list, stickyBottom: true });
 
-    scrollTo(el, core.getTotalSize()); // 贴到底
-    const before = el.scrollTop;
+    scrollTo(core, core.getTotalSize()); // 贴到底
+    const before = core.getOffset();
 
     core.updateOptions({ list: [...list, ...makeList(1, 'new')] });
 
-    expect(el.scrollTop).toBeGreaterThan(before);
-    expect(el.scrollTop).toBe(core.getTotalSize() - CLIENT_SIZE);
+    expect(core.getOffset()).toBeGreaterThan(before);
+    expect(core.getOffset()).toBe(core.getTotalSize() - CLIENT_SIZE);
     expect(core.getLoadState().pendingNew).toBe(0);
   });
 
@@ -291,12 +290,12 @@ describe('贴底跟随', () => {
     const list = makeList(50);
     const { core, el } = setup({ list, stickyBottom: true });
 
-    scrollTo(el, 400); // 用户正在翻历史
-    const before = el.scrollTop;
+    scrollTo(core, 400); // 用户正在翻历史
+    const before = core.getOffset();
 
     core.updateOptions({ list: [...list, ...makeList(2, 'new')] });
 
-    expect(el.scrollTop).toBe(before);
+    expect(core.getOffset()).toBe(before);
     expect(core.getLoadState().pendingNew).toBe(2);
   });
 
@@ -304,11 +303,11 @@ describe('贴底跟随', () => {
     const list = makeList(50);
     const { core, el } = setup({ list, stickyBottom: true });
 
-    scrollTo(el, 400);
+    scrollTo(core, 400);
     core.updateOptions({ list: [...list, ...makeList(2, 'new')] });
     expect(core.getLoadState().pendingNew).toBe(2);
 
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
 
     expect(core.getLoadState().pendingNew).toBe(0);
   });
@@ -317,12 +316,12 @@ describe('贴底跟随', () => {
     const list = makeList(50);
     const { core, el } = setup({ list });
 
-    scrollTo(el, core.getTotalSize());
-    const before = el.scrollTop;
+    scrollTo(core, core.getTotalSize());
+    const before = core.getOffset();
 
     core.updateOptions({ list: [...list, ...makeList(5, 'new')] });
 
-    expect(el.scrollTop).toBe(before);
+    expect(core.getOffset()).toBe(before);
     expect(core.getLoadState().pendingNew).toBe(0);
   });
 
@@ -330,7 +329,7 @@ describe('贴底跟随', () => {
     const list = makeList(50);
     const { core, el } = setup({ list, stickyBottom: true });
 
-    scrollTo(el, 400);
+    scrollTo(core, 400);
     core.updateOptions({ list: [...makeList(10, 'older'), ...list] });
 
     expect(core.getLoadState().pendingNew).toBe(0);
@@ -346,7 +345,7 @@ describe('贴底跟随', () => {
       loadMore,
     });
 
-    scrollTo(el, core.getTotalSize());
+    scrollTo(core, core.getTotalSize());
     core.destroy();
     loadStateChange.mockClear();
 

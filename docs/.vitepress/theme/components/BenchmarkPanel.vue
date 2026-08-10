@@ -153,14 +153,18 @@ async function run(): Promise<void> {
     phase.value = '测量滚动…';
     await nextFrame();
 
-    // 稳态滚动：连续处理 scroll 事件，这是决定滚动流畅度的实际开销
+    // 稳态滚动：这是决定滚动流畅度的实际开销。
+    //
+    // 必须走 scrollFromUser——它才是滚轮 / 键盘 / 拖动滑块走的那条路。
+    // 不要改回「写 clientEl.scrollTop + 派发 scroll」：容器是 overflow:hidden，
+    // 那样只会碰到「浏览器因聚焦静默滚动」的吸收逻辑，位移还会被可滚动溢出夹掉
+    // （实测 200 步 × 240px 只走到 43519 而非 48000），量的是另一条路径。
     list.scrollToOffset(0);
     const scrollStepMs = measureLoop(200, () => {
-      clientEl.scrollTop += 240;
-      clientEl.dispatchEvent(new Event('scroll'));
+      list.core.scrollFromUser(list.core.getOffset() + 240);
     });
     out.push({
-      name: '处理一次滚动事件',
+      name: '处理一次滚动',
       ms: scrollStepMs,
       note: '连续滚动 200 次；这一项直接决定滚动是否流畅',
       complexity: 'O(1)',
@@ -185,8 +189,7 @@ async function run(): Promise<void> {
     // 来回跨越整个列表：最坏情况下的区间重算
     const totalSize = list.core.getTotalSize();
     const spanMs = measureLoop(60, (i) => {
-      clientEl.scrollTop = i % 2 ? totalSize : 0;
-      clientEl.dispatchEvent(new Event('scroll'));
+      list.core.scrollFromUser(i % 2 ? totalSize : 0);
     });
     out.push({
       name: '首尾之间整程跨越',
@@ -391,9 +394,10 @@ function budgetText(r: Result): string {
 
 <style scoped>
 .bench {
-  max-width: 1152px;
+  max-width: var(--vt-home-width);
   margin: 16px auto 64px;
-  padding: 0 24px;
+  /* 同 ComplexityTable：横向内边距交给外层 .vp-doc.container */
+  padding: 0;
 }
 
 .bench-title {
@@ -502,7 +506,7 @@ function budgetText(r: Result): string {
 .bench-host {
   height: 560px;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
+  border-radius: var(--vt-radius-card);
   overflow: hidden;
   background: var(--vp-c-bg);
 }
@@ -536,9 +540,26 @@ function budgetText(r: Result): string {
 }
 
 .bench-table {
+  /*
+   * 必须显式声明：VitePress 的 .vp-doc table 默认是 display:block（为了让宽表格
+   * 横向滚动），落到这里会让 width:100% 失效、列宽塌成内容宽度。
+   * 本组件的横向滚动由外层容器负责，表格自己保持正常的 table 布局。
+   */
+  display: table;
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+/*
+ * VitePress 的 .vp-doc 表格默认给每个单元格描四条边、给表头填底色、给偶数行加斑马纹。
+ * 本组件只要横向分隔线，先在这里把继承来的这些都清掉，再单独声明需要的那条。
+ * tbody tr 这一层不能省：斑马纹是画在行上的，单元格透明只会让它透出来。
+ */
+.bench-table tbody tr,
+.bench-table :is(th, td) {
+  border: 0;
+  background: transparent;
 }
 
 .bench-table th {

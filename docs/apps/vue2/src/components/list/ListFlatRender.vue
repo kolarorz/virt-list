@@ -7,21 +7,29 @@
         item-key="id"
         :item-pre-size="40"
         :buffer="2"
-        sticky-header-style="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); font-weight: bold; color: var(--demo-c-on-accent);"
-        header-style="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); font-weight: bold; color: var(--demo-c-on-accent);"
-        footer-style="display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); font-weight: bold; color: var(--demo-c-on-accent);"
-        sticky-footer-style="display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); font-weight: bold; color: var(--demo-c-on-accent);"
+        sticky-header-class="demo-band demo-band--sticky-header"
+        header-class="demo-band demo-band--header"
+        footer-class="demo-band demo-band--footer"
+        sticky-footer-class="demo-band demo-band--sticky-footer"
         item-class="demo-row-item"
         @update="onUpdate"
       >
-        <template #stickyHeader>Sticky Header (固定头部)</template>
-        <template #header>Header (头部)</template>
+        <template #stickyHeader>
+          <span class="demo-band__text">stickyHeader（固定头部）</span>
+        </template>
+        <template #header>
+          <span class="demo-band__text">header（头部）</span>
+        </template>
         <template #default="{ itemData }">
           <span class="demo-row-index">#{{ itemData.index }}</span>
           <span class="demo-row-text">{{ itemData.text }}</span>
         </template>
-        <template #footer>Footer (尾部)</template>
-        <template #stickyFooter>Sticky Footer (固定底部)</template>
+        <template #footer>
+          <span class="demo-band__text">footer（尾部）</span>
+        </template>
+        <template #stickyFooter>
+          <span class="demo-band__text">stickyFooter（固定底部）</span>
+        </template>
       </VirtList>
     </div>
   </div>

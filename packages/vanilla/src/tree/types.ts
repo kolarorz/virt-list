@@ -1,4 +1,4 @@
-import type { ListState } from '@virt-list/core';
+import type { ListState, VirtScrollEvent } from '@virt-list/core';
 
 /** 树节点原始数据（用户传入的未加工数据） */
 export type TreeNodeData = Record<string, any>;
@@ -112,8 +112,10 @@ export interface VirtTreeDOMOptions {
   scrollDuration?: number;
   /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
   smoothMaxDistance?: number;
-  /** 滚动条实现方式，见 VirtListOptions.scrollbar */
-  scrollbar?: 'native' | 'custom';
+  /** 滚动条淡出延迟（ms），`0` 常驻 */
+  scrollbarAutoHide?: number;
+  /** 滑块的最小长度（px） */
+  scrollbarMinThumbSize?: number;
   /** 是否显示连接线 */
   showLine?: boolean;
   /** 节点行的自定义 class */
@@ -193,7 +195,10 @@ export interface VirtTreeDOMOptions {
  */
 export interface VirtTreeDOMEvents {
   update?: (renderList: TreeNode[], state: ListState) => void;
-  scroll?: (e: Event) => void;
+  /** 滚动了。容器 overflow:hidden，没有原生 scroll 事件，这是它的替代品 */
+  scroll?: (event: VirtScrollEvent) => void;
+  /** 滚动偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 scroll */
+  offsetChange?: (offset: number) => void;
   toTop?: (item: TreeNode) => void;
   toBottom?: (item: TreeNode) => void;
   itemResize?: (id: string, newSize: number) => void;

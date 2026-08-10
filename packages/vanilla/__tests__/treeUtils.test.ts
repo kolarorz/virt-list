@@ -1,118 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  isScrollElement,
-  getScrollParentElement,
   isSiblingElement,
   findAncestorWithClass,
   getPrevSibling,
   getNextSibling,
 } from '../src/tree/utils';
 
-/**
- * jsdom 下所有布局尺寸恒为 0，滚动判定必须自己伪造。
- * offsetHeight / offsetWidth 是 isScrollElement 对普通元素取的可视尺寸。
- */
-function makeEl(size: {
-  offsetHeight?: number;
-  offsetWidth?: number;
-  scrollHeight?: number;
-  scrollWidth?: number;
-}): HTMLElement {
-  const el = document.createElement('div');
-  Object.defineProperties(el, {
-    offsetHeight: { get: () => size.offsetHeight ?? 0, configurable: true },
-    offsetWidth: { get: () => size.offsetWidth ?? 0, configurable: true },
-    scrollHeight: { get: () => size.scrollHeight ?? 0, configurable: true },
-    scrollWidth: { get: () => size.scrollWidth ?? 0, configurable: true },
-  });
-  return el;
-}
-
 afterEach(() => {
   document.body.innerHTML = '';
-});
-
-describe('isScrollElement', () => {
-  it('内容高度超出可视高度时为可滚动', () => {
-    expect(isScrollElement(makeEl({ offsetHeight: 100, scrollHeight: 300 }))).toBe(
-      true,
-    );
-  });
-
-  it('内容宽度超出可视宽度时为可滚动（横向）', () => {
-    expect(isScrollElement(makeEl({ offsetWidth: 100, scrollWidth: 300 }))).toBe(
-      true,
-    );
-  });
-
-  it('内容未超出时不可滚动', () => {
-    expect(
-      isScrollElement(
-        makeEl({
-          offsetHeight: 100,
-          offsetWidth: 100,
-          scrollHeight: 100,
-          scrollWidth: 100,
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it('documentElement 走 clientHeight / clientWidth 分支', () => {
-    const root = document.documentElement;
-    const clientHeight = root.clientHeight;
-    Object.defineProperty(root, 'scrollHeight', {
-      get: () => clientHeight + 100,
-      configurable: true,
-    });
-
-    expect(isScrollElement(root)).toBe(true);
-
-    Reflect.deleteProperty(root, 'scrollHeight');
-  });
-});
-
-describe('getScrollParentElement', () => {
-  it('容器自身可滚动时直接返回自身', () => {
-    const el = makeEl({ offsetHeight: 100, scrollHeight: 300 });
-    document.body.appendChild(el);
-
-    expect(getScrollParentElement(el)).toBe(el);
-  });
-
-  it('向上找到最近的可滚动祖先', () => {
-    const scroller = makeEl({ offsetHeight: 100, scrollHeight: 500 });
-    const middle = makeEl({ offsetHeight: 50, scrollHeight: 50 });
-    const inner = makeEl({ offsetHeight: 20, scrollHeight: 20 });
-
-    document.body.appendChild(scroller);
-    scroller.appendChild(middle);
-    middle.appendChild(inner);
-
-    expect(getScrollParentElement(inner)).toBe(scroller);
-  });
-
-  it('沿途都不可滚动时返回 null', () => {
-    const outer = makeEl({ offsetHeight: 100, scrollHeight: 100 });
-    const inner = makeEl({ offsetHeight: 20, scrollHeight: 20 });
-    document.body.appendChild(outer);
-    outer.appendChild(inner);
-
-    expect(getScrollParentElement(inner)).toBeNull();
-  });
-
-  it('搜索在 top 参数处停止，不会越过它', () => {
-    const scroller = makeEl({ offsetHeight: 100, scrollHeight: 500 });
-    const boundary = makeEl({ offsetHeight: 50, scrollHeight: 50 });
-    const inner = makeEl({ offsetHeight: 20, scrollHeight: 20 });
-
-    document.body.appendChild(scroller);
-    scroller.appendChild(boundary);
-    boundary.appendChild(inner);
-
-    // boundary 作为上界：可滚动的 scroller 在其之上，不应被找到
-    expect(getScrollParentElement(inner, boundary)).toBeNull();
-  });
 });
 
 describe('isSiblingElement', () => {

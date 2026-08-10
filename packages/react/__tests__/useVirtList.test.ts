@@ -138,27 +138,27 @@ describe('React useVirtList', () => {
 
   it('暴露滚动 API', async () => {
     vi.useFakeTimers();
-    const { root, clientEl, getApi } = await setup();
+    const { root, getApi } = await setup();
     const api = getApi();
 
     api.scrollToIndex(10);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(api.getOffset()).toBe(400);
     expect(api.getOffset()).toBe(400);
 
     api.scrollToOffset(77);
-    expect(clientEl.scrollTop).toBe(77);
+    expect(api.getOffset()).toBe(77);
 
     api.scrollIntoView(0);
-    expect(clientEl.scrollTop).toBe(0);
+    expect(api.getOffset()).toBe(0);
 
     api.scrollToBottom();
     // scrollToBottom 停在浏览器允许的可滚动上限（总高 - 可视高度），
     // 而不是把总高原样写进 scrollTop —— 后者在真实浏览器里会被裁掉
-    expect(clientEl.scrollTop).toBe(2000 - 200);
+    expect(api.getOffset()).toBe(2000 - 200);
 
     api.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(api.getOffset()).toBe(0);
 
     vi.useRealTimers();
     await unmount(root);
@@ -166,16 +166,16 @@ describe('React useVirtList', () => {
 
   it('smooth 滚动可被 cancelScroll 打断', async () => {
     vi.useFakeTimers();
-    const { root, clientEl, getApi } = await setup();
+    const { root, getApi } = await setup();
     const api = getApi();
 
     api.scrollToIndex(40, { behavior: 'smooth', duration: 200 });
     vi.advanceTimersByTime(32);
     api.cancelScroll();
-    const stopped = clientEl.scrollTop;
+    const stopped = api.getOffset();
     vi.advanceTimersByTime(300);
 
-    expect(clientEl.scrollTop).toBe(stopped);
+    expect(api.getOffset()).toBe(stopped);
 
     vi.useRealTimers();
     await unmount(root);
@@ -204,45 +204,41 @@ describe('React useVirtList', () => {
 
   it('暴露头部增删修正', async () => {
     const list = makeList(50);
-    const { root, clientEl, getApi } = await setup({ list });
+    const { root, getApi } = await setup({ list });
     const api = getApi();
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
+    getApi().scrollFromUser(400);
 
     const added = [{ id: 'new-0', text: 'new-0' }];
     list.unshift(...added);
     api.setList(list);
     api.addedList2Top(added);
-    expect(clientEl.scrollTop).toBe(440);
-    clientEl.dispatchEvent(new Event('scroll'));
+    expect(api.getOffset()).toBe(440);
 
     const deleted = list.splice(0, 1);
     api.setList(list);
     api.deletedList2Top(deleted);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(api.getOffset()).toBe(400);
 
     await unmount(root);
   });
 
   it('事件回调被调用', async () => {
-    const scroll = vi.fn();
+    const offsetChange = vi.fn();
     const toBottom = vi.fn();
     const update = vi.fn();
     const itemResize = vi.fn();
-    const { root, clientEl } = await setup(
+    const { root, getApi } = await setup(
       {},
-      { scroll, toBottom, update, itemResize },
+      { offsetChange, toBottom, update, itemResize },
     );
 
     expect(update).toHaveBeenCalled();
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(scroll).toHaveBeenCalled();
+    getApi().scrollFromUser(400);
+    expect(offsetChange).toHaveBeenCalledWith(400);
 
-    clientEl.scrollTop = 1800;
-    clientEl.dispatchEvent(new Event('scroll'));
+    getApi().scrollFromUser(1800);
     expect(toBottom).toHaveBeenCalled();
 
     flushResize('0', 66);

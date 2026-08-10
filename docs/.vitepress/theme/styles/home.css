@@ -1,0 +1,116 @@
+/**
+ * 首页
+ *
+ * 首页由 VitePress 的 hero / features 加三个自定义区块（指标条、复杂度表、
+ * 跑分面板）拼成。它们原本各自写死 1152px，一旦改动就会错位，
+ * 这里统一收到 --vt-home-width，自定义组件里也引用同一个变量。
+ */
+
+html:root .VPHero .container,
+html:root .VPFeatures .container {
+  max-width: var(--vt-home-width);
+}
+
+/*
+ * 复杂度表和跑分面板写在 index.md 里，落在 .vp-doc.container 内。
+ * 那个容器默认是 max-width:1280 + 左右各 64px 内边距 = 内容 1152px，
+ * 比 hero / features 的 1248 窄一圈，四块内容的左右边界因此对不齐。
+ * 这里把它的内容宽度也撑到 --vt-home-width；两侧内边距由容器统一提供，
+ * 所以 ComplexityTable / BenchmarkPanel 自己不再加横向内边距。
+ */
+html:root .VPHome .vp-doc.container {
+  max-width: calc(var(--vt-home-width) + 128px);
+}
+
+@media (max-width: 767px) {
+  html:root .VPHome .vp-doc.container {
+    max-width: 100%;
+  }
+}
+
+/* ===== hero =====
+ * 顶部留白：桌面 80px 是给纯文字 hero 留的呼吸感，这里右侧是一块实时运行的
+ * 演示卡片，本身就有分量，留白可以收一点，让首屏能同时看到指标条。
+ */
+@media (min-width: 960px) {
+  html:root .VPHero {
+    padding: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 64px) 64px 56px;
+  }
+}
+
+/* ===== 移动端 hero ===== */
+@media (max-width: 639px) {
+  html:root .VPHero {
+    padding: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 32px) 24px 32px;
+  }
+
+  html:root .VPHero .name,
+  html:root .VPHero .text {
+    font-size: 28px;
+    line-height: 38px;
+  }
+
+  html:root .VPHero .tagline {
+    padding-top: 10px;
+    font-size: 15px;
+    line-height: 24px;
+  }
+
+  html:root .VPHero .actions {
+    padding-top: 20px;
+  }
+
+  /*
+   * 三个按钮在 390px 下自动折成 2+1 行，落单居中的那个很像误排。
+   * 改成 1+2：主操作整宽独占一行，两个次要操作平分第二行——
+   * 层次比三个等宽按钮清楚，也比纵向堆三个省下 80px 首屏高度
+   * （首屏要留得住下面那张实时运行的演示卡片）。
+   */
+  html:root .VPHero .action {
+    width: 50%;
+  }
+
+  html:root .VPHero .action:first-child {
+    width: 100%;
+  }
+
+  html:root .VPHero .action .VPButton {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ===== features 卡片 =====
+ * 默认边框色等于背景色（等于没有边框），和同一屏上的指标条、复杂度表、
+ * 跑分面板不是一套语言。统一成「浅底 + 可见描边」的卡片，再加轻微悬浮反馈。
+ */
+html:root .VPFeature {
+  border-color: var(--vp-c-divider);
+  border-radius: var(--vt-radius-card);
+  transition:
+    border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html:root .VPFeature:hover {
+  border-color: var(--vp-c-brand-2);
+  box-shadow: var(--vp-shadow-2);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:root .VPFeature,
+  html:root .VPFeature:hover {
+    transform: none;
+    transition-duration: 1ms;
+  }
+}
+
+@media (max-width: 639px) {
+  /* 六张卡片在窄屏里各占一行，标题和描述都该更紧凑些 */
+  html:root .VPFeature {
+    padding: 20px;
+  }
+}

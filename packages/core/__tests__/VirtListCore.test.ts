@@ -318,7 +318,14 @@ describe('VirtListCore', () => {
       expect(core.getOffset()).toBe(0);
     });
 
-    it('after bindDOM, getOffset and scrollToOffset use scrollTop by default', () => {
+    /**
+     * 偏移量归 core 自己掌管，不再是容器 scrollTop 的读写代理。
+     *
+     * 这条是整个滚动模型的基石：容器 overflow:hidden，浏览器不会自己滚，
+     * 所以外部改 scrollTop 不构成滚动（DOM 层会把浏览器因 focus 而做的
+     * 静默改动吸收掉，见 InputController）。
+     */
+    it('偏移量由 core 掌管，外部改 scrollTop 不构成滚动', () => {
       const el = document.createElement('div');
       Object.defineProperty(el, 'scrollTop', {
         writable: true,
@@ -329,27 +336,20 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
 
       el.scrollTop = 42;
-      expect(core.getOffset()).toBe(42);
+      expect(core.getOffset()).toBe(0);
 
       core.scrollToOffset(100);
-      expect(el.scrollTop).toBe(100);
       expect(core.getOffset()).toBe(100);
+      // 容器自身始终不动
+      expect(el.scrollTop).toBe(42);
     });
 
-    it('horizontal mode uses scrollLeft', () => {
-      const el = document.createElement('div');
-      Object.defineProperty(el, 'scrollLeft', {
-        writable: true,
-        configurable: true,
-        value: 0,
-      });
+    it('horizontal 模式共用同一个偏移量（轴向只影响 DOM 层写哪个 transform 分量）', () => {
       const core = new VirtListCore({ ...baseOptions(), horizontal: true });
-      core.bindDOM(el);
+      core.bindDOM(document.createElement('div'));
 
-      el.scrollLeft = 33;
-      expect(core.getOffset()).toBe(33);
       core.scrollToOffset(50);
-      expect(el.scrollLeft).toBe(50);
+      expect(core.getOffset()).toBe(50);
     });
   });
 
@@ -368,7 +368,7 @@ describe('VirtListCore', () => {
       });
       core.bindDOM(el);
       core.scrollToIndex(3);
-      expect(el.scrollTop).toBe(3 * 40);
+      expect(core.getOffset()).toBe(3 * 40);
     });
 
     it('delegates to scrollToBottom for last index or beyond', () => {
@@ -389,7 +389,7 @@ describe('VirtListCore', () => {
 
       core.scrollToIndex(99);
       vi.runAllTimers();
-      expect(el.scrollTop).toBe(
+      expect(core.getOffset()).toBe(
         Math.max(0, core.getTotalSize() - core.slotSize.clientSize),
       );
     });
@@ -408,7 +408,7 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
       core.scrollToTop();
       vi.runAllTimers();
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
     });
 
     /** scrollTop 像浏览器那样被裁剪到 [0, 最大可滚动值] 的容器 */
@@ -425,30 +425,41 @@ describe('VirtListCore', () => {
       return el;
     }
 
-    it('底部未到位时按后续信号继续修正，追上 totalSize 后停止', () => {
-      vi.useFakeTimers();
-      const core = new VirtListCore(baseOptions(makeList(50)));
-      const state = core.getState();
-      const el = makeClampedScrollEl(() =>
-        Math.max(0, state.listTotalSize - 100),
-      );
-      core.bindDOM(el);
-      core.slotSize.clientSize = 100;
-      state.listTotalSize = 500;
+    it('底部未到位时按后续测量继续求解，追上 totalSize 后不再改动', () => {
+      const ro = { cb: null as ResizeObserverCallback | null };
+      const Original = globalThis.ResizeObserver;
+      globalThis.ResizeObserver = class {
+        constructor(cb: ResizeObserverCallback) {
+          ro.cb = cb;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
 
-      core.scrollToBottom();
-      expect(el.scrollTop).toBe(400);
+      try {
+        const core = new VirtListCore(baseOptions(makeList(50)));
+        const state = core.getState();
+        core.bindDOM(document.createElement('div'));
+        core.slotSize.clientSize = 100;
+        state.listTotalSize = 500;
 
-      // 模拟新项测量回填后 totalSize 变大：上一次的落点已不是底部，需要继续修正。
-      // 关键回归点——若在赋值后同步判断收敛，这里会被误判成已到底而提前停下
-      state.listTotalSize = 620;
-      vi.advanceTimersByTime(16);
-      expect(el.scrollTop).toBe(520);
+        core.scrollToBottom();
+        expect(core.getOffset()).toBe(400);
 
-      // 已到底，后续帧不再改动，也不留挂起的回调
-      vi.advanceTimersByTime(160);
-      expect(el.scrollTop).toBe(520);
-      expect(vi.getTimerCount()).toBe(0);
+        // 模拟新项测量回填后 totalSize 变大：上一次的落点已不是底部。
+        // 「贴到底」是记在 _pinned 里的目标，每次测量回调都重新求解一次
+        state.listTotalSize = 620;
+        ro.cb?.([], {} as ResizeObserver);
+        expect(core.getOffset()).toBe(520);
+
+        // 已经到底，后续测量回调不再改动（求解幂等）
+        ro.cb?.([], {} as ResizeObserver);
+        ro.cb?.([], {} as ResizeObserver);
+        expect(core.getOffset()).toBe(520);
+      } finally {
+        globalThis.ResizeObserver = Original;
+      }
     });
 
     it('目标始终不收敛时渐进修正会自行停止，不会无限重试', () => {
@@ -488,7 +499,7 @@ describe('VirtListCore', () => {
       core.scrollToOffset(80);
       vi.advanceTimersByTime(160);
 
-      expect(el.scrollTop).toBe(80);
+      expect(core.getOffset()).toBe(80);
       expect(vi.getTimerCount()).toBe(0);
     });
   });
@@ -513,7 +524,7 @@ describe('VirtListCore', () => {
       const onDone = vi.fn();
       core.scrollToOffset(120, { onDone });
 
-      expect(el.scrollTop).toBe(120);
+      expect(core.getOffset()).toBe(120);
       expect(onDone).toHaveBeenCalledWith(false);
     });
 
@@ -527,15 +538,15 @@ describe('VirtListCore', () => {
       core.scrollToOffset(200, { behavior: 'smooth', duration: 100, onDone });
 
       // 调用后不应立即到位
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
       expect(onDone).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(48);
-      expect(el.scrollTop).toBeGreaterThan(0);
-      expect(el.scrollTop).toBeLessThan(200);
+      expect(core.getOffset()).toBeGreaterThan(0);
+      expect(core.getOffset()).toBeLessThan(200);
 
       vi.advanceTimersByTime(200);
-      expect(el.scrollTop).toBe(200);
+      expect(core.getOffset()).toBe(200);
       expect(onDone).toHaveBeenCalledTimes(1);
       expect(onDone).toHaveBeenCalledWith(false);
     });
@@ -551,10 +562,10 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
 
       core.scrollToIndex(3, { behavior: 'smooth', duration: 100 });
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
 
       vi.advanceTimersByTime(200);
-      expect(el.scrollTop).toBe(3 * 40);
+      expect(core.getOffset()).toBe(3 * 40);
     });
 
     it('用户 wheel 手势中断动画并回调 onDone(true)', () => {
@@ -567,14 +578,14 @@ describe('VirtListCore', () => {
       core.scrollToOffset(300, { behavior: 'smooth', duration: 200, onDone });
       vi.advanceTimersByTime(48);
 
-      const midway = el.scrollTop;
+      const midway = core.getOffset();
       el.dispatchEvent(new Event('wheel'));
 
       expect(onDone).toHaveBeenCalledWith(true);
 
       vi.advanceTimersByTime(400);
       // 动画已取消，位置不再被推进
-      expect(el.scrollTop).toBe(midway);
+      expect(core.getOffset()).toBe(midway);
     });
 
     it('新的滚动调用会抢占进行中的动画', () => {
@@ -589,10 +600,10 @@ describe('VirtListCore', () => {
 
       core.scrollToOffset(0);
       expect(onDone).toHaveBeenCalledWith(true);
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
 
       vi.advanceTimersByTime(400);
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
     });
 
     it('cancelScroll 与 destroy 都会取消进行中的动画', () => {
@@ -632,10 +643,10 @@ describe('VirtListCore', () => {
       core.scrollToOffset(200, { behavior: 'smooth' });
       vi.advanceTimersByTime(400);
       // 1000ms 的动画在 400ms 时还没结束
-      expect(el.scrollTop).toBeLessThan(200);
+      expect(core.getOffset()).toBeLessThan(200);
 
       vi.advanceTimersByTime(1000);
-      expect(el.scrollTop).toBe(200);
+      expect(core.getOffset()).toBe(200);
     });
 
     it('duration 为 0 时退化为同步跳转', () => {
@@ -646,7 +657,7 @@ describe('VirtListCore', () => {
       const onDone = vi.fn();
       core.scrollToOffset(160, { behavior: 'smooth', duration: 0, onDone });
 
-      expect(el.scrollTop).toBe(160);
+      expect(core.getOffset()).toBe(160);
       expect(onDone).toHaveBeenCalledWith(false);
     });
 
@@ -665,10 +676,10 @@ describe('VirtListCore', () => {
 
       // 第一帧只做预跳：直接落到「目标 - 800」
       vi.advanceTimersByTime(16);
-      expect(el.scrollTop).toBe(40000 - 800);
+      expect(core.getOffset()).toBe(40000 - 800);
 
       vi.advanceTimersByTime(400);
-      expect(el.scrollTop).toBe(40000);
+      expect(core.getOffset()).toBe(40000);
     });
 
     it('smoothMaxDistance 为 Infinity 时全程逐帧滚动（不预跳）', () => {
@@ -687,10 +698,10 @@ describe('VirtListCore', () => {
 
       vi.advanceTimersByTime(32);
       // 没有预跳，前两帧还在起点附近
-      expect(el.scrollTop).toBeLessThan(40000 - 800);
+      expect(core.getOffset()).toBeLessThan(40000 - 800);
 
       vi.advanceTimersByTime(400);
-      expect(el.scrollTop).toBe(40000);
+      expect(core.getOffset()).toBe(40000);
     });
 
     it('自定义 smoothMaxDistance 生效', () => {
@@ -707,34 +718,34 @@ describe('VirtListCore', () => {
 
       core.scrollToIndex(1000, { behavior: 'smooth', duration: 300 });
       vi.advanceTimersByTime(16);
-      expect(el.scrollTop).toBe(40000 - 200);
+      expect(core.getOffset()).toBe(40000 - 200);
     });
 
     it('scrollToTop smooth 最终归零', () => {
       vi.useFakeTimers();
-      const el = makeScrollEl(200);
+      const el = makeScrollEl();
       const core = new VirtListCore(baseOptions(makeList(10)));
       core.bindDOM(el);
+      core.scrollToOffset(200);
 
       core.scrollToTop({ behavior: 'smooth', duration: 100 });
-      expect(el.scrollTop).toBe(200);
+      // 动画还没推进，位置不动
+      expect(core.getOffset()).toBe(200);
 
       vi.advanceTimersByTime(200);
       vi.runAllTimers();
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
     });
   });
 
   describe('bindDOM / destroy (cleanup)', () => {
-    it('destroy removes scroll listener and clears client binding', () => {
+    it('destroy 解除容器绑定，之后的滚动写入无效', () => {
       const el = document.createElement('div');
-      const removeSpy = vi.spyOn(el, 'removeEventListener');
       const core = new VirtListCore(baseOptions());
       core.bindDOM(el);
 
       core.destroy();
 
-      expect(removeSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
       core.scrollToOffset(10);
       expect(core.getOffset()).toBe(0);
     });
@@ -785,14 +796,13 @@ describe('VirtListCore', () => {
       roCallback?.(entries, {} as ResizeObserver);
     }
 
-    function scrollTo(el: HTMLElement, offset: number) {
-      el.scrollTop = offset;
-      el.dispatchEvent(new Event('scroll'));
+    function scrollTo(core: VirtListCore<any>, offset: number) {
+      core.scrollFromUser(offset);
     }
 
     /** 参照项相对视口顶部的位置——"内容不跳"就是这个值保持不变 */
-    function screenPos(core: VirtListCore<any>, el: HTMLElement, index: number) {
-      return core.getItemPosByIndex(index).top - el.scrollTop;
+    function screenPos(core: VirtListCore<any>, index: number) {
+      return core.getItemPosByIndex(index).top - core.getOffset();
     }
 
     /** 40px 估算、无 gap、视口 200px 的 50 项列表，已滚到中部 */
@@ -802,7 +812,7 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
       // 向下滚到第 10 项顶部，让 inViewBegin 前进到 10
-      scrollTo(el, 400);
+      scrollTo(core, 400);
       return { el, core };
     }
 
@@ -812,24 +822,24 @@ describe('VirtListCore', () => {
       expect(anchorIndex).toBe(10);
 
       // 向上滚进第 9 项，触发向上渲染并立起锚点
-      scrollTo(el, 360);
-      const before = screenPos(core, el, anchorIndex);
+      scrollTo(core, 360);
+      const before = screenPos(core, anchorIndex);
 
       // 第 9 项实测 60px（比 40px 的估算高 20）
       flushResize([sizeEntry('9', 60)]);
 
-      expect(screenPos(core, el, anchorIndex)).toBe(before);
-      expect(el.scrollTop).toBe(380);
+      expect(screenPos(core, anchorIndex)).toBe(before);
+      expect(core.getOffset()).toBe(380);
     });
 
     it('锚点下方的项变高不会移动视口（旧的 diff 补偿会在此误判）', () => {
       const { el, core } = setup();
-      scrollTo(el, 360);
+      scrollTo(core, 360);
 
       // 第 30 项远在视口下方，它变高只该让列表更长，不该动 scrollTop
       flushResize([sizeEntry('30', 60)]);
 
-      expect(el.scrollTop).toBe(360);
+      expect(core.getOffset()).toBe(360);
       expect(core.getTotalSize()).toBe(50 * 40 + 20);
     });
 
@@ -837,8 +847,8 @@ describe('VirtListCore', () => {
       const { el, core } = setup();
       // 锚点参照的是"向上滚之前"的顶部项，须在 scrollTo 之前取
       const anchorIndex = core.getState().inViewBegin;
-      scrollTo(el, 360);
-      const before = screenPos(core, el, anchorIndex);
+      scrollTo(core, 360);
+      const before = screenPos(core, anchorIndex);
 
       // 上方两项各 +20，下方一项 +20：只有上方的 40 该计入位移
       flushResize([
@@ -847,29 +857,29 @@ describe('VirtListCore', () => {
         sizeEntry('30', 60),
       ]);
 
-      expect(screenPos(core, el, anchorIndex)).toBe(before);
-      expect(el.scrollTop).toBe(400);
+      expect(screenPos(core, anchorIndex)).toBe(before);
+      expect(core.getOffset()).toBe(400);
     });
 
     it('向下滚动会作废待处理的锚点', () => {
       const { el, core } = setup();
-      scrollTo(el, 360);
+      scrollTo(core, 360);
       // 向下滚回去，说明用户已离开原来那段内容
-      scrollTo(el, 480);
+      scrollTo(core, 480);
 
       flushResize([sizeEntry('9', 60)]);
 
-      expect(el.scrollTop).toBe(480);
+      expect(core.getOffset()).toBe(480);
     });
 
     it('用户主动 scrollToOffset 会清掉锚点', () => {
       const { el, core } = setup();
-      scrollTo(el, 360);
+      scrollTo(core, 360);
 
       core.scrollToOffset(360);
       flushResize([sizeEntry('9', 60)]);
 
-      expect(el.scrollTop).toBe(360);
+      expect(core.getOffset()).toBe(360);
     });
 
     it('参照项从列表中消失后锚点失效，不做错误修正', () => {
@@ -878,8 +888,8 @@ describe('VirtListCore', () => {
       const core = new VirtListCore(baseOptions(list));
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
-      scrollTo(el, 400);
-      scrollTo(el, 360);
+      scrollTo(core, 400);
+      scrollTo(core, 360);
 
       // 整体换成另一批 key，锚点的参照项不复存在
       core.updateOptions({
@@ -887,7 +897,7 @@ describe('VirtListCore', () => {
       });
       flushResize([sizeEntry('9', 60)]);
 
-      expect(el.scrollTop).toBe(360);
+      expect(core.getOffset()).toBe(360);
     });
 
     it('平滑滚动进行中，锚点只平移插值起点，不直接改写 scrollTop', () => {
@@ -896,7 +906,7 @@ describe('VirtListCore', () => {
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
       // 先启动动画（会清掉已有锚点），再由动画自身的向上滚动重新立起锚点
       core.scrollToOffset(0, {
@@ -905,47 +915,51 @@ describe('VirtListCore', () => {
         maxDistance: Infinity,
       });
       vi.advanceTimersByTime(32);
-      // jsdom 不会因赋值 scrollTop 而派发 scroll，手动补上浏览器的这一步
-      el.dispatchEvent(new Event('scroll'));
 
-      const during = el.scrollTop;
+      const during = core.getOffset();
       flushResize([sizeEntry('5', 60)]);
       // 位置仍由动画掌管，锚点不在此刻插手
-      expect(el.scrollTop).toBe(during);
+      expect(core.getOffset()).toBe(during);
 
       // 动画照常收尾，落在目标位置
       vi.advanceTimersByTime(400);
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
     });
 
-    it('修正幅度大于用户滚动步长时，继续向上滚不会被误判成向下滚而作废锚点', () => {
+    /**
+     * 视口顶部那一项**自身**变高时，顶部看到的内容不该移动。
+     *
+     * 这里锚定的是「当前顶部项 + 项内偏移」：项自身变高只会把它下方的内容推下去，
+     * 顶部 60px 处的内容不动，所以偏移量保持原值。
+     *
+     * 旧实现锚的是「滚动前的那一项」（也就是下方那一项），于是顶部项变高时会把
+     * 偏移量往下推，视口顶部反而换成了别的内容——那才是跳动。
+     */
+    it('顶部项自身变高时视口不动（锚的是顶部项 + 项内偏移）', () => {
       vi.useFakeTimers();
-      const { el, core } = setup();
+      const { core } = setup();
 
-      // 先消耗掉"首次 ResizeObserver 回调后基于 start 重新校准"的那一帧，
-      // 它会把区间拉回 start=0，与本例要验证的锚点行为无关
       flushResize([]);
       vi.advanceTimersByTime(20);
-      scrollTo(el, 0);
-      scrollTo(el, 400);
+      scrollTo(core, 0);
+      scrollTo(core, 400);
       expect(core.getState().inViewBegin).toBe(10);
 
-      // 向上滚进第 9 项并立起锚点
-      scrollTo(el, 360);
-      // 第 9 项实测 240px（比 40px 估算高 200），修正幅度 200 > 用户一次滚动的 100
+      // 向上滚进第 9 项
+      scrollTo(core, 360);
+      // 第 9 项实测 240px（比 40px 估算高 200）：它在视口**上方**的部分变长了，
+      // 顶部内容要保持不动，偏移量得跟着加 200
       flushResize([sizeEntry('9', 240)]);
-      expect(el.scrollTop).toBe(560);
+      expect(core.getOffset()).toBe(560);
 
-      // 让 _applyingAnchor 窗口正常关闭，回到"用户滚动"的判定语境
-      vi.advanceTimersByTime(20);
+      // 用户继续向上滚到 460：此时视口顶部落在第 9 项内 60px 处
+      scrollTo(core, 460);
+      expect(core.getState().inViewBegin).toBe(9);
 
-      // 用户继续向上滚 100px。此时 scrollTop(460) 仍大于修正前的偏移(360)，
-      // 若内部偏移没跟着修正一起同步，这一步会被判成向下滚而清掉锚点
-      scrollTo(el, 460);
-
-      // 锚点仍在：第 9 项再变高，视口继续跟着复原
+      // 第 9 项再变高（240 → 340）。顶部仍是"第 9 项内 60px 处"，内容没变，
+      // 所以偏移量不动——变长的部分把下方内容推下去即可
       flushResize([sizeEntry('9', 340)]);
-      expect(el.scrollTop).toBe(660);
+      expect(core.getOffset()).toBe(460);
     });
 
     it('addedList2Top 后新项实测变高，原内容仍停在原处', () => {
@@ -954,7 +968,7 @@ describe('VirtListCore', () => {
       const core = new VirtListCore(baseOptions(list));
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
-      scrollTo(el, 400);
+      scrollTo(core, 400);
 
       // 头部插入 2 项（估算各 40）
       const added = [
@@ -963,16 +977,16 @@ describe('VirtListCore', () => {
       ];
       list.unshift(...added);
       core.addedList2Top(added);
-      expect(el.scrollTop).toBe(480);
+      expect(core.getOffset()).toBe(480);
 
       const anchorIndex = core.getState().inViewBegin;
-      const before = screenPos(core, el, anchorIndex);
+      const before = screenPos(core, anchorIndex);
 
       // 新项实际比估算各高 10
       flushResize([sizeEntry('new-0', 50), sizeEntry('new-1', 50)]);
 
-      expect(screenPos(core, el, anchorIndex)).toBe(before);
-      expect(el.scrollTop).toBe(500);
+      expect(screenPos(core, anchorIndex)).toBe(before);
+      expect(core.getOffset()).toBe(500);
     });
   });
 
@@ -993,10 +1007,12 @@ describe('VirtListCore', () => {
      * clientSize 直接写入 slotSize（jsdom 无布局，ResizeObserver 不会自己填）。
      */
     function setup(clientSize: number, offset = 0) {
-      const el = createScrollEl(offset);
+      const el = createScrollEl();
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
       core.slotSize.clientSize = clientSize;
+      // 偏移量归 core 掌管，摆初始位置必须走 API（写 el.scrollTop 不构成滚动）
+      if (offset) core.scrollToOffset(offset);
       return { el, core };
     }
 
@@ -1005,7 +1021,7 @@ describe('VirtListCore', () => {
       const { el, core } = setup(100, 220);
       core.scrollIntoView(5);
 
-      expect(el.scrollTop).toBe(200);
+      expect(core.getOffset()).toBe(200);
     });
 
     it('下边缘被截断时向下贴到该项底部', () => {
@@ -1014,7 +1030,7 @@ describe('VirtListCore', () => {
       core.scrollIntoView(5);
 
       // targetMax - clientSize = 240 - 50
-      expect(el.scrollTop).toBe(190);
+      expect(core.getOffset()).toBe(190);
     });
 
     it('下边缘贴边时把 stickyHeaderSize 计入目标偏移', () => {
@@ -1024,7 +1040,7 @@ describe('VirtListCore', () => {
       core.scrollIntoView(5);
 
       // targetMax - clientSize + stickyHeaderSize = 240 - 60 + 30
-      expect(el.scrollTop).toBe(210);
+      expect(core.getOffset()).toBe(210);
     });
 
     it('目标整个被吸顶区遮住时按整项定位', () => {
@@ -1033,21 +1049,21 @@ describe('VirtListCore', () => {
       core.slotSize.stickyHeaderSize = 30;
       core.scrollIntoView(5);
 
-      expect(el.scrollTop).toBe(200);
+      expect(core.getOffset()).toBe(200);
     });
 
     it('目标在视口下方之外时按整项定位', () => {
       const { el, core } = setup(100, 0);
       core.scrollIntoView(20);
 
-      expect(el.scrollTop).toBe(800);
+      expect(core.getOffset()).toBe(800);
     });
 
     it('目标在视口上方之外时按整项定位', () => {
       const { el, core } = setup(100, 1000);
       core.scrollIntoView(2);
 
-      expect(el.scrollTop).toBe(80);
+      expect(core.getOffset()).toBe(80);
     });
 
     it('目标已完整可见时不滚动，直接回调 onDone(false)', () => {
@@ -1057,7 +1073,7 @@ describe('VirtListCore', () => {
 
       core.scrollIntoView(6, { onDone });
 
-      expect(el.scrollTop).toBe(200);
+      expect(core.getOffset()).toBe(200);
       expect(onDone).toHaveBeenCalledWith(false);
     });
 
@@ -1066,7 +1082,7 @@ describe('VirtListCore', () => {
       const { el, core } = setup(30, 210);
       core.scrollIntoView(5);
 
-      expect(el.scrollTop).toBe(210);
+      expect(core.getOffset()).toBe(210);
     });
 
     it('smooth 选项会透传给底层定位', () => {
@@ -1075,10 +1091,10 @@ describe('VirtListCore', () => {
 
       core.scrollIntoView(20, { behavior: 'smooth', duration: 100 });
       // 动画尚未开始推进
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
 
       vi.advanceTimersByTime(200);
-      expect(el.scrollTop).toBe(800);
+      expect(core.getOffset()).toBe(800);
     });
   });
 
@@ -1119,13 +1135,12 @@ describe('VirtListCore', () => {
       core.slotSize.clientSize = 200;
 
       // 走一次真实 scroll，让内部 _offset 跟上
-      el.scrollTop = 400;
-      el.dispatchEvent(new Event('scroll'));
+      core.scrollFromUser(400);
 
       const deleted = list.splice(0, 2);
       core.deletedList2Top(deleted);
 
-      expect(el.scrollTop).toBe(320);
+      expect(core.getOffset()).toBe(320);
       expect(core.getState().listTotalSize).toBe(48 * 40);
     });
 
@@ -1137,30 +1152,37 @@ describe('VirtListCore', () => {
       core.slotSize.clientSize = 200;
       core.setItemSize('0', 100);
 
-      el.scrollTop = 400;
-      el.dispatchEvent(new Event('scroll'));
+      core.scrollFromUser(400);
 
       const deleted = list.splice(0, 1);
       core.deletedList2Top(deleted);
 
-      expect(el.scrollTop).toBe(300);
+      expect(core.getOffset()).toBe(300);
     });
   });
 
   describe('resume', () => {
-    it('把容器的滚动位置恢复到内部记录的偏移（keep-alive 场景）', () => {
+    /**
+     * 偏移量归 JS 掌管，hide / show 不会把它弄丢——要恢复的是 **DOM**：
+     * 容器重建后 transform 被清掉，内容会回到 0 的位置。
+     * 所以 resume() 的职责是「重新发一次 offsetChange，让 DOM 层重写 transform」。
+     */
+    it('重新通知 DOM 层把内容摆回当前偏移（keep-alive 场景）', () => {
+      const offsetChange = vi.fn();
       const el = createScrollEl();
-      const core = new VirtListCore(baseOptions(makeList(50)));
+      const core = new VirtListCore(baseOptions(makeList(50)), {
+        offsetChange,
+      });
       core.bindDOM(el);
+      core.scrollFromUser(400);
+      expect(core.getOffset()).toBe(400);
 
-      el.scrollTop = 400;
-      el.dispatchEvent(new Event('scroll'));
-
-      // 模拟组件被缓存后容器重建，scrollTop 归零
-      el.scrollTop = 0;
+      offsetChange.mockClear();
       core.resume();
 
-      expect(el.scrollTop).toBe(400);
+      // 偏移量本来就没丢，但必须重新通知一次，否则 transform 不会被重写
+      expect(core.getOffset()).toBe(400);
+      expect(offsetChange).toHaveBeenCalledWith(400);
     });
   });
 
@@ -1188,8 +1210,7 @@ describe('VirtListCore', () => {
       core.slotSize.clientSize = 100;
 
       core.updateOptions({ bufferTop: 3, bufferBottom: 1 });
-      el.scrollTop = 400;
-      el.dispatchEvent(new Event('scroll'));
+      core.scrollFromUser(400);
 
       const state = core.getState();
       expect(state.inViewBegin).toBe(10);
@@ -1217,7 +1238,7 @@ describe('VirtListCore', () => {
       });
       core.bindDOM(el);
 
-      expect(el.scrollTop).toBe(400);
+      expect(core.getOffset()).toBe(400);
     });
 
     it('offset 指定初始偏移', () => {
@@ -1228,7 +1249,7 @@ describe('VirtListCore', () => {
       });
       core.bindDOM(el);
 
-      expect(el.scrollTop).toBe(123);
+      expect(core.getOffset()).toBe(123);
     });
 
     it('同时给出 start 与 offset 时 start 优先', () => {
@@ -1240,7 +1261,7 @@ describe('VirtListCore', () => {
       });
       core.bindDOM(el);
 
-      expect(el.scrollTop).toBe(200);
+      expect(core.getOffset()).toBe(200);
     });
 
     it('都不给时保持在 0', () => {
@@ -1248,7 +1269,7 @@ describe('VirtListCore', () => {
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
 
-      expect(el.scrollTop).toBe(0);
+      expect(core.getOffset()).toBe(0);
     });
   });
 
@@ -1292,7 +1313,7 @@ describe('VirtListCore', () => {
   describe('horizontal 模式的滚动定位', () => {
     it('scrollToTop 归零 scrollLeft', () => {
       vi.useFakeTimers();
-      const el = createScrollEl(300, 'scrollLeft');
+      const el = createScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
         horizontal: true,
@@ -1302,12 +1323,12 @@ describe('VirtListCore', () => {
       core.scrollToTop();
       vi.runAllTimers();
 
-      expect(el.scrollLeft).toBe(0);
+      expect(core.getOffset()).toBe(0);
     });
 
     it('scrollToBottom 写到总尺寸处', () => {
       vi.useFakeTimers();
-      const el = createScrollEl(0, 'scrollLeft');
+      const el = createScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
         horizontal: true,
@@ -1317,14 +1338,14 @@ describe('VirtListCore', () => {
 
       core.scrollToBottom();
 
-      expect(el.scrollLeft).toBe(
+      expect(core.getOffset()).toBe(
         Math.max(0, core.getTotalSize() - core.slotSize.clientSize),
       );
       vi.runAllTimers();
     });
 
     it('scrollToIndex 与 scrollToOffset 都走 scrollLeft', () => {
-      const el = createScrollEl(0, 'scrollLeft');
+      const el = createScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
         horizontal: true,
@@ -1332,10 +1353,10 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
 
       core.scrollToIndex(10);
-      expect(el.scrollLeft).toBe(400);
+      expect(core.getOffset()).toBe(400);
 
       core.scrollToOffset(55);
-      expect(el.scrollLeft).toBe(55);
+      expect(core.getOffset()).toBe(55);
       expect(core.getOffset()).toBe(55);
     });
   });

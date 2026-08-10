@@ -18,7 +18,7 @@ const N = 3000;
 /** 故意让尺寸不均匀，且与块大小无整数倍关系 */
 const SIZES = Array.from({ length: N }, (_, i) => 20 + (i % 13) * 7);
 /** 覆盖块边界前后的探测点 */
-const PROBES = [0, 1, 1023, 1024, 1025, 2047, 2048, 2049, 2999];
+const PROBES = [0, 1, 1023, 1024, 1025, 2047, 2048, 2049, 2900];
 
 /** TOPS[i] 是第 i 项的顶部偏移 */
 const TOPS: number[] = (() => {
@@ -55,9 +55,8 @@ function setup(measured = true) {
   return { core, el };
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+function scrollTo(core: VirtListCore<any>, offset: number) {
+  core.scrollFromUser(offset);
 }
 
 describe('分块索引：总尺寸与前缀和', () => {
@@ -94,12 +93,12 @@ describe('分块索引：定位', () => {
     const { core, el } = setup();
     // 逐项向下走 30 项，每步都远小于步数上限
     for (let i = 1; i <= 30; i += 1) {
-      scrollTo(el, TOPS[i]!);
+      scrollTo(core, TOPS[i]!);
       expect(core.state.inViewBegin, `inViewBegin@${i}`).toBe(i);
     }
     // 再逐项向上走回来
     for (let i = 29; i >= 0; i -= 1) {
-      scrollTo(el, TOPS[i]!);
+      scrollTo(core, TOPS[i]!);
       expect(core.state.inViewBegin, `back@${i}`).toBe(i);
     }
   });
@@ -107,8 +106,8 @@ describe('分块索引：定位', () => {
   it('远距离跳跃（走索引定位）落在正确的项上', () => {
     const { core, el } = setup();
     // 每次跨越都远超步数上限，且来回跳，强制两个方向都走索引
-    for (const i of [2500, 5, 2999, 1024, 0, 1800, 60, 2048]) {
-      scrollTo(el, TOPS[i]!);
+    for (const i of [2500, 5, 2900, 1024, 0, 1800, 60, 2048]) {
+      scrollTo(core, TOPS[i]!);
       expect(core.state.inViewBegin, `jump→${i}`).toBe(i);
     }
   });
@@ -117,16 +116,16 @@ describe('分块索引：定位', () => {
     const { core, el } = setup();
     for (const i of [7, 1023, 1024, 2500]) {
       // 顶部、内部、底部前一像素都应归属同一项
-      scrollTo(el, 0);
-      scrollTo(el, TOPS[i]!);
+      scrollTo(core, 0);
+      scrollTo(core, TOPS[i]!);
       expect(core.state.inViewBegin, `top of ${i}`).toBe(i);
 
-      scrollTo(el, 0);
-      scrollTo(el, TOPS[i]! + 1);
+      scrollTo(core, 0);
+      scrollTo(core, TOPS[i]! + 1);
       expect(core.state.inViewBegin, `inside ${i}`).toBe(i);
 
-      scrollTo(el, 0);
-      scrollTo(el, TOPS[i + 1]! - 1);
+      scrollTo(core, 0);
+      scrollTo(core, TOPS[i + 1]! - 1);
       expect(core.state.inViewBegin, `bottom of ${i}`).toBe(i);
     }
   });
@@ -136,28 +135,32 @@ describe('分块索引：定位', () => {
 
     // 路径一：从 2499 出发，跨 1 项 → 增量搜索
     const a = setup();
-    scrollTo(a.el, TOPS[2499]!);
-    scrollTo(a.el, target);
+    scrollTo(a.core, TOPS[2499]!);
+    scrollTo(a.core, target);
 
     // 路径二：从 0 出发，跨 2500 项 → 索引定位
     const b = setup();
-    scrollTo(b.el, target);
+    scrollTo(b.core, target);
 
     expect(b.core.state.inViewBegin).toBe(a.core.state.inViewBegin);
     expect(b.core.state.inViewEnd).toBe(a.core.state.inViewEnd);
     expect(b.core.state.virtualSize).toBe(a.core.state.virtualSize);
   });
 
-  it('偏移量超出总尺寸时落到最后一项', () => {
-    const { core, el } = setup();
-    scrollTo(el, TOTAL * 3);
-    expect(core.state.inViewBegin).toBe(N - 1);
+  it('偏移量超出总尺寸时夹到上限，末项完整可见', () => {
+    const { core } = setup();
+    scrollTo(core, TOTAL * 3);
+
+    // 偏移量在写入时就被夹进 [0, totalSize - clientSize]，
+    // 所以视口顶部不是末项本身，而是「贴底时最上面那一项」
+    expect(core.getOffset()).toBe(TOTAL - 300);
+    expect(core.state.inViewEnd).toBe(N - 1);
   });
 
   it('尚无实测尺寸时按预估尺寸定位', () => {
     const { core, el } = setup(false);
     // 每项 20px，跳到第 250 项
-    scrollTo(el, 2500 * 20);
+    scrollTo(core, 2500 * 20);
     expect(core.state.inViewBegin).toBe(2500);
     expect(core.state.listTotalSize).toBe(N * 20);
   });
@@ -194,7 +197,7 @@ describe('分块索引：增量更新', () => {
 
   it('窗口内项上报尺寸后，前缀和与总和都跟着更新', () => {
     const { core, el } = setup();
-    scrollTo(el, 0);
+    scrollTo(core, 0);
 
     const renderBegin = core.state.renderBegin;
     const target = renderBegin + 1;
@@ -213,7 +216,7 @@ describe('分块索引：增量更新', () => {
 
   it('多项连续上报后前缀和依然与手工累加一致', () => {
     const { core, el } = setup();
-    scrollTo(el, 0);
+    scrollTo(core, 0);
 
     const sizes = [...SIZES];
     const begin = core.state.renderBegin;
@@ -236,7 +239,7 @@ describe('分块索引：增量更新', () => {
 
   it('上报后仍能正确远距离定位', () => {
     const { core, el } = setup();
-    scrollTo(el, 0);
+    scrollTo(core, 0);
 
     const sizes = [...SIZES];
     const target = core.state.renderBegin + 1;
@@ -248,8 +251,8 @@ describe('分块索引：增量更新', () => {
       for (let i = 0; i < index; i += 1) sum += sizes[i]!;
       return sum;
     };
-    for (const i of [2500, 40, 2999]) {
-      scrollTo(el, topOf(i));
+    for (const i of [2500, 40, 2900]) {
+      scrollTo(core, topOf(i));
       expect(core.state.inViewBegin, `jump→${i}`).toBe(i);
     }
   });
@@ -257,7 +260,7 @@ describe('分块索引：增量更新', () => {
   it('渲染窗口之外的项上报尺寸时索引整体重建，结果仍正确', () => {
     const { core, el } = setup();
     // 滚到中段，让窗口远离项 0
-    scrollTo(el, TOPS[2000]!);
+    scrollTo(core, TOPS[2000]!);
     expect(core.state.renderBegin).toBeGreaterThan(10);
 
     const sizes = [...SIZES];
@@ -302,7 +305,7 @@ describe('分块索引：增量更新', () => {
 
     // 一次跨越上万项的跳跃：只该查块和加一个块内的项
     const spy = vi.spyOn(core, 'getItemSize');
-    scrollTo(el, 20 * 40_000);
+    scrollTo(core, 20 * 40_000);
     const calls = spy.mock.calls.length;
     spy.mockRestore();
 

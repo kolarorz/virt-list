@@ -1,3 +1,4 @@
+
 const template = `
   <div class="demo-block">
     <div class="demo-block__content"></div>
@@ -37,6 +38,10 @@ async function copyText(source) {
   }
 }
 
+/**
+ * @param root 挂载容器
+ * @param source 高亮后的源码
+ */
 export function mountDemoBlock(root, source) {
   root.innerHTML = template;
   const contentEl = root.querySelector('.demo-block__content');
@@ -69,6 +74,9 @@ export function mountDemoBlock(root, source) {
       copyBtn.textContent = '复制';
     }, 2000);
   };
+
+
+
 
   toggleBtn.addEventListener('click', onToggle);
   copyBtn.addEventListener('click', onCopy);

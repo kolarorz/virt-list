@@ -194,23 +194,23 @@ describe('React-legacy VirtList', () => {
 
   it('暴露滚动 API', () => {
     vi.useFakeTimers();
-    const { container, listRef, clientEl } = mount();
+    const { container, listRef } = mount();
     const api = listRef.current!;
 
     api.scrollToIndex(10);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(listRef.current!.getOffset()).toBe(400);
 
     api.scrollToOffset(55);
-    expect(clientEl.scrollTop).toBe(55);
+    expect(listRef.current!.getOffset()).toBe(55);
 
     api.scrollToBottom();
     // scrollToBottom 停在浏览器允许的可滚动上限（总高 - 可视高度），
     // 而不是把总高原样写进 scrollTop —— 后者在真实浏览器里会被裁掉
-    expect(clientEl.scrollTop).toBe(2000 - 200);
+    expect(listRef.current!.getOffset()).toBe(2000 - 200);
 
     api.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(listRef.current!.getOffset()).toBe(0);
 
     vi.useRealTimers();
     unmount(container);
@@ -267,13 +267,13 @@ describe('React-legacy VirtList', () => {
   });
 
   it('事件回调被调用', () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onToTop = vi.fn();
     const onToBottom = vi.fn();
     const onUpdate = vi.fn();
     const onItemResize = vi.fn();
-    const { container, clientEl } = mount({
-      onScroll,
+    const { container, listRef } = mount({
+      onOffsetChange,
       onToTop,
       onToBottom,
       onUpdate,
@@ -282,16 +282,13 @@ describe('React-legacy VirtList', () => {
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(onScroll).toHaveBeenCalled();
+    listRef.current!.scrollFromUser(400);
+    expect(onOffsetChange).toHaveBeenCalled();
 
-    clientEl.scrollTop = 1800;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.current!.scrollFromUser(1800);
     expect(onToBottom).toHaveBeenCalled();
 
-    clientEl.scrollTop = 0;
-    clientEl.dispatchEvent(new Event('scroll'));
+    listRef.current!.scrollFromUser(0);
     expect(onToTop).toHaveBeenCalled();
 
     flushResize('0', 88);

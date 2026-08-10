@@ -128,7 +128,8 @@
 
 | 回调 Prop    | 说明               | 参数                                      |
 | ------------ | ------------------ | ----------------------------------------- |
-| onScroll     | 滚动               | **`(e: Event) => void`**                  |
+| onScroll       | 滚动               | **`(event: VirtScrollEvent) => void`**    |
+| onOffsetChange | 偏移量变化          | **`(offset: number) => void`**            |
 | onToTop      | 触顶               | **`(item: TreeNode) => void`**            |
 | onToBottom   | 触底               | **`(item: TreeNode) => void`**            |
 | onItemResize | Item 尺寸变化      | **`(id: string, size: number) => void`**    |

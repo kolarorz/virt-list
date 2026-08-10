@@ -56,11 +56,11 @@
   --demo-c-text-3: #8f959e; /* 辅助/占位 */
   --demo-c-on-accent: #fff; /* 彩色底上的文字（两套主题一致） */
 
-  /* ===== 示例中区分插槽区域的色带（承载白字，四段明度递进便于区分） ===== */
-  --demo-c-band-sticky-header: #1f6f4a;
-  --demo-c-band-header: #2e8456;
-  --demo-c-band-footer: #25817a;
-  --demo-c-band-sticky-footer: #1a5f5c;
+  /* ===== 插槽色带 =====
+   * 底色直接复用 --demo-c-fill-1 / --demo-c-brand-soft，这里只留投影色：
+   * 插槽是列表的框，用满饱和度的实色去区分四个段落会比内容还抢眼。
+   */
+  --demo-c-band-shadow: rgb(16 24 40 / 20%); /* sticky 段的投影，表达「浮在内容之上」 */
 
   /* ===== 代码块 ===== */
   --demo-c-code-bg: #f7f8fa;
@@ -146,11 +146,8 @@ html.dark,
   --demo-c-text-2: rgb(235 235 245 / 60%);
   --demo-c-text-3: rgb(235 235 245 / 40%);
 
-  /* ===== 色带（暗色下压低明度，保持白字可读） ===== */
-  --demo-c-band-sticky-header: #24614a;
-  --demo-c-band-header: #2c7a58;
-  --demo-c-band-footer: #24706c;
-  --demo-c-band-sticky-footer: #1b5754;
+  /* ===== 插槽色带（暗色下投影用更深的黑而非更亮的灰） ===== */
+  --demo-c-band-shadow: rgb(0 0 0 / 48%);
 
   /* ===== 代码块 ===== */
   --demo-c-code-bg: #17171a;

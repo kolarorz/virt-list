@@ -5,6 +5,8 @@ import {
 } from 'vite-plugin-qiankun/dist/helper';
 import { mountDemoBlock } from './demo-block.js';
 import { syncStandaloneTheme } from '../../_shared/theme';
+// 自绘滚动条的样式：所有 demo 都用它，脚手架层常驻引入
+import '@virt-list/vanilla/src/scrollbar/scrollbar.css';
 
 // 独立运行时按系统偏好同步暗色；嵌入文档时由 VitePress 控制
 syncStandaloneTheme(Boolean(qiankunWindow.__POWERED_BY_QIANKUN__));
@@ -153,8 +155,10 @@ function render(props) {
     demoBootstrapMap[exampleId] ?? demoBootstrapMap['list-basic'];
   const sourceCode = getDemoSource(exampleId);
   cleanup?.();
+
   const block = mountDemoBlock(root, sourceCode);
   const unmountDemo = bootstrap(block.mountEl);
+
   cleanup = () => {
     unmountDemo?.();
     block.destroy();

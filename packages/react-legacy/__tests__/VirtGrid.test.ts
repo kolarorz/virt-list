@@ -206,17 +206,17 @@ describe('React-legacy VirtGrid', () => {
   });
 
   it('暴露滚动与数据 API', () => {
-    const { container, gridRef, clientEl } = mount({ list: makeList(120) });
+    const { container, gridRef } = mount({ list: makeList(120) });
     const api = gridRef.current!;
 
     api.scrollToIndex(15);
-    expect(clientEl.scrollTop).toBe(200);
+    expect(api.getOffset()).toBe(200);
 
     api.scrollToOffset(88);
-    expect(clientEl.scrollTop).toBe(88);
+    expect(api.getOffset()).toBe(88);
 
     api.scrollIntoView(60);
-    expect(clientEl.scrollTop).toBe(800);
+    expect(api.getOffset()).toBe(800);
 
     api.setList(makeList(4));
     expect(rowIds(container)).toEqual(['0', '3']);
@@ -230,19 +230,17 @@ describe('React-legacy VirtGrid', () => {
   });
 
   it('事件回调被调用', () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onToBottom = vi.fn();
     const onUpdate = vi.fn();
-    const { container, clientEl } = mount({ onScroll, onToBottom, onUpdate });
+    const { container, gridRef } = mount({ onOffsetChange, onToBottom, onUpdate });
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 100;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(onScroll).toHaveBeenCalled();
+    gridRef.current!.scrollFromUser(100);
+    expect(onOffsetChange).toHaveBeenCalled();
 
-    clientEl.scrollTop = 200;
-    clientEl.dispatchEvent(new Event('scroll'));
+    gridRef.current!.scrollFromUser(200);
     expect(onToBottom).toHaveBeenCalled();
 
     unmount(container);

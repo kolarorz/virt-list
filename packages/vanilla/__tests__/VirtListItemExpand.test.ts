@@ -155,16 +155,15 @@ function setup(
   return { vl, clientEl };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
 /** 某一项顶部相对视口顶部的偏移 */
 function relOffsetOf(vl: VirtList<Item>, clientEl: HTMLElement, key: string) {
   const index = vl.core.props.list.findIndex((it) => it.id === key);
   if (index < 0) throw new Error(`找不到 ${key}`);
-  return vl.core.getItemPosByIndex(index).top - clientEl.scrollTop;
+  return vl.core.getItemPosByIndex(index).top - vl.core.getOffset();
 }
 
 /**
@@ -174,7 +173,7 @@ function relOffsetOf(vl: VirtList<Item>, clientEl: HTMLElement, key: string) {
  */
 function viewportCovered(vl: VirtList<Item>, clientEl: HTMLElement) {
   const state = vl.core.getState();
-  const offset = clientEl.scrollTop;
+  const offset = vl.core.getOffset();
   let top = vl.core.getItemPosByIndex(state.renderBegin).top;
   const renderedTop = top;
   for (let i = state.renderBegin; i <= state.renderEnd; i += 1) {
@@ -198,7 +197,7 @@ function viewportCovered(vl: VirtList<Item>, clientEl: HTMLElement) {
  */
 function viewportFullyCovered(vl: VirtList<Item>, clientEl: HTMLElement) {
   const state = vl.core.getState();
-  const offset = clientEl.scrollTop;
+  const offset = vl.core.getOffset();
   const renderedTop = vl.core.getItemPosByIndex(state.renderBegin).top;
   const renderedBottom = vl.core.getItemPosByIndex(state.renderEnd).bottom;
   const atListEnd = state.renderEnd >= vl.core.props.list.length - 1;
@@ -230,7 +229,7 @@ function domCoversViewport(vl: VirtList<Item>, clientEl: HTMLElement) {
       .filter((id) => !SLOT_IDS.includes(id)),
   );
 
-  const offset = clientEl.scrollTop;
+  const offset = vl.core.getOffset();
   const viewBottom = offset + CLIENT_SIZE;
   const list = vl.core.props.list;
   const missing: string[] = [];
@@ -253,7 +252,7 @@ describe('单项高度超过一屏', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const expandIndex = vl.core.getState().inViewBegin;
@@ -264,7 +263,7 @@ describe('单项高度超过一屏', () => {
 
     // 滚到这条消息的末段：视口上半是消息尾部，下半应该是后面几条消息
     const pos = vl.core.getItemPosByIndex(expandIndex);
-    scrollTo(clientEl, pos.bottom - CLIENT_SIZE / 2);
+    scrollTo(vl, pos.bottom - CLIENT_SIZE / 2);
     measure();
     flushRaf();
 
@@ -281,7 +280,7 @@ describe('单项高度超过一屏', () => {
 
     // 让它落在列表中段，和 demo 里 #110 的位置相当
     const TALL = 110;
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
     flushRaf();
 
@@ -294,7 +293,7 @@ describe('单项高度超过一屏', () => {
     const from = pos.top;
     const to = vl.core.getItemPosByIndex(TALL + 4).bottom;
     for (let y = from; y <= to; y += 25) {
-      scrollTo(clientEl, y);
+      scrollTo(vl, y);
       measure();
       const dom = domCoversViewport(vl, clientEl);
       expect(
@@ -318,7 +317,7 @@ describe('单项高度超过一屏', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const expandIndex = vl.core.getState().inViewBegin;
@@ -329,7 +328,7 @@ describe('单项高度超过一屏', () => {
 
     const pos = vl.core.getItemPosByIndex(expandIndex);
     for (let y = pos.top; y <= pos.bottom; y += CLIENT_SIZE / 3) {
-      scrollTo(clientEl, y);
+      scrollTo(vl, y);
       measure();
       const cov = viewportFullyCovered(vl, clientEl);
       expect(
@@ -343,7 +342,7 @@ describe('单项高度超过一屏', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const expandIndex = vl.core.getState().inViewBegin;
@@ -365,11 +364,10 @@ describe('单项高度超过一屏', () => {
     for (let i = 0; i < 6; i += 1) {
       measure();
       flushRaf();
-      clientEl.dispatchEvent(new Event('scroll'));
     }
 
     // 向上滚一段（聊天室里读历史的动作，会立下滚动锚点）
-    scrollTo(clientEl, clientEl.scrollTop - 800);
+    scrollTo(vl, vl.core.getOffset() - 800);
     measure();
     flushRaf();
 
@@ -393,7 +391,6 @@ describe('单项高度超过一屏', () => {
     // 首次尺寸上报会排一个 rAF 做首帧区间校准，它用的是 start（默认 0）
     measure();
     flushRaf();
-    clientEl.dispatchEvent(new Event('scroll'));
 
     const state = vl.core.getState();
     // 视口在底部，区间就不该回到 0 附近
@@ -411,12 +408,11 @@ describe('单项高度超过一屏', () => {
 
     // 刻意只推进一轮就打断：底部修正任务此刻还挂着
     measure();
-    clientEl.dispatchEvent(new Event('scroll'));
 
     // 用户向上滚去读历史
-    scrollTo(clientEl, Math.max(0, clientEl.scrollTop - 900));
+    scrollTo(vl, Math.max(0, vl.core.getOffset() - 900));
     measure();
-    const offsetBeforeExpand = clientEl.scrollTop;
+    const offsetBeforeExpand = vl.core.getOffset();
 
     // 展开一条三屏高的消息
     const expandIndex = vl.core.getState().inViewBegin + 1;
@@ -424,12 +420,11 @@ describe('单项高度超过一屏', () => {
     sizes.set(expandKey, VERY_TALL);
     measure();
     flushRaf();
-    clientEl.dispatchEvent(new Event('scroll'));
 
     // 展开只应该把下方内容推下去，不该把视口拽到列表底部
     expect(
-      clientEl.scrollTop,
-      `展开后 scrollTop 从 ${offsetBeforeExpand} 变成 ${clientEl.scrollTop}`,
+      vl.core.getOffset(),
+      `展开后 scrollTop 从 ${offsetBeforeExpand} 变成 ${vl.core.getOffset()}`,
     ).toBeLessThanOrEqual(offsetBeforeExpand + VERY_TALL);
     const cov = viewportCovered(vl, clientEl);
     expect(
@@ -442,7 +437,7 @@ describe('单项高度超过一屏', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const expandIndex = vl.core.getState().inViewBegin;
@@ -453,7 +448,7 @@ describe('单项高度超过一屏', () => {
     const pos = vl.core.getItemPosByIndex(expandIndex);
     // 从这一项顶部一路滚到它底部
     for (let y = pos.top; y < pos.bottom; y += CLIENT_SIZE / 2) {
-      scrollTo(clientEl, y);
+      scrollTo(vl, y);
       measure();
       const cov = viewportCovered(vl, clientEl);
       expect(
@@ -467,7 +462,7 @@ describe('单项高度超过一屏', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const expandIndex = vl.core.getState().inViewBegin;
@@ -490,7 +485,7 @@ describe('折叠消息：项高度原地突变', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
@@ -515,7 +510,7 @@ describe('折叠消息：项高度原地突变', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
@@ -531,7 +526,7 @@ describe('折叠消息：项高度原地突变', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
@@ -552,7 +547,7 @@ describe('折叠消息：项高度原地突变', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
@@ -573,9 +568,9 @@ describe('折叠消息：项高度原地突变', () => {
 
   it('批量展开（所有项变高）后总高度正确，且视口仍落在渲染出的内容上', () => {
     const list = makeList(60);
-    const { vl, clientEl } = setup(list);
+    const { vl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     // 全部展开：先改高度，再 forceUpdate 重建渲染窗口内的项
@@ -590,7 +585,7 @@ describe('折叠消息：项高度原地突变', () => {
     expect(state.renderEnd).toBeGreaterThanOrEqual(state.inViewBegin);
 
     const topOfInView = vl.core.getItemPosByIndex(state.inViewBegin).top;
-    expect(Math.abs(topOfInView - clientEl.scrollTop)).toBeLessThanOrEqual(
+    expect(Math.abs(topOfInView - vl.core.getOffset())).toBeLessThanOrEqual(
       EXPANDED,
     );
   });
@@ -599,7 +594,7 @@ describe('折叠消息：项高度原地突变', () => {
     const list = makeList(60);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 1000);
+    scrollTo(vl, 1000);
     measure();
 
     // 展开视口里的一条
@@ -611,7 +606,7 @@ describe('折叠消息：项高度原地突变', () => {
     const relBefore = relOffsetOf(vl, clientEl, topKey);
 
     // 滚到顶加载上一页
-    scrollTo(clientEl, 0);
+    scrollTo(vl, 0);
     measure();
     const relAtTop = relOffsetOf(vl, clientEl, topKey);
 

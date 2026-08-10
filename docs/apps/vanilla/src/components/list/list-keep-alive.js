@@ -79,9 +79,12 @@ export function bootstrapKeepAlive(root) {
 
   function renderTab(tab) {
     if (currentVirtList) {
-      const scrollTop = currentVirtList.clientEl?.scrollTop ?? 0;
-      if (activeTab === 'users') userScrollOffset = scrollTop;
-      else productScrollOffset = scrollTop;
+      // 用 core.getOffset() 而不是 clientEl.scrollTop：容器是
+      // overflow:hidden、内容靠 transform 移动，scrollTop 恒为 0，位置就存不下来了。
+      // 与下面恢复用的 scrollToOffset 正好对称。
+      const offset = currentVirtList.core.getOffset();
+      if (activeTab === 'users') userScrollOffset = offset;
+      else productScrollOffset = offset;
       currentVirtList.destroy();
       currentVirtList = null;
     }

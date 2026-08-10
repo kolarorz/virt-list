@@ -37,7 +37,9 @@ export function mergeStyles(...styles: (StyleValue | undefined | null)[]): strin
   let result = '';
   for (const s of styles) {
     if (!s) continue;
-    const css = normalizeStyle(s);
+    // 去掉已有的尾分号再补一个：否则传入以 ';' 结尾的样式串会拼出 ';;'，
+    // 而空声明会让解析器丢弃它**之后的全部属性**（jsdom 实测如此）
+    const css = normalizeStyle(s).trim().replace(/;+$/, '');
     if (css) result += css + ';';
   }
   return result;

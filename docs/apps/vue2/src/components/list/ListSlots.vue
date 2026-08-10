@@ -6,39 +6,20 @@
         :list="list"
         item-key="id"
         :item-pre-size="40"
-        sticky-header-style="background:var(--demo-c-band-sticky-header);height:50px;"
-        sticky-footer-style="background:var(--demo-c-band-sticky-footer);height:50px;"
         @update="onUpdate"
       >
         <template #stickyHeader>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: bold;
-              font-size: 14px;
-              color: var(--demo-c-on-accent);
-              height: 100%;
-            "
-          >
-            Sticky Header（固定头部）
+          <div class="demo-band demo-band--sticky-header">
+            <span class="demo-band__tag">stickyHeader</span>
+            <span class="demo-band__text">固定头部</span>
+            <span class="demo-band__note">吸在容器顶部，不随内容滚动</span>
           </div>
         </template>
         <template #header>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: bold;
-              font-size: 14px;
-              color: var(--demo-c-on-accent);
-              background: var(--demo-c-band-header);
-              height: 40px;
-            "
-          >
-            Header（头部）
+          <div class="demo-band demo-band--header">
+            <span class="demo-band__tag">header</span>
+            <span class="demo-band__text">头部</span>
+            <span class="demo-band__note">排在第一项之前，随内容一起滚动</span>
           </div>
         </template>
         <template #default="{ itemData }">
@@ -48,34 +29,17 @@
           </div>
         </template>
         <template #footer>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: bold;
-              font-size: 14px;
-              color: var(--demo-c-on-accent);
-              background: var(--demo-c-band-footer);
-              height: 40px;
-            "
-          >
-            Footer（尾部）
+          <div class="demo-band demo-band--footer">
+            <span class="demo-band__tag">footer</span>
+            <span class="demo-band__text">尾部</span>
+            <span class="demo-band__note">排在最后一项之后，随内容一起滚动</span>
           </div>
         </template>
         <template #stickyFooter>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: bold;
-              font-size: 14px;
-              color: var(--demo-c-on-accent);
-              height: 100%;
-            "
-          >
-            Sticky Footer（固定底部）
+          <div class="demo-band demo-band--sticky-footer">
+            <span class="demo-band__tag">stickyFooter</span>
+            <span class="demo-band__text">固定底部</span>
+            <span class="demo-band__note">吸在容器底部，不随内容滚动</span>
           </div>
         </template>
       </VirtList>

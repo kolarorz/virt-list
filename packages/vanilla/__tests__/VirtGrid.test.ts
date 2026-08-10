@@ -64,7 +64,7 @@ function mount(
     },
   );
   const events = {
-    scroll: vi.fn(),
+    offsetChange: vi.fn(),
     toTop: vi.fn(),
     toBottom: vi.fn(),
     itemResize: vi.fn(),
@@ -107,14 +107,19 @@ function renderedRowIds(container: HTMLElement): string[] {
     .filter((id) => /^\d+$/.test(id));
 }
 
-function scrollTo(el: HTMLElement, offset: number) {
-  el.scrollTop = offset;
-  el.dispatchEvent(new Event('scroll'));
+/**
+ * 模拟一次用户滚动。
+ *
+ * 走 scrollFromUser 而不是 scrollToOffset：只有「用户动了」才会触发
+ * toTop / toBottom 判定，程序化滚动不会。
+ */
+function scrollTo(grid: VirtGrid<any>, offset: number) {
+  grid.core.scrollFromUser(offset);
 }
 
 describe('VirtGrid 分组', () => {
   it('按 gridItems 把扁平列表切成行，_id 是行首的扁平索引', () => {
-    const { events } = mount({}, makeList(9));
+    const { events, grid } = mount({}, makeList(9));
     const rows = lastRows(events);
 
     expect(rows.map((r) => r._id)).toEqual([0, 3, 6]);
@@ -213,9 +218,9 @@ describe('VirtGrid 行与单元格渲染', () => {
   });
 
   it('滚动后渲染出后面的行', () => {
-    const { container, clientEl } = mount();
+    const { container, grid } = mount();
 
-    scrollTo(clientEl, 200);
+    scrollTo(grid, 200);
 
     expect(renderedRowIds(container)).toEqual([
       '15', '18', '21', '24', '27',
@@ -314,17 +319,17 @@ describe('VirtGrid setGridItems', () => {
 
   it('按旧列数换算行索引，下一帧尽量保持视口位置', () => {
     vi.useFakeTimers();
-    const { grid, clientEl } = mount({}, makeList(120));
+    const { grid } = mount({}, makeList(120));
 
     // 滚到第 5 行（旧列数 3 → 扁平第 15 项附近）
-    scrollTo(clientEl, 200);
-    expect(clientEl.scrollTop).toBe(200);
+    scrollTo(grid, 200);
+    expect(grid.getOffset()).toBe(200);
 
     grid.setGridItems(2);
     vi.advanceTimersByTime(16);
 
     // targetRowIndex = floor(5 * 3 / 2) = 7 → 7 * 40
-    expect(clientEl.scrollTop).toBe(280);
+    expect(grid.getOffset()).toBe(280);
   });
 
   it('非正数列数被忽略', () => {
@@ -340,60 +345,60 @@ describe('VirtGrid setGridItems', () => {
 
 describe('VirtGrid 滚动 API（扁平索引 → 行索引换算）', () => {
   it('scrollToIndex 把扁平索引换算成行', () => {
-    const { grid, clientEl } = mount({}, makeList(120));
+    const { grid } = mount({}, makeList(120));
 
     // floor(15 / 3) = 5 行 → 5 * 40
     grid.scrollToIndex(15);
-    expect(clientEl.scrollTop).toBe(200);
+    expect(grid.getOffset()).toBe(200);
 
     // 同一行内的任意扁平索引都落到同一处
     grid.scrollToIndex(17);
-    expect(clientEl.scrollTop).toBe(200);
+    expect(grid.getOffset()).toBe(200);
   });
 
   it('scrollIntoView 同样按行换算', () => {
-    const { grid, clientEl } = mount({}, makeList(120));
+    const { grid } = mount({}, makeList(120));
 
     grid.scrollIntoView(60);
 
     // 第 20 行完全在视口之外，按整行定位
-    expect(clientEl.scrollTop).toBe(800);
+    expect(grid.getOffset()).toBe(800);
   });
 
   it('scrollToOffset 直接透传偏移', () => {
-    const { grid, clientEl } = mount({}, makeList(120));
+    const { grid } = mount({}, makeList(120));
 
     grid.scrollToOffset(123);
 
-    expect(clientEl.scrollTop).toBe(123);
+    expect(grid.getOffset()).toBe(123);
   });
 
   it('scrollToTop / scrollToBottom 到达两端', () => {
     vi.useFakeTimers();
-    const { grid, clientEl } = mount({}, makeList(120));
+    const { grid } = mount({}, makeList(120));
 
     grid.scrollToBottom();
-    expect(clientEl.scrollTop).toBeGreaterThan(0);
+    expect(grid.getOffset()).toBeGreaterThan(0);
 
     grid.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(grid.getOffset()).toBe(0);
   });
 
   it('smooth 滚动可被 cancelScroll 中断', () => {
     vi.useFakeTimers();
-    const { grid, clientEl } = mount({}, makeList(120));
+    const { grid } = mount({}, makeList(120));
     const onDone = vi.fn();
 
     grid.scrollToIndex(90, { behavior: 'smooth', duration: 200, onDone });
     vi.advanceTimersByTime(32);
     grid.cancelScroll();
-    const stopped = clientEl.scrollTop;
+    const stopped = grid.getOffset();
 
     vi.advanceTimersByTime(200);
 
     expect(onDone).toHaveBeenCalledWith(true);
-    expect(clientEl.scrollTop).toBe(stopped);
+    expect(grid.getOffset()).toBe(stopped);
   });
 });
 
@@ -412,17 +417,17 @@ describe('VirtGrid forceUpdate / destroy / 事件', () => {
 
   it('事件按行数据透传', () => {
     const list = makeList(30);
-    const { clientEl, events } = mount({}, list);
+    const { events, grid } = mount({}, list);
 
-    scrollTo(clientEl, 100);
-    expect(events.scroll).toHaveBeenCalled();
+    scrollTo(grid, 100);
+    expect(events.offsetChange).toHaveBeenCalledWith(100);
 
     // 10 行 × 40 = 400，视口 200 → 到底偏移 200
-    scrollTo(clientEl, 200);
+    scrollTo(grid, 200);
     expect(events.toBottom).toHaveBeenCalled();
     expect(events.toBottom.mock.calls[0]![0]._id).toBe(27);
 
-    scrollTo(clientEl, 0);
+    scrollTo(grid, 0);
     expect(events.toTop).toHaveBeenCalled();
     expect(events.toTop.mock.calls[0]![0]._id).toBe(0);
 

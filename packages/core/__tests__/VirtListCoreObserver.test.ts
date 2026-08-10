@@ -260,8 +260,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       core.slotSize.clientSize = 200;
 
       // 向下滚到第 10 项，renderBegin 前进到 10，virtualSize 增量维护为 400
-      el.scrollTop = 400;
-      el.dispatchEvent(new Event('scroll'));
+      core.scrollFromUser(400);
       expect(core.getState().renderBegin).toBe(10);
       expect(core.getState().virtualSize).toBe(400);
 
@@ -277,7 +276,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
 
       // 程序化滚动之后内部偏移量与区间当场同步（不等浏览器回送 scroll 事件），
       // 所以 renderBegin 前进到 12，virtualSize 随之变成它之前所有项的累计
-      expect(el.scrollTop).toBe(460 + 80);
+      expect(core.getOffset()).toBe(460 + 80);
       expect(core.getState().renderBegin).toBe(12);
       expect(core.getState().virtualSize).toBe(540);
     });
@@ -287,8 +286,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
-      el.scrollTop = 400;
-      el.dispatchEvent(new Event('scroll'));
+      core.scrollFromUser(400);
 
       // 第 12 项在渲染窗口内
       flush([entry('12', 100)]);
@@ -297,7 +295,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
 
       // 同上：程序化滚动会让区间当场跟到新位置，renderBegin 前进到 11
       core.scrollToIndex(11);
-      expect(el.scrollTop).toBe(440);
+      expect(core.getOffset()).toBe(440);
       expect(core.getState().renderBegin).toBe(11);
       expect(core.getState().virtualSize).toBe(440);
     });
@@ -333,8 +331,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       flush([entry('client', 200)]);
       vi.advanceTimersByTime(16);
 
-      el.scrollTop = 800;
-      el.dispatchEvent(new Event('scroll'));
+      core.scrollFromUser(800);
       expect(core.getState().inViewBegin).toBe(20);
 
       flush([entry('20', 45)]);

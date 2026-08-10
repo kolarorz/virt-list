@@ -6,16 +6,12 @@ import type {
   VirtListOptions,
   VirtListEvents,
   VirtScrollOptions,
+  VirtScrollSource,
   RequiredOptions,
 } from './types';
 import { DEFAULT_OPTIONS } from './types';
 import { ChunkedSizeIndex } from './ChunkedSizeIndex';
 import { ListLoader } from './ListLoader';
-import {
-  NativeScrollDriver,
-  VirtualScrollDriver,
-  type ScrollDriver,
-} from './ScrollDriver';
 
 /** 平滑滚动动画的运行时状态 */
 interface AnimState {
@@ -43,28 +39,42 @@ interface AnimState {
 }
 
 /**
- * 滚动锚点：视口顶部的参照项 + 视口落在该项内部的偏移。
+ * 待维持的滚动目标 —— 「视口应该停在哪儿」这件事的唯一表示。
  *
- * 这是"内容不跳动"的不变量——参照项自身尺寸稳定（已实测），只要它上方的项
- * 尺寸变化，就重新求解一次 scrollOffset 让它回到原位。相比"算出位移量再补偿"，
- * 求解不变量是幂等的：重复应用没有副作用，也不需要判断收敛。
- */
-interface ScrollAnchor {
-  /** 参照项的 itemKey 值，用于校验 index 是否仍指向同一项 */
-  key: string;
-  /** 参照项在 list 中的索引 */
-  index: number;
-  /** 捕获时 scrollOffset 与参照项 top 的差值 */
-  offset: number;
-}
-
-/**
- * 顶部 / 底部渐进修正的最大重试次数。
+ * 不定高列表里"停在某处"是个动态目标：项只有渲染出来才会被测量，测量之后
+ * 总高度和各项位置都会变，先前算出的偏移量随之失效。
  *
- * 纯防御用：正常情况下几次回调内目标就稳定了，这里只保证 getTarget 永远不收敛时
- * （例如外部持续在改列表）不会无限重试下去。
+ * 这里的解法是**只记目标、每次重新求解**，而不是"算出位移量再补偿"：
+ * 求解不变量是幂等的，重复应用没有副作用，也不需要判断收敛、不需要重试上限。
+ *
+ * 曾经这件事由三套并行机制分别做（锚点求解 + 两端轮询 + 索引轮询，共 237 行），
+ * 因为原生滚动下既不知道浏览器会把 scrollTop 夹到哪、也分不清是谁动的它。
+ * 偏移量归 JS 掌管之后两个前提都消失了，三套塌缩成这一套。
  */
-const EDGE_FIX_MAX_ATTEMPTS = 30;
+type PinnedTarget =
+  | {
+      /** 贴到底：目标是 `totalSize - clientSize`，随测量推进而变 */
+      kind: 'end';
+      explicit: true;
+    }
+  | {
+      /** 锚定某一项：目标是该项的位置加上项内偏移 */
+      kind: 'index';
+      /** 参照项在 list 中的索引 */
+      index: number;
+      /** 参照项的 itemKey 值，用于校验 index 是否仍指向同一项 */
+      key: string;
+      align: 'start' | 'end';
+      /** 捕获时偏移量与参照项对齐位置的差值 */
+      within: number;
+      /**
+       * 是否为显式定位（scrollToIndex）。
+       *
+       * 显式目标不会被"用户向上滚时自动锚定顶部项"覆盖掉——否则 scrollToIndex
+       * 的落位会在渐进求解途中被改成"锚住当前顶部项"，永远到不了目标。
+       */
+      explicit: boolean;
+    };
 
 /**
  * 增量搜索 inViewBegin 时允许的最大步数。
@@ -160,18 +170,12 @@ export class VirtListCore<T extends Record<string, any>> {
    * - backward：向下/向右滚动
    */
   private _direction: 'forward' | 'backward' = 'backward';
-  /** 当前滚动锚点，null 表示没有需要维持的视口参照 */
-  private _anchor: ScrollAnchor | null = null;
-  /** 正在应用锚点修正的窗口，用于把程序化滚动与用户滚动区分开 */
-  private _applyingAnchor = false;
-  /** 最近一次程序化写入后的真实偏移量（浏览器 clamp 之后的值） */
-  private _lastProgrammaticOffset = -1;
-  /** 关闭 _applyingAnchor 窗口的 rAF 句柄 */
-  private _anchorWindowRafId: number | null = null;
-  /** 滚动定位的渐进修正回调，每次 ResizeObserver 触发时执行 */
-  private _fixTaskFn: (() => void) | null = null;
-  /** 顶部/底部渐进修正的 rAF 兜底句柄，null 表示当前没有排队 */
-  private _edgeFixRafId: number | null = null;
+  /**
+   * 待维持的滚动目标，null 表示"当前位置不需要维持"。
+   *
+   * 每次 ResizeObserver 回调重新求解一次（`_resolvePinned`），幂等。
+   */
+  private _pinned: PinnedTarget | null = null;
   /** 进行中的平滑滚动动画，null 表示当前没有动画 */
   private _anim: AnimState | null = null;
   /** 首次渲染完成标记，用于首帧后重新校准区间 */
@@ -206,14 +210,16 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 绑定的滚动容器 DOM */
   private _clientEl: HTMLElement | null = null;
   /**
-   * 偏移量的读写驱动，bindDOM 时创建。
+   * 权威滚动偏移量。
    *
-   * core 从不直接碰 scrollTop / scrollLeft，全部经由它——这样「偏移量归浏览器管」
-   * 与「偏移量归 JS 管」两种模式才能共用同一套区间计算与滚动定位逻辑。
+   * 滚动位置由 JS 掌管：容器是 `overflow: hidden`，浏览器既不会自己滚，
+   * 也就不会出现「合成器已经把画面滚过去了，但 DOM 还没跟上」的那一帧。
+   * 于是这个数字是唯一真相，不存在「账本与浏览器对不上」的问题。
    */
-  private _driver: ScrollDriver | null = null;
+  private _scrollOffset = 0;
+  /** 是否已绑定容器。未绑定时不接受滚动写入 */
+  private _bound = false;
   private _resizeObserver: ResizeObserver | undefined;
-  private _boundOnScroll: (e: Event) => void;
 
   get renderList(): T[] {
     return this._renderList;
@@ -232,7 +238,6 @@ export class VirtListCore<T extends Record<string, any>> {
     events: VirtListEvents<T> = {},
   ) {
     this._events = events;
-    this._boundOnScroll = this._onScroll.bind(this);
 
     // 使用 Proxy 使未显式设置的选项自动回退到默认值
     this._props = new Proxy(options as RequiredOptions<T>, {
@@ -335,14 +340,13 @@ export class VirtListCore<T extends Record<string, any>> {
   private _syncHotOptions(): void {
     this._unitSize = this._props.itemPreSize + this._props.itemGap;
     this._fixed = this._props.fixed;
-    this._driver?.setHorizontal(this._props.horizontal);
   }
 
   // ==================== 公共 API ====================
 
   /** 获取当前滚动偏移量 */
   getOffset(): number {
-    return this._driver ? this._driver.getOffset() : 0;
+    return this._scrollOffset;
   }
 
   /** 获取所有插槽（header + footer + sticky）的尺寸总和 */
@@ -431,8 +435,8 @@ export class VirtListCore<T extends Record<string, any>> {
       return;
     }
 
-    this._setScrollOffset(offset);
-    this._syncOffsetAndRange();
+    this._writeOffset(offset, 'program');
+    this._syncAfterWrite();
     options?.onDone?.(false);
   }
 
@@ -462,7 +466,8 @@ export class VirtListCore<T extends Record<string, any>> {
         () => this._getIndexScrollTarget(index, align),
         this._getDuration(options),
         (canceled) => {
-          if (!canceled) this._attachIndexFixTask(index, align);
+          // 动画落位后才挂目标：动画期间挂上会与逐帧插值互相抢夺偏移量
+          if (!canceled) this._pinIndex(index, align, true);
           options.onDone?.(canceled);
         },
         options.maxDistance,
@@ -471,7 +476,9 @@ export class VirtListCore<T extends Record<string, any>> {
     }
 
     this.scrollToOffset(this._getIndexScrollTarget(index, align));
-    this._attachIndexFixTask(index, align);
+    // 目标项此刻多半还在渲染窗口之外、尺寸只能按 itemPreSize 估。
+    // 记下「要锚在这一项」，之后每次测量都重新求解一次，直到落准
+    this._pinIndex(index, align, true);
     options?.onDone?.(false);
   }
 
@@ -509,25 +516,25 @@ export class VirtListCore<T extends Record<string, any>> {
     options?.onDone?.(false);
   }
 
-  /** 滚动到顶部（渐进修正确保到达） */
+  /** 滚动到顶部 */
   scrollToTop(options?: VirtScrollOptions): void {
     if (options?.behavior === 'smooth') {
       this._clearScrollTasks();
+      // 落位后不需要再补一次：动画最后一帧写的就是 0，而 0 是个不会漂移的目标
       this._animateTo(
         () => 0,
         this._getDuration(options),
-        (canceled) => {
-          // 动画正常结束后再做一次兜底校准，防止途中尺寸变化导致差几像素
-          if (!canceled) this._attachTopFixTask();
-          options.onDone?.(canceled);
-        },
+        options.onDone,
         options.maxDistance,
       );
       return;
     }
 
+    // 顶部不需要待维持目标：0 就是 0，写进去就是准的，
+    // 上方内容再怎么变也不会把它挪走（原生滚动下才要轮询——浏览器会自己夹 scrollTop）
     this._clearScrollTasks();
-    this._attachTopFixTask();
+    this._writeOffset(0, 'program');
+    this._syncAfterWrite();
     options?.onDone?.(false);
   }
 
@@ -536,11 +543,10 @@ export class VirtListCore<T extends Record<string, any>> {
     if (options?.behavior === 'smooth') {
       this._clearScrollTasks();
       this._animateTo(
-        // 同 _attachBottomFixTask：终点取浏览器的可滚动上限
         () => this._maxScrollOffset(),
         this._getDuration(options),
         (canceled) => {
-          if (!canceled) this._attachBottomFixTask();
+          if (!canceled) this._pinned = { kind: 'end', explicit: true };
           options.onDone?.(canceled);
         },
         options.maxDistance,
@@ -548,8 +554,12 @@ export class VirtListCore<T extends Record<string, any>> {
       return;
     }
 
+    // 「到底」是个动态目标：项被渲染出来后报上真实尺寸，总高度随之变化，
+    // 上限也跟着往后挪。记下 kind:'end'，每次测量重新求解 —— 实测一轮即收敛
     this._clearScrollTasks();
-    this._attachBottomFixTask();
+    this._pinned = { kind: 'end', explicit: true };
+    this._writeOffset(this._maxScrollOffset(), 'program');
+    this._syncAfterWrite();
     options?.onDone?.(false);
   }
 
@@ -571,7 +581,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 重置所有状态（列表清空时调用） */
   reset(): void {
-    this._clearAnchor();
+    this._pinned = null;
     this._offset = 0;
     this._direction = 'backward';
     this._virtualSizeDirty = false;
@@ -614,8 +624,10 @@ export class VirtListCore<T extends Record<string, any>> {
       deletedListSize += this.getItemSize(item[this._props.itemKey]);
     }
     this._updateTotalVirtualSize();
-    this._setScrollOffset(this._offset - deletedListSize);
-    this._calcRange();
+    this._writeOffset(this._offset - deletedListSize, 'adjust');
+    // 必须走 _syncAfterWrite 而不是裸的 _calcRange：这两个方法都从 _offset 读出
+    // 起点再加减，写完不同步的话下一次调用会从旧值上再算一遍
+    this._syncAfterWrite();
   }
 
   /**
@@ -631,11 +643,12 @@ export class VirtListCore<T extends Record<string, any>> {
       addedListSize += this.getItemSize(item[this._props.itemKey]);
     }
     this._updateTotalVirtualSize();
-    this._setScrollOffset(this._offset + addedListSize);
-    this._calcRange();
+    this._writeOffset(this._offset + addedListSize, 'adjust');
+    // 同 deletedList2Top：写完必须同步 _offset，否则连续调用会漏掉前一次
+    this._syncAfterWrite();
     // 头部插入的项尺寸多为估算值，先锚定当前顶部项，
-    // 待新项测出真实尺寸后由 _applyAnchor 二次校正
-    this._captureAnchor(this.state.inViewBegin);
+    // 待新项测出真实尺寸后由 _resolvePinned 二次校正
+    this._pinIndex(this.state.inViewBegin);
   }
 
   /** 强制触发一次完整的重新计算与渲染更新 */
@@ -684,21 +697,8 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 绑定滚动容器 DOM，开始监听 scroll 和 resize 事件 */
   bindDOM(clientEl: HTMLElement): void {
     this._clientEl = clientEl;
+    this._bound = true;
 
-    if (this._props.scrollbar === 'custom') {
-      this._driver = new VirtualScrollDriver({
-        // 与 _maxScrollOffset 的账本分支同一个式子：虚拟模式下没有第二个说法，
-        // 两处必须给出同一个上限，否则 _setScrollOffset 写进去的值会被驱动再夹一次
-        getMaxOffset: () => this.getTotalSize() - this.slotSize.clientSize,
-        onApply: (offset) => this._events.offsetChange?.(offset),
-      });
-    } else {
-      this._driver = new NativeScrollDriver(clientEl, this._props.horizontal);
-    }
-
-    // 自绘模式下用户无法直接滚动容器，但浏览器仍会在元素获得焦点时静默改
-    // scrollTop —— DOM 层要靠这个事件把它吸收掉并折算成虚拟偏移量
-    clientEl.addEventListener('scroll', this._boundOnScroll);
     this._resizeObserver?.observe(clientEl);
 
     if (this._props.start) {
@@ -728,125 +728,113 @@ export class VirtListCore<T extends Record<string, any>> {
     this._resizeObserver?.unobserve(el);
   }
 
-  /** 恢复滚动位置（如 keep-alive 场景） */
+  /**
+   * 重新把内容摆到当前偏移量上（如 keep-alive 场景）。
+   *
+   * 偏移量本身归 JS 掌管，hide / show 不会把它弄丢——需要恢复的是 **DOM**：
+   * 容器重建后 transform 会被清掉，内容就回到了 0 的位置。
+   *
+   * 所以这里不能走 `scrollToOffset(this._offset)`：偏移量没变，
+   * `_writeOffset` 会因为"值没变"而跳过通知，DOM 层收不到 offsetChange，
+   * transform 也就不会被重写——`resume()` 就成了空操作。
+   */
   resume(): void {
-    this.scrollToOffset(this._offset);
+    this._events.offsetChange?.(this._scrollOffset);
+    this._syncAfterWrite();
   }
 
   destroy(): void {
     this._loader.destroy();
     this._cancelAnim();
-    this._cancelEdgeFix();
-    this._clearAnchor();
-    this._fixTaskFn = null;
+    this._pinned = null;
     if (this._clientEl) {
-      this._clientEl.removeEventListener('scroll', this._boundOnScroll);
       this._resizeObserver?.unobserve(this._clientEl);
       this.slotSize.clientSize = 0;
     }
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
-    this._driver?.destroy();
-    this._driver = null;
+    this._bound = false;
     this._clientEl = null;
   }
 
   // ==================== 私有方法 ====================
 
   /**
-   * 设置 scrollTop / scrollLeft，并记下写入后的真实偏移量。
+   * 写入偏移量并返回裁剪后的真实值。
    *
-   * 这里是所有程序化滚动的唯一出口，用户拖动滚动条 / 滚轮不经过它——这个差别正是
-   * 渐进修正判断"该不该放弃"的依据（见 `_attachIndexFixTask`）。
+   * 只负责"移动"，不做任何「后续该干什么」的记账——那个由调用方区分：
+   * 程序化滚动走 `scrollToXxx`，用户滚动走 `scrollFromUser`。
+   *
+   * `source` 只用于 `scroll` 事件的载荷，不影响这里的任何行为。要求每个调用方
+   * 显式给出而不设默认值：漏标会被类型检查拦住，而不是静默归到某一类里。
    */
-  private _setScrollOffset(offset: number): void {
-    const driver = this._driver;
-    if (!driver) return;
-    driver.setOffset(offset);
-    // 读回驱动裁剪后的真实值：下一轮修正拿它比对，才能认出
-    // "当前位置就是我们自己上次滚到的那个位置"
-    this._lastProgrammaticOffset = driver.getOffset();
+  private _writeOffset(offset: number, source: VirtScrollSource): number {
+    if (!this._bound) return this._scrollOffset;
+
+    const next = Math.min(Math.max(offset, 0), this._maxScrollOffset());
+    // 渐进修正会反复写同一个目标值，跳过无变化的写入省掉重复的样式失效
+    if (next === this._scrollOffset) return next;
+
+    const prev = this._scrollOffset;
+    this._scrollOffset = next;
+    // 同步通知：内容在这一步移动，与随后的 DOM patch 落在同一个任务里
+    this._events.offsetChange?.(next);
+    this._emitScroll(next, next - prev, source);
+    return next;
   }
 
   /**
-   * 浏览器允许的最大滚动偏移量 —— "到底了没有"这件事的权威标准。
+   * 组装并派发 `scroll` 事件。
    *
-   * 不能拿 `getTotalSize() - clientSize` 代替：那是列表自己的账本（靠
-   * ResizeObserver 的上报增量维护），而 scrollHeight 由浏览器按实际盒模型算。
-   * 两者在真实环境里必然会错开一点——亚像素、测量滞后、项的外边距，任一项都够。
-   * 实测过差到 400 多 px 的情况：拿账本当上限就会把用户从底部硬拽回来，
-   * 或者让"滚到底"的收敛判据提前成立。
+   * 没人监听时直接返回：载荷里的 `scrollSize` / `maxOffset` 虽然都是 O(1) 读取，
+   * 但这是滚动热路径，白算一个对象没有必要。
+   */
+  private _emitScroll(
+    offset: number,
+    delta: number,
+    source: VirtScrollSource,
+  ): void {
+    const handler = this._events.scroll;
+    if (!handler) return;
+
+    const clientSize = this.slotSize.clientSize;
+    const scrollSize = this.getTotalSize();
+    const maxOffset = Math.max(0, scrollSize - clientSize);
+
+    handler({
+      offset,
+      delta,
+      direction: delta > 0 ? 'end' : 'start',
+      clientSize,
+      scrollSize,
+      maxOffset,
+      atStart: offset <= 0,
+      // 平滑动画的插值会落在 max 前几个千分位上，必须留容差，
+      // 否则动画收尾那一帧的 atEnd 会是 false
+      atEnd: maxOffset - offset < 0.5,
+      source,
+    });
+  }
+
+  /**
+   * 允许的最大滚动偏移量。
    *
-   * 没有绑定容器时只能退回账本。
+   * 滚动位置归 JS 掌管，所以账本就是权威——不存在「账本与浏览器的 scrollHeight
+   * 对不上」这回事（原生滚动下两者实测差过 400 多 px，那时必须两头取大来仲裁）。
    */
   private _maxScrollOffset(): number {
-    const ledger = Math.max(
-      0,
-      this.getTotalSize() - this.slotSize.clientSize,
-    );
-    const dom = this._domMaxScroll();
-    // 取较大者：账本偏矮时靠 DOM 兜住，DOM 尚未布局时靠账本兜住。
-    // 目标偏大没有副作用——浏览器会把写入值裁到真正的上限
-    return dom === null ? ledger : Math.max(dom, ledger);
+    return Math.max(0, this.getTotalSize() - this.slotSize.clientSize);
   }
 
   /**
-   * 驱动给出的可滚动上限，拿不到布局信息时返回 null。
+   * 程序化写入偏移量之后，把内部状态与渲染区间同步到新位置。
    *
-   * native 模式下即 scrollHeight - clientHeight，为 0 意味着还没布局
-   * （容器隐藏、或测试环境不做布局），这时它不能代表"不能滚动"，
-   * 得让调用方退回账本。
+   * 写入是同步的（偏移量就是个 JS 数字），但 `_offset`（上一次同步到的位置）与
+   * 渲染区间不会自动跟上——不同步的话，本帧的绘制已经用了新位置，而区间还按旧位置
+   * 算出来，视口就落在没有 DOM 的地方。
    */
-  private _domMaxScroll(): number | null {
-    return this._driver ? this._driver.getMaxOffset() : null;
-  }
-
-  /** 是否已经滚到浏览器允许的最底部 —— 浏览器优先，拿不到才问账本 */
-  private _isAtScrollEnd(): boolean {
-    const dom = this._domMaxScroll();
-    if (dom !== null) {
-      return Math.abs(Math.round(this.getOffset()) - Math.round(dom)) <= 2;
-    }
-
-    const total = this.getTotalSize();
-    // 内容不足一屏，本就无法滚动，视为已到位
-    if (total <= this.slotSize.clientSize) return true;
-    return (
-      Math.abs(
-        Math.round(this.getOffset() + this.slotSize.clientSize) -
-          Math.round(total),
-      ) <= 2
-    );
-  }
-
-  /**
-   * 把内部偏移量收回到当前可滚动范围内。
-   *
-   * 列表变短时浏览器自己也会夹 scrollTop，这里只是让内部状态在同一时刻就跟上，
-   * 不必等异步回送的 scroll 事件。
-   */
-  private _clampOffsetToScrollRange(): boolean {
-    const max = this._maxScrollOffset();
-    if (this._offset <= max) return false;
-
-    this._setScrollOffset(max);
-    // 读回驱动裁剪后的真实值；还没绑定容器时就用算出来的上限
-    this._offset = this._driver ? this.getOffset() : max;
-    return true;
-  }
-
-  /**
-   * 程序化写入 scrollOffset 之后，把内部偏移量与渲染区间同步到新位置。
-   *
-   * 写 scrollTop 触发的 scroll 事件是浏览器**异步**回送的，在它到达之前内部偏移量
-   * 还是旧值。若此间 ResizeObserver 先触发一轮（尺寸还在变时非常常见），区间就会
-   * 按旧位置算出来——视口已经到了新位置，那里却没有渲染任何东西，表现为一片空白，
-   * 直到下一次真实滚动把 scroll 事件送到才恢复。
-   *
-   * 之后回送的 scroll 事件会因为偏移量已经相等而直接返回，不会重复计算。
-   */
-  private _syncOffsetAndRange(): void {
-    if (!this._driver) return;
+  private _syncAfterWrite(): void {
+    if (!this._bound) return;
 
     const real = this.getOffset();
     if (real === this._offset) return;
@@ -854,25 +842,15 @@ export class VirtListCore<T extends Record<string, any>> {
     // 方向按真实位移更新，否则后续的增量搜索会走错分支
     this._direction = real < this._offset ? 'forward' : 'backward';
     this._offset = real;
-
-    // 程序化滚动表达的是"去某处"，不是"保持当前内容不动"。而 _calcRange 内部的
-    // _updateRange 在起始项前移时会顺手立一个锚点——那是为用户向上滚动准备的。
-    // 大跳时（scrollToTop 从列表底部回到 0）这个条件恰好成立，立下的锚点参照着
-    // 跳之前那一段内容，随后 _applyAnchor 就把视口又拽回去了，于是停不到 0。
-    // 这里把锚点还原成进来时的样子。
-    const anchorBefore = this._anchor;
     this._calcRange();
-    this._anchor = anchorBefore;
   }
 
   // -------------------- 滚动定位 / 平滑动画 --------------------
 
-  /** 取消所有待执行的自动修正（用户主动发起滚动时调用） */
+  /** 放弃当前的滚动意图：停掉动画，取消待维持的目标 */
   private _clearScrollTasks(): void {
     this._cancelAnim();
-    this._cancelEdgeFix();
-    this._clearAnchor();
-    this._fixTaskFn = null;
+    this._pinned = null;
   }
 
   private _getDuration(options?: VirtScrollOptions): number {
@@ -885,10 +863,6 @@ export class VirtListCore<T extends Record<string, any>> {
     return Math.min(Math.max(offset, 0), max);
   }
 
-  /**
-   * 挂载 scrollToIndex 的渐进修正任务：
-   * 每次 ResizeObserver 回调后重新计算目标偏移，直到两次结果一致。
-   */
   /**
    * 求某一项在指定对齐方式下的目标滚动偏移量。
    *
@@ -912,49 +886,6 @@ export class VirtListCore<T extends Record<string, any>> {
       0,
       bottom - this.slotSize.clientSize + this.slotSize.stickyHeaderSize,
     );
-  }
-
-  private _attachIndexFixTask(
-    index: number,
-    align: 'start' | 'end' = 'start',
-  ): void {
-    // 同样走 _getIndexScrollTarget：修正过程中目标项已在渲染窗口内，
-    // start 对齐不必为每次 ResizeObserver 回调付一次 O(index) 的累加
-    let lastOffset = -1;
-    let first = true;
-    let attempts = 0;
-
-    const fixToIndex = () => {
-      // 用户已经滚到别处了，这次定位不该再把他拽回来。
-      //
-      // 这条判断只在"定位到某个索引"上成立：目标是列表中间的某个位置，浏览器
-      // 自己绝不会把 scrollTop 挪到那儿，所以偏移量变了必定是用户操作。
-      // 滚到两端就不能这么判，见 _attachEdgeFixTask 开头的说明。
-      if (!first && this.getOffset() !== this._lastProgrammaticOffset) {
-        this._fixTaskFn = null;
-        return;
-      }
-
-      const offset = this._getIndexScrollTarget(index, align);
-      this._setScrollOffset(offset);
-      this._syncOffsetAndRange();
-
-      // 首次不判收敛，理由与 _attachEdgeFixTask 相同：发起滚动的那一刻目标项
-      // 往往还在渲染窗口之外，尺寸只能按 itemPreSize 估。它渲染出来、真实尺寸
-      // 上报之后目标就变了，此时必须还有人在修——所以至少要跑两轮。
-      // attempts 上限纯防御，兜住"目标永远不收敛"（例如外部在持续改内容）
-      if (!first && (lastOffset === offset || attempts >= EDGE_FIX_MAX_ATTEMPTS)) {
-        this._fixTaskFn = null;
-        return;
-      }
-
-      first = false;
-      attempts += 1;
-      lastOffset = offset;
-      this._fixTaskFn = fixToIndex;
-    };
-
-    this._fixTaskFn = fixToIndex;
   }
 
   /**
@@ -994,7 +925,8 @@ export class VirtListCore<T extends Record<string, any>> {
     maxDistance?: number,
   ): void {
     if (!this._clientEl || !(duration > 0)) {
-      this._setScrollOffset(this._clampOffset(getTarget()));
+      this._writeOffset(this._clampOffset(getTarget()), 'program');
+      this._syncAfterWrite();
       onDone?.(false);
       return;
     }
@@ -1017,9 +949,11 @@ export class VirtListCore<T extends Record<string, any>> {
 
         if (Math.abs(target - from) > maxDistance) {
           // 预跳到"目标前 maxDistance"处，本帧同步完成渲染，下一帧尺寸已测量
-          this._setScrollOffset(
+          this._writeOffset(
             target > from ? target - maxDistance : target + maxDistance,
+            'program',
           );
+          this._syncAfterWrite();
           anim.phase = 'running';
           anim.rafId = requestAnimationFrame(step);
           return;
@@ -1040,12 +974,20 @@ export class VirtListCore<T extends Record<string, any>> {
       const target = this._clampOffset(anim.getTarget());
 
       if (t >= 1) {
-        this._setScrollOffset(target);
+        this._writeOffset(target, 'program');
+        this._syncAfterWrite();
         this._finishAnim(false);
         return;
       }
 
-      this._setScrollOffset(anim.from + (target - anim.from) * easeOutCubic(t));
+      this._writeOffset(
+        anim.from + (target - anim.from) * easeOutCubic(t),
+        'program',
+      );
+      // 每帧都必须同步区间。靠原生滚动时这件事是浏览器代劳的（写 scrollTop 会异步
+      // 派发 scroll 事件，区间靠它重算）；现在容器 overflow:hidden、没有 scroll
+      // 事件，只写偏移量的话区间会冻结在起点——内容滑走而 DOM 窗口不动，就是露白
+      this._syncAfterWrite();
       anim.rafId = requestAnimationFrame(step);
     };
 
@@ -1076,116 +1018,6 @@ export class VirtListCore<T extends Record<string, any>> {
 
   private _cancelAnim(): void {
     this._finishAnim(true);
-  }
-
-  /** 滚动到顶部的渐进校准（不定高场景下一次赋值可能不到位） */
-  private _attachTopFixTask(): void {
-    this._attachEdgeFixTask(
-      () => 0,
-      () => this.getOffset() === 0,
-    );
-  }
-
-  /** 滚动到底部的渐进校准 */
-  private _attachBottomFixTask(): void {
-    // 目标与判据都问浏览器（见 _maxScrollOffset / _isAtScrollEnd）。
-    //
-    // 曾经写的是"账本总高"这个偏大的值，指望浏览器把它裁到可滚动上限——但账本
-    // 本身就可能比实际内容矮几百 px（增量维护 + 亚像素 + 测量滞后），那时写进去
-    // 的值根本没超过真实上限，于是永远差最后几项到不了底。
-    this._attachEdgeFixTask(
-      () => this._maxScrollOffset(),
-      () => this._isAtScrollEnd(),
-    );
-  }
-
-  /**
-   * 挂载顶部 / 底部的渐进修正任务。
-   *
-   * 不定高列表一次赋值往往到不了位：赋值 scrollTop 会渲染出新项，实测尺寸回填后
-   * listTotalSize（或上方内容高度）随之改变，刚才算出的目标就失效了。
-   *
-   * 修正由两个信号驱动，都不猜时间：
-   * - ResizeObserver 回调（`_fixTaskFn`，见 `_initResizeObserver`）：尺寸真的变了
-   *   才重算，是主驱动，也是"到不了位"的根因信号；
-   * - rAF 兜底：覆盖赋值后没有任何元素尺寸变化、ResizeObserver 不回调的情况。
-   *
-   * 重复赋值同一目标是幂等的，两条信号落在同一帧也没有副作用。
-   */
-  private _attachEdgeFixTask(
-    getTarget: () => number,
-    reached: () => boolean,
-  ): void {
-    let attempts = 0;
-    let first = true;
-    /** 上一轮的内容总高，用来判断内容是否还在长 */
-    let lastTotal = -1;
-    /** 连续几轮"到底且内容没长"了 */
-    let settledRounds = 0;
-
-    // 这里刻意不做"偏移量被改过就放弃"的判断（scrollToIndex 那边做了）。
-    //
-    // 滚到两端时浏览器会自己动 scrollTop：项测出来比 itemPreSize 矮，内容总高
-    // 缩水，超出新上限的 scrollTop 就被浏览器收回去——这跟用户滚动长得一模一样。
-    // 一旦误判成"用户接管"，轮询就停在离底几百 px 的地方了（2000 项停在 1995
-    // 就是这么来的）。所以两端只认两个终止条件：到底了，或者试满次数。
-    const step = (): void => {
-      // 有新的平滑滚动接管时放弃兜底，避免抢夺 scrollOffset
-      if (this._anim) {
-        this._fixTaskFn = null;
-        this._cancelEdgeFix();
-        return;
-      }
-
-      // 光"这一刻到底了"不算数，还要内容不再长。
-      //
-      // 滚到底的过程中新项持续进入窗口、报上真实尺寸，内容总高一路变大，可滚动
-      // 上限也跟着往后挪。某一轮 scrollTop 恰好等于**当时**的上限是常事，就此
-      // 收手就会停在半路——内容长完之后没人再补那一截了。
-      const total = this.getTotalSize();
-      settledRounds = reached() && total === lastTotal ? settledRounds + 1 : 0;
-      lastTotal = total;
-
-      // 要连续两轮才算稳：测量天然滞后一轮——到底之后渲染窗口才定下来，新进窗口
-      // 的项要等下一轮才报上尺寸。只看一轮的话，那一轮的"稳定"其实是假的，
-      // 内容随后还会再长一截，而轮询已经散了（用户实测差了最后 4 项）
-      const settled = settledRounds >= 2;
-
-      // 首次无条件赋值：刚赋值时新项的测量还没回填，此刻判断会把"其实还差一屏"
-      // 误判成已到底。attempts 上限纯防御，兜住内容永远长不完的情况
-      if (!first && (settled || attempts >= EDGE_FIX_MAX_ATTEMPTS)) {
-        this._fixTaskFn = null;
-        this._cancelEdgeFix();
-        return;
-      }
-
-      first = false;
-      attempts += 1;
-      this._setScrollOffset(getTarget());
-      this._syncOffsetAndRange();
-      this._fixTaskFn = step;
-      this._scheduleEdgeFix(step);
-    };
-
-    step();
-  }
-
-  /** 为渐进修正排一次 rAF 兜底（同一时刻只保留一个） */
-  private _scheduleEdgeFix(step: () => void): void {
-    if (this._edgeFixRafId !== null) return;
-    if (typeof requestAnimationFrame === 'undefined') return;
-
-    this._edgeFixRafId = requestAnimationFrame(() => {
-      this._edgeFixRafId = null;
-      // 任务已完成或被新的滚动请求替换时不再插手
-      if (this._fixTaskFn === step) step();
-    });
-  }
-
-  private _cancelEdgeFix(): void {
-    if (this._edgeFixRafId === null) return;
-    cancelAnimationFrame(this._edgeFixRafId);
-    this._edgeFixRafId = null;
   }
 
   // -------------------- 滚动锚点 --------------------
@@ -1221,41 +1053,59 @@ export class VirtListCore<T extends Record<string, any>> {
   }
 
   /**
-   * 以 index 项为参照捕获锚点。
-   * 参照项应当是已渲染测量过的项，否则它自身的尺寸也会变，锚点就不稳。
+   * 记下一个「锚定某项」的待维持目标。
+   *
+   * 参照项应当是已渲染测量过的项，否则它自身的尺寸也会变，目标就不稳。
+   *
+   * @param explicit 显式定位（scrollToIndex）不会被自动锚定覆盖
    */
-  private _captureAnchor(index: number): void {
+  private _pinIndex(
+    index: number,
+    align: 'start' | 'end' = 'start',
+    explicit = false,
+  ): void {
     const item = this._props.list[index];
     if (!item) {
-      this._anchor = null;
+      this._pinned = null;
       return;
     }
 
-    this._anchor = {
-      key: String(item[this._props.itemKey]),
+    this._pinned = {
+      kind: 'index',
       index,
-      offset: this.getOffset() - this._getTopByIndex(index),
+      key: String(item[this._props.itemKey]),
+      align,
+      within: this.getOffset() - this._getIndexScrollTarget(index, align),
+      explicit,
     };
   }
 
-  /**
-   * 重新求解 scrollOffset，使锚点参照项回到捕获时的视口位置。
-   *
-   * 与"算出 diff 再补偿"的区别：这里每次都从当前尺寸重新解一遍，
-   * 所以重复调用幂等，也无需记录"是否已补偿过"。
-   */
-  private _applyAnchor(): void {
-    const anchor = this._anchor;
-    if (!anchor) return;
+  /** 待维持目标当前解出来的偏移量；目标已失效时返回 null */
+  private _solvePinned(): number | null {
+    const pin = this._pinned;
+    if (!pin) return null;
 
-    // 参照项被移除或索引发生漂移，锚点不再可信
-    const item = this._props.list[anchor.index];
-    if (!item || String(item[this._props.itemKey]) !== anchor.key) {
-      this._clearAnchor();
-      return;
+    if (pin.kind === 'end') return this._maxScrollOffset();
+
+    // 参照项被移除或索引发生漂移，目标不再可信
+    const item = this._props.list[pin.index];
+    if (!item || String(item[this._props.itemKey]) !== pin.key) {
+      this._pinned = null;
+      return null;
     }
+    return this._getIndexScrollTarget(pin.index, pin.align) + pin.within;
+  }
 
-    const target = this._getTopByIndex(anchor.index) + anchor.offset;
+  /**
+   * 重新求解并应用待维持的目标。
+   *
+   * 每次 ResizeObserver 回调调一次。因为求解的是不变量而不是增量补偿，
+   * 重复调用是幂等的——不需要收敛判据，也不需要重试上限。
+   */
+  private _resolvePinned(): void {
+    const target = this._solvePinned();
+    if (target === null) return;
+
     const drift = target - this.getOffset();
     // 亚像素漂移人眼不可见，改了反而会打断用户滚动
     if (Math.abs(drift) < 0.5) return;
@@ -1263,55 +1113,20 @@ export class VirtListCore<T extends Record<string, any>> {
     if (this._anim) {
       // 动画进行中：内容整体位移了 drift，插值起点必须同步平移，否则下一帧会把
       // 视口拉回旧坐标，表现为内容跳动 / 露白。位置本身交给动画的下一帧，
-      // 这里不写 scrollTop，免得和插值互相抢夺
+      // 这里不写偏移量，免得和插值互相抢夺
       this._anim.from += drift;
       return;
     }
 
-    this._applyingAnchor = true;
-    this._setScrollOffset(target);
-
-    // 必须在本帧内让内部状态跟上刚写进去的 scrollOffset，否则：
-    // 1. 渲染区间要等下一个 scroll 事件才更新，而本帧的绘制已经用了新的
-    //    scrollOffset —— 视口落在 virtualEl 的空白占位上，就是一帧露白；
-    // 2. `_offset` 仍是修正前的旧值，下一个 scroll 事件会拿它判断方向，把
-    //    「用户继续向上滚」误判成向下滚，`_calcRange` 走 backward 分支后
-    //    直接 return，区间彻底不更新，露白从一帧变成持续。
-    // 向上滚动时每次 ResizeObserver 回调都会走到这里，所以这两点会被放大成
-    // 连续白屏，而不是偶发一帧。
-    this._offset = this.getOffset();
-    this._calcRange();
-
-    this._closeAnchorWindowNextFrame();
-  }
-
-  /**
-   * 下一帧关闭 _applyingAnchor 窗口。
-   *
-   * 写 scrollTop 会异步派发 scroll 事件，若不加窗口区分，锚点修正自己触发的
-   * scroll 会被 _calcRange 当成"用户向下滚"而把锚点清掉，导致修正只生效一次。
-   */
-  private _closeAnchorWindowNextFrame(): void {
-    if (typeof requestAnimationFrame === 'undefined') {
-      this._applyingAnchor = false;
-      return;
-    }
-    if (this._anchorWindowRafId !== null) {
-      cancelAnimationFrame(this._anchorWindowRafId);
-    }
-    this._anchorWindowRafId = requestAnimationFrame(() => {
-      this._anchorWindowRafId = null;
-      this._applyingAnchor = false;
-    });
-  }
-
-  private _clearAnchor(): void {
-    this._anchor = null;
-    this._applyingAnchor = false;
-    if (this._anchorWindowRafId !== null) {
-      cancelAnimationFrame(this._anchorWindowRafId);
-      this._anchorWindowRafId = null;
-    }
+    this._writeOffset(target, 'adjust');
+    // 必须在本帧内让内部状态跟上刚写进去的偏移量，否则本帧的绘制用的是新位置，
+    // 而渲染区间还按旧位置算——视口落在没有 DOM 的地方，就是一帧露白。
+    // 向上滚动时每次 ResizeObserver 回调都会走到这里，会被放大成连续白屏。
+    //
+    // 必须走 _syncAfterWrite，不能自己赋 _offset 再调 _calcRange：那样会漏掉
+    // **方向**的更新，而 _calcRange 的增量搜索是按方向分支的——方向不对时两个
+    // 分支都不进，区间就原地不动（贴底求解正是这种情形：目标比当前位置更靠上）
+    this._syncAfterWrite();
   }
 
   private _initBuffer(): void {
@@ -1381,19 +1196,16 @@ export class VirtListCore<T extends Record<string, any>> {
 
       this.state.listTotalSize += diff;
 
-      // 执行滚动定位的渐进修正（平滑滚动进行中时交由动画自行跟随目标）
-      if (!this._anim) this._fixTaskFn?.();
+      // 重新求解待维持的目标，防止内容跳动。只有目标上方的项才会改变解，
+      // 下方项的尺寸变化自然得出零位移，无需额外判断。
+      //
+      // 刻意放在 `diff !== 0` 之外：`kind:'end'` 的目标是 totalSize - clientSize，
+      // **容器**尺寸变化也会让它失效，而那一轮的 diff 是 0。求解本身幂等，
+      // 没有待维持目标时是一次早退
+      this._resolvePinned();
+      this._syncAfterWrite();
 
       if (diff !== 0) {
-        // 按锚点复原视口内容，防止跳动。只有锚点上方的项才会改变解，
-        // 下方项的 diff 自然得出零位移，无需额外判断
-        this._applyAnchor();
-
-        // 兜底：真实 scrollTop 可能在我们不知情的时候被动过，而内容高度刚变
-        // 正是最容易发生的时刻（浏览器的滚动锚定就是这么干的，而且不派发 scroll
-        // 事件）。内部偏移量与它对齐一次，否则区间会按旧位置算，视口边缘留白。
-        // 若锚点刚刚生效过，它内部已经同步过，这里就是一次空操作
-        this._syncOffsetAndRange();
 
         // 尺寸变了，填满视口所需的项数也跟着变——项缩小时（折叠长消息）尤其明显：
         // 原本一项撑满视口，缩回去之后要好几项才够。偏移量没动的话上面那次同步
@@ -1412,11 +1224,11 @@ export class VirtListCore<T extends Record<string, any>> {
       // 参照物是当前真实的滚动偏移量，不是 props.start：start / offset /
       // initialPosition='bottom' 以及用户在首帧里的滚动，都会让实际位置偏离
       // start。用 start 就会把区间拽回列表顶部，而滚动位置在别处——视口于是
-      // 落在虚拟占位的空白上，且因为 _onScroll 在偏移量未变时会直接返回，
+      // 落在还没渲染的空白上，且因为偏移量未变时同步逻辑会直接返回，
       // 这个错误状态不会自愈，非得用户滚一下才恢复。
       if (!this._isInit) {
         requestAnimationFrame(() => {
-          if (this._driver) {
+          if (this._bound) {
             this._offset = this.getOffset();
             this._calcRange();
           } else {
@@ -1429,21 +1241,52 @@ export class VirtListCore<T extends Record<string, any>> {
     });
   }
 
-  /** 滚动事件处理：更新方向 → 重算区间 → 判断是否到达边界 */
-  private _onScroll(evt: Event): void {
-    this._events.scroll?.(evt);
+  /**
+   * 上报一次**用户发起**的滚动，偏移量由调用方给出。
+   *
+   * 与 `scrollToOffset` 的区别是语义：
+   * - `scrollToOffset` 是「程序要求去某处」；
+   * - 这个方法是「用户动了」——会触发 toTop / toBottom 判定、解开加载停摆，
+   *   并让显式定位的意图作废。
+   *
+   * 浏览器不再派发 scroll 事件（容器 overflow:hidden），所有用户输入
+   * （滚轮 / 键盘 / 触摸 / 拖拽滑块）都必须经由这里，
+   * 否则 toTop / toBottom 与自动续拉都不会触发。
+   */
+  scrollFromUser(offset: number): void {
+    this._writeOffset(offset, 'user');
+    this._syncFromScrollPosition();
+  }
 
+  /**
+   * 把内部状态同步到当前偏移量，并按用户滚动处理后续判定。
+   *
+   * 「谁动了偏移量」在这里是**确定的**，不需要任何猜测：所有写入都过我们的手，
+   * 用户输入走 `scrollFromUser`，程序化定位走 `scrollToXxx`。
+   * 原生滚动下这件事做不到——写 scrollTop 引发的 scroll 事件异步回送，
+   * 与任何标记窗口都是竞态，只能靠比对"上次程序化写入的值"去猜。
+   */
+  private _syncFromScrollPosition(): void {
     const offset = this.getOffset();
     if (offset === this._offset) return;
 
-    this._direction = offset < this._offset ? 'forward' : 'backward';
-    this._offset = offset;
+    const direction = offset < this._offset ? 'forward' : 'backward';
+    this._direction = direction;
 
-    // 注意：这里刻意**不**去判断"是不是用户滚动，然后取消渐进修正"。
-    // 写 scrollTop 引发的 scroll 事件是异步回送的，无论用什么标记窗口去圈住它，
-    // 窗口关闭与事件回送都是竞态；误判一次就会把轮询连同它的 rAF 兜底一起掐掉，
-    // scrollToBottom 再也到不了底。
-    // 放弃修正的判断改在轮询自身的每一步里做（见 _attachEdgeFixTask）。
+    // 用户接管了滚动，显式定位（scrollToIndex / scrollToBottom）的意图作废
+    if (this._pinned?.explicit) this._pinned = null;
+
+    if (direction === 'forward') {
+      // 向上滚：锚定当前顶部项。它已经渲染测量过、尺寸稳定，是可靠的参照物——
+      // 上方即将进入窗口的新项测出真实尺寸后，据此把视口拉回同一段内容。
+      // 必须在 _offset / 区间更新**之前**捕获，那时顶部项还是"用户正在看的那一项"
+      if (!this._pinned?.explicit) this._pinIndex(this.state.inViewBegin);
+    } else {
+      // 向下滚说明用户已经离开原来那段内容，不再需要维持
+      this._pinned = null;
+    }
+
+    this._offset = offset;
 
     // 用户真的动了滚动条：解开上一次空加载留下的停摆，让自动续拉重新可用
     this._loader.onUserScroll();
@@ -1523,21 +1366,12 @@ export class VirtListCore<T extends Record<string, any>> {
     this.state.listTotalSize = this._sizeIndex.total;
   }
 
-  /**
-   * 更新可视区间 [inViewBegin, inViewEnd] 并触发渲染区间更新。
-   * 如果 start 比当前 inViewBegin 小，说明即将向上渲染新项，先立好锚点。
-   */
+  /** 更新可视区间 [inViewBegin, inViewEnd] 并触发渲染区间更新 */
   private _updateRange(start: number): void {
     // 列表变短时（切换数据源、过滤）旧的 inViewBegin 可能已经越界，
     // 不夹一下会让 renderBegin 超过 renderEnd，渲染切片直接变成空数组
     const last = Math.max(0, this._props.list.length - 1);
     start = Math.min(Math.max(start, 0), last);
-
-    if (start < this.state.inViewBegin) {
-      // 锚定当前顶部项：它已经渲染测量过、尺寸稳定，是可靠的参照物。
-      // 上方新项测出真实尺寸后，据此把视口拉回同一段内容
-      this._captureAnchor(this.state.inViewBegin);
-    }
 
     this.state.inViewBegin = start;
     this.state.inViewEnd = this._calculateViewEnd(start);
@@ -1607,16 +1441,6 @@ export class VirtListCore<T extends Record<string, any>> {
       }
       // 同上；目标超出内容总高时索引会给出最后一项
       if (!found) start = this._locateIndex(target);
-    }
-
-    // 向下滚动说明用户已经离开原来那段内容，待处理的锚点作废。
-    // 锚点修正自身写 scrollTop 也会走到这里，靠 _applyingAnchor 窗口区分开
-    if (
-      this._direction === 'backward' &&
-      target > beginTop &&
-      !this._applyingAnchor
-    ) {
-      this._anchor = null;
     }
 
     if (start !== inViewBegin) {
@@ -1793,10 +1617,10 @@ export class VirtListCore<T extends Record<string, any>> {
       // 任务里后面会修正，中间态不会被绘制出来
       this._notify();
 
-      this._setScrollOffset(this._offset + shiftSize);
-      // 与 _applyAnchor 同理：写完立刻把 _offset 同步到浏览器 clamp 后的真实值，
-      // 否则下一个 scroll 事件会拿旧值误判滚动方向
-      if (this._driver) this._offset = this.getOffset();
+      this._writeOffset(this._offset + shiftSize, 'adjust');
+      // 与 _resolvePinned 同理：写完立刻把 _offset 同步到裁剪后的真实值，
+      // 否则下一次滚动会拿旧值误判方向
+      if (this._bound) this._offset = this.getOffset();
 
       // 用补偿后的偏移量重新定位视口顶部项，而不是把旧的 inViewBegin 平移 shiftCount。
       //
@@ -1826,7 +1650,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
       if (shiftCount > 0) {
         // 头部插入项的尺寸此刻多半还是估算值，补偿量因此不准，差额要靠锚点在
-        // 尺寸测出来之后补回来（_applyAnchor 每次 ResizeObserver 回调重新求解）。
+        // 尺寸测出来之后补回来（_resolvePinned 每次 ResizeObserver 回调重新求解）。
         //
         // 参照项必须是「变更前视口顶部那一项」平移后的位置，而不是补偿后视口顶部
         // 那一项（newBegin）：后者可能正是刚插入的、尺寸还会变的项，锚在它身上
@@ -1838,7 +1662,7 @@ export class VirtListCore<T extends Record<string, any>> {
           prevInViewBegin + shiftCount,
           Math.max(0, this._props.list.length - 1),
         );
-        this._captureAnchor(anchorIndex);
+        this._pinIndex(anchorIndex);
       }
       // 记录版本号：本次变更的位移已经补过，手动补偿调用应当短路，否则会叠加成两倍
       this._autoFixedVersion = this._listVersion;
@@ -1856,7 +1680,11 @@ export class VirtListCore<T extends Record<string, any>> {
       // 列表变短后（切换数据源、过滤）旧偏移量可能已经超出新的可滚动范围。
       // 浏览器会把 scrollTop 夹回来，但 scroll 事件是异步回送的——内部偏移量
       // 必须立刻跟着收，否则这一轮的区间会按一个已经不存在的位置去算
-      if (this._clampOffsetToScrollRange()) {
+      // 列表变短后旧偏移量可能已越界：重写一次当前值就会被夹回范围内
+      const beforeClamp = this.getOffset();
+      this._writeOffset(beforeClamp, 'adjust');
+      if (this.getOffset() !== beforeClamp) {
+        this._offset = this.getOffset();
         // 偏移量变了，旧的 inViewBegin 不再对应当前位置，按新偏移量权威定位
         const target = this._offset - this.slotSize.headerSize;
         this._updateRange(target < 0 ? 0 : this._locateIndex(target));
@@ -1865,6 +1693,9 @@ export class VirtListCore<T extends Record<string, any>> {
       }
       this._updateTotalVirtualSize();
       this._updateRenderRange();
+
+      // 列表变了，待维持的目标要按新内容重新求解（例如贴底跟随）
+      this._resolvePinned();
 
       if (this._lastChangeWasAppend) {
         this._loader.onAppend(

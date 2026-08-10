@@ -204,16 +204,16 @@ describe('Vue VirtGrid', () => {
   });
 
   it('暴露滚动 API', () => {
-    const { app, gridRef, clientEl } = mount({ list: makeList(120) });
+    const { app, gridRef } = mount({ list: makeList(120) });
 
     gridRef.value.scrollToIndex(15);
-    expect(clientEl.scrollTop).toBe(200);
+    expect(gridRef.value!.getOffset()).toBe(200);
 
     gridRef.value.scrollToOffset(88);
-    expect(clientEl.scrollTop).toBe(88);
+    expect(gridRef.value!.getOffset()).toBe(88);
 
     gridRef.value.scrollIntoView(60);
-    expect(clientEl.scrollTop).toBe(800);
+    expect(gridRef.value!.getOffset()).toBe(800);
 
     app.unmount();
   });
@@ -234,34 +234,32 @@ describe('Vue VirtGrid', () => {
 
   it('smooth 滚动可被 cancelScroll 打断', () => {
     vi.useFakeTimers();
-    const { app, gridRef, clientEl } = mount({ list: makeList(120) });
+    const { app, gridRef } = mount({ list: makeList(120) });
 
     gridRef.value.scrollToIndex(90, { behavior: 'smooth', duration: 200 });
     vi.advanceTimersByTime(32);
     gridRef.value.cancelScroll();
-    const stopped = clientEl.scrollTop;
+    const stopped = gridRef.value!.getOffset();
     vi.advanceTimersByTime(300);
 
-    expect(clientEl.scrollTop).toBe(stopped);
+    expect(gridRef.value!.getOffset()).toBe(stopped);
 
     app.unmount();
   });
 
   it('事件被 emit 出来', () => {
-    const onScroll = vi.fn();
+    const onOffsetChange = vi.fn();
     const onToBottom = vi.fn();
     const onUpdate = vi.fn();
-    const { app, clientEl } = mount({ onScroll, onToBottom, onUpdate });
+    const { app, gridRef } = mount({ onOffsetChange, onToBottom, onUpdate });
 
     expect(onUpdate).toHaveBeenCalled();
 
-    clientEl.scrollTop = 100;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(onScroll).toHaveBeenCalled();
+    gridRef.value!.scrollFromUser(100);
+    expect(onOffsetChange).toHaveBeenCalled();
 
     // 10 行 × 40 = 400，视口 200
-    clientEl.scrollTop = 200;
-    clientEl.dispatchEvent(new Event('scroll'));
+    gridRef.value!.scrollFromUser(200);
     expect(onToBottom).toHaveBeenCalled();
 
     app.unmount();

@@ -37,9 +37,8 @@
 | initialPosition | 首屏定位。`'bottom'` 挂载后定位到底部并随尺寸测量渐进校准；`start` / `offset` 优先 | `'top' \| 'bottom'`                                                           | `'top'` | -                            |
 | stickyBottom   | 尾部追加时是否自动跟随到底部；仅在**原本就贴底**时跟随                            | `Boolean`                                                                     | `false` | -                            |
 | stickyThreshold | 判定"贴底"的容差（px），缺省取 `scrollDistance`（至少 2px）                       | `Number`                                                                      | `0`     | -                            |
-| scrollbar          | 滚动条实现方式，见下方 [自绘滚动条](#自绘滚动条)                                        | `'native' \| 'custom'`                                                                      | `'native'` | -                            |
-| scrollbarAutoHide  | 自绘滚动条停止滚动多久后淡出（ms），`0` 表示常驻；仅 `custom` 生效                      | `Number`                                                                                    | `1200`  | -                            |
-| scrollbarMinThumbSize | 自绘滑块的最小长度（px）；仅 `custom` 生效                                            | `Number`                                                                                    | `20`    | -                            |
+| scrollbarAutoHide  | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                      | `Number`                                                                                    | `1200`  | -                            |
+| scrollbarMinThumbSize | 滑块的最小长度（px）                                            | `Number`                                                                                    | `20`    | -                            |
 
 ## 插槽
 
@@ -58,7 +57,8 @@
 | ---------- | ----------------- | ----------------------------------------- |
 | toTop      | 触顶的回调        | 列表中第一项                              |
 | toBottom   | 触底的回调        | 列表中最后一项                            |
-| scroll     | 滚动的回调        | event                                     |
+| scroll | 滚动。载荷是普通对象而不是 `Event`。字段见本页下方「滚动是怎么工作的」 | event: VirtScrollEvent |
+| offsetChange | 偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 `scroll` | offset: number |
 | itemResize | Item 尺寸发生变化 | `{ id: string, newSize: number }`         |
 | update     | 渲染列表更新      | `{ renderList: any[], state: ListState }` |
 | loadStateChange | 加载状态变化   | `(loadState: LoadState)`                  |
@@ -68,12 +68,13 @@
 | 方法名            | 说明                                                                         | 参数                                               |
 | ----------------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
 | reset             | 重置列表                                                                     | -                                                  |
-| getOffset         | 获取滚动高度                                                                 | -                                                  |
+| getOffset         | 获取当前滚动偏移量（容器 `scrollTop` 恒为 0，必须走这里读）                   | -                                                  |
 | scrollToTop       | scroll to top                                                                | options?: VirtScrollOptions                                                  |
 | scrollToBottom    | scroll to bottom                                                             | options?: VirtScrollOptions                                                  |
 | scrollToIndex     | scroll to index                                                              | index, options?: VirtScrollOptions                                              |
 | scrollIntoView    | scroll to index if needed（不在可视范围内）                                  | index, options?: VirtScrollOptions                                              |
 | scrollToOffset    | scroll to px                                                                 | px, options?: VirtScrollOptions                                                 |
+| scrollFromUser    | 上报一次**用户发起**的滚动：触发 toTop / toBottom 与自动续拉，并作废 scrollToIndex 之类的定位意图。接自定义输入源时用它 | px |
 | cancelScroll      | 取消进行中的平滑滚动动画                                                     | -                                                  |
 | getItemSize       | 获取指定 item 尺寸                                                           | index                                              |
 | getItemPosByIndex | 获取指定 item 的位置信息: `{ top: number; current: number; bottom: number;}` | index                                              |

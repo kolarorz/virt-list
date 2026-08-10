@@ -12,9 +12,7 @@ describe('@virt-list/core 公共导出', () => {
     expect(Object.keys(pkg).sort()).toEqual([
       'DEFAULT_OPTIONS',
       'ListLoader',
-      'NativeScrollDriver',
       'VirtListCore',
-      'VirtualScrollDriver',
     ]);
   });
 
@@ -44,7 +42,6 @@ describe('@virt-list/core 公共导出', () => {
       'renderControl',
       'scrollDistance',
       'scrollDuration',
-      'scrollbar',
       'smoothMaxDistance',
       'start',
       'stickyBottom',

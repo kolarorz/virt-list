@@ -169,9 +169,8 @@ function mount(list: Item[]) {
   return { app, container, clientEl, listRef };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(listRef: Ref<any>, offset: number) {
+  listRef.value!.scrollFromUser(offset);
 }
 
 /** 与视口相交的项，DOM 里是否都在 */
@@ -186,7 +185,7 @@ function domCoversViewport(
       .filter((id) => !SLOT_IDS.includes(id)),
   );
 
-  const offset = clientEl.scrollTop;
+  const offset = listRef.value!.getOffset();
   const viewBottom = offset + CLIENT_SIZE;
   const missing: string[] = [];
   const empty: string[] = [];
@@ -214,7 +213,7 @@ describe('Vue 层：展开超高项后的 DOM 一致性', () => {
     await nextTick();
 
     const TALL = 110;
-    scrollTo(clientEl, listRef.value.getItemPosByIndex(TALL).top - 100);
+    scrollTo(listRef, listRef.value.getItemPosByIndex(TALL).top - 100);
     measure();
     flushRaf();
     await nextTick();
@@ -228,7 +227,7 @@ describe('Vue 层：展开超高项后的 DOM 一致性', () => {
     const pos = listRef.value.getItemPosByIndex(TALL);
     const to = listRef.value.getItemPosByIndex(TALL + 4).bottom;
     for (let y = pos.top; y <= to; y += 25) {
-      scrollTo(clientEl, y);
+      scrollTo(listRef, y);
       measure();
       await nextTick();
 
@@ -253,11 +252,11 @@ describe('Vue 层：展开超高项后的 DOM 一致性', () => {
 
     // 来回滚动多轮，让同一批项反复进出窗口
     for (let round = 0; round < 3; round += 1) {
-      scrollTo(clientEl, listRef.value.getItemPosByIndex(TALL).top);
+      scrollTo(listRef, listRef.value.getItemPosByIndex(TALL).top);
       measure();
       await nextTick();
 
-      scrollTo(clientEl, listRef.value.getItemPosByIndex(TALL + 6).bottom);
+      scrollTo(listRef, listRef.value.getItemPosByIndex(TALL + 6).bottom);
       measure();
       await nextTick();
 

@@ -39,26 +39,24 @@ export function bootstrapFlatRender(root) {
       itemKey: 'id',
       itemPreSize: 40,
       buffer: 2,
-      stickyHeaderStyle:
-        'display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-header); color: var(--demo-c-on-accent); font-weight: 600;',
+      stickyHeaderClass: 'demo-band demo-band--sticky-header',
       // 扁平模式：直接操作 el，不返回元素
       renderStickyHeader: (el) => {
-        el.textContent = 'Sticky Header (固定头部)';
+        el.innerHTML =
+          '<span class="demo-band__text">stickyHeader（固定头部）</span>';
       },
-      headerStyle:
-        'display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-header); color: var(--demo-c-on-accent); font-weight: 600;',
+      headerClass: 'demo-band demo-band--header',
       renderHeader: (el) => {
-        el.textContent = 'Header (头部)';
+        el.innerHTML = '<span class="demo-band__text">header（头部）</span>';
       },
-      footerStyle:
-        'display: flex; align-items: center; justify-content: center; height: 40px; background: var(--demo-c-band-footer); color: var(--demo-c-on-accent); font-weight: 600;',
+      footerClass: 'demo-band demo-band--footer',
       renderFooter: (el) => {
-        el.textContent = 'Footer (尾部)';
+        el.innerHTML = '<span class="demo-band__text">footer（尾部）</span>';
       },
-      stickyFooterStyle:
-        'display: flex; align-items: center; justify-content: center; height: 50px; background: var(--demo-c-band-sticky-footer); color: var(--demo-c-on-accent); font-weight: 600;',
+      stickyFooterClass: 'demo-band demo-band--sticky-footer',
       renderStickyFooter: (el) => {
-        el.textContent = 'Sticky Footer (固定底部)';
+        el.innerHTML =
+          '<span class="demo-band__text">stickyFooter（固定底部）</span>';
       },
       // 扁平模式：子元素直接挂到 item wrapper 上，少一层 <div>
       renderItem: (item, index, el) => {

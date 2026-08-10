@@ -311,21 +311,21 @@ describe('React-legacy VirtTree', () => {
 
   it('暴露滚动 API', () => {
     vi.useFakeTimers();
-    const { container, treeRef, clientEl } = mount({
+    const { container, treeRef } = mount({
       list: makeTree(40, 0),
       fixed: true,
     });
     const api = treeRef.current!;
 
     api.scrollTo({ offset: 100 });
-    expect(clientEl.scrollTop).toBe(100);
+    expect(treeRef.current!.getOffset()).toBe(100);
 
     api.scrollTo({ key: '20', align: 'top' });
-    expect(clientEl.scrollTop).toBe(20 * 32);
+    expect(treeRef.current!.getOffset()).toBe(20 * 32);
 
     api.scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(treeRef.current!.getOffset()).toBe(0);
 
     vi.useRealTimers();
     unmount(container);

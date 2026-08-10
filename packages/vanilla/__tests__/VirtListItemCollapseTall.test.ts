@@ -101,9 +101,8 @@ function setup(list: Item[]) {
   return { vl, clientEl };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
 /**
@@ -116,7 +115,6 @@ function scrollTo(clientEl: HTMLElement, offset: number) {
 function settle(clientEl: HTMLElement, rounds = 6) {
   for (let i = 0; i < rounds; i += 1) {
     measure();
-    clientEl.dispatchEvent(new Event('scroll'));
   }
 }
 
@@ -131,7 +129,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
 
     const top = vl.core.getItemPosByIndex(TALL_INDEX).top;
     // 滚到这条消息中段去读
-    scrollTo(clientEl, top + EXPANDED_TALL / 2);
+    scrollTo(vl, top + EXPANDED_TALL / 2);
     settle(clientEl);
     return tallKey;
   }
@@ -149,7 +147,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     const pos = vl.core.getItemPosByIndex(TALL_INDEX);
     // 视口顶部已经不在这条消息里了——这就是"收起后找不到刚才那条消息"
     const viewportInsideTall =
-      pos.top <= clientEl.scrollTop && clientEl.scrollTop < pos.bottom;
+      pos.top <= vl.core.getOffset() && vl.core.getOffset() < pos.bottom;
     expect(viewportInsideTall).toBe(false);
     expect(state.inViewBegin).toBeGreaterThan(TALL_INDEX);
   });
@@ -165,7 +163,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     settle(clientEl);
 
     const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-    expect(clientEl.scrollTop).toBe(pos.top);
+    expect(vl.core.getOffset()).toBe(pos.top);
     expect(vl.core.getState().inViewBegin).toBe(TALL_INDEX);
   });
 
@@ -179,7 +177,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     vl.scrollToIndex(TALL_INDEX);
     settle(clientEl);
 
-    expect(clientEl.scrollTop).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
+    expect(vl.core.getOffset()).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
   });
 
   it('展开到五屏、滚到消息末尾再收起，不会被挤到列表底部', () => {
@@ -193,14 +191,14 @@ describe('展开超过一屏的项，收起后的落点', () => {
 
     // 滚到这条消息的末尾
     const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-    scrollTo(clientEl, pos.bottom - CLIENT_SIZE);
+    scrollTo(vl, pos.bottom - CLIENT_SIZE);
     settle(clientEl);
 
     sizes.set(tallKey, COLLAPSED);
     vl.scrollToIndex(TALL_INDEX);
     settle(clientEl);
 
-    expect(clientEl.scrollTop).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
+    expect(vl.core.getOffset()).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
     expect(vl.core.getState().inViewBegin).toBe(TALL_INDEX);
   });
 
@@ -215,7 +213,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     settle(clientEl);
 
     const pos = vl.core.getItemPosByIndex(lastIndex);
-    scrollTo(clientEl, pos.top + EXPANDED_TALL / 2);
+    scrollTo(vl, pos.top + EXPANDED_TALL / 2);
     settle(clientEl);
 
     sizes.set(tallKey, COLLAPSED);
@@ -225,7 +223,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     // 靠近末尾时目标 top 可能超过可滚动上限，此时滚到底即可——
     // 要求是该项必须落在视口内
     const after = vl.core.getItemPosByIndex(lastIndex);
-    const viewTop = clientEl.scrollTop;
+    const viewTop = vl.core.getOffset();
     const viewBottom = viewTop + CLIENT_SIZE;
     expect(after.top).toBeLessThan(viewBottom);
     expect(after.bottom).toBeGreaterThan(viewTop);
@@ -247,7 +245,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     const key = vl.core.props.list[index]!.id;
     // top 只取决于上方内容，与这一项自己的高度无关，尺寸变化前就能算准
     const { top } = vl.core.getItemPosByIndex(index);
-    const scrolledPastTop = clientEl.scrollTop > top;
+    const scrolledPastTop = vl.core.getOffset() > top;
 
     sizes.set(key, size);
     if (scrolledPastTop) vl.scrollToIndex(index);
@@ -269,12 +267,12 @@ describe('展开超过一屏的项，收起后的落点', () => {
 
     // 折叠态先有个实测高度
     sizes.set(list[TALL_INDEX]!.id, COLLAPSED);
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL_INDEX).top - 200);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL_INDEX).top - 200);
     settle(clientEl);
 
     // 滚到只剩它底部一点点露在视口顶部（就是"只看得见展开按钮"的样子）
     const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-    scrollTo(clientEl, pos.bottom - 10);
+    scrollTo(vl, pos.bottom - 10);
     settle(clientEl);
 
     const didScroll = toggleWithSmartScroll(
@@ -287,7 +285,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
 
     expect(didScroll).toBe(true);
     // 视口顶部对齐这条消息的顶部，于是能从第一行开始读
-    expect(clientEl.scrollTop).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
+    expect(vl.core.getOffset()).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
   });
 
   it('顶部还在视口里时展开：一个像素都不动', () => {
@@ -299,10 +297,10 @@ describe('展开超过一屏的项，收起后的落点', () => {
 
     // 视口顶部停在这条消息上方一点，它的开头是可见的
     const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-    scrollTo(clientEl, pos.top - 60);
+    scrollTo(vl, pos.top - 60);
     settle(clientEl);
 
-    const offsetBefore = clientEl.scrollTop;
+    const offsetBefore = vl.core.getOffset();
     const didScroll = toggleWithSmartScroll(
       vl,
       clientEl,
@@ -312,7 +310,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     settle(clientEl);
 
     expect(didScroll).toBe(false);
-    expect(clientEl.scrollTop).toBe(offsetBefore);
+    expect(vl.core.getOffset()).toBe(offsetBefore);
   });
 
   it('视口滚进了消息内部：收起时定位回这一行', () => {
@@ -324,7 +322,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
     settle(clientEl);
 
     expect(didScroll).toBe(true);
-    expect(clientEl.scrollTop).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
+    expect(vl.core.getOffset()).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
   });
 
   it('消息顶部仍在视口内：收起时完全不滚动（避免割裂感）', () => {
@@ -336,39 +334,39 @@ describe('展开超过一屏的项，收起后的落点', () => {
     sizes.set(tallKey, EXPANDED_TALL);
     settle(clientEl);
     const top = vl.core.getItemPosByIndex(TALL_INDEX).top;
-    scrollTo(clientEl, top - 100);
+    scrollTo(vl, top - 100);
     settle(clientEl);
 
-    const offsetBefore = clientEl.scrollTop;
+    const offsetBefore = vl.core.getOffset();
     const didScroll = collapseWithSmartScroll(vl, clientEl, TALL_INDEX);
     settle(clientEl);
 
     expect(didScroll).toBe(false);
     // 一点都不该动
-    expect(clientEl.scrollTop).toBe(offsetBefore);
+    expect(vl.core.getOffset()).toBe(offsetBefore);
   });
 
   it('一屏内的短消息反复展开收起，滚动位置始终不动', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 600);
+    scrollTo(vl, 600);
     settle(clientEl);
 
     // 视口顶部之下的一项，展开后仍在一屏内
     const index = vl.core.getState().inViewBegin + 1;
     const key = vl.core.props.list[index]!.id;
-    const offsetBefore = clientEl.scrollTop;
+    const offsetBefore = vl.core.getOffset();
 
     for (let i = 0; i < 4; i += 1) {
       sizes.set(key, 200);
       settle(clientEl);
-      expect(clientEl.scrollTop).toBe(offsetBefore);
+      expect(vl.core.getOffset()).toBe(offsetBefore);
 
       const didScroll = collapseWithSmartScroll(vl, clientEl, index);
       settle(clientEl);
       expect(didScroll).toBe(false);
-      expect(clientEl.scrollTop).toBe(offsetBefore);
+      expect(vl.core.getOffset()).toBe(offsetBefore);
     }
   });
 
@@ -385,7 +383,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
       settle(clientEl);
 
       const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-      expect(clientEl.scrollTop + CLIENT_SIZE).toBe(pos.bottom);
+      expect(vl.core.getOffset() + CLIENT_SIZE).toBe(pos.bottom);
     });
 
     it("align='start'（默认）：项顶部对齐视口顶部", () => {
@@ -399,14 +397,14 @@ describe('展开超过一屏的项，收起后的落点', () => {
       vl.scrollToIndex(TALL_INDEX);
       settle(clientEl);
 
-      expect(clientEl.scrollTop).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
+      expect(vl.core.getOffset()).toBe(vl.core.getItemPosByIndex(TALL_INDEX).top);
     });
 
     it("align='end' 的渐进修正能跟上展开后才测出的高度", () => {
       const list = makeList(COUNT);
       const { vl, clientEl } = setup(list);
 
-      scrollTo(clientEl, 600);
+      scrollTo(vl, 600);
       settle(clientEl);
 
       // 展开与定位在同一步发出：此刻高度还是折叠态，目标偏移要靠渐进修正跟上
@@ -415,7 +413,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
       settle(clientEl);
 
       const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-      expect(clientEl.scrollTop + CLIENT_SIZE).toBe(pos.bottom);
+      expect(vl.core.getOffset() + CLIENT_SIZE).toBe(pos.bottom);
     });
 
     it("项高于视口时 align='end' 会露出它的末段，align='start' 露出开头", () => {
@@ -427,11 +425,11 @@ describe('展开超过一屏的项，收起后的落点', () => {
 
       vl.scrollToIndex(TALL_INDEX, { align: 'end' });
       settle(clientEl);
-      const endOffset = clientEl.scrollTop;
+      const endOffset = vl.core.getOffset();
 
       vl.scrollToIndex(TALL_INDEX, { align: 'start' });
       settle(clientEl);
-      const startOffset = clientEl.scrollTop;
+      const startOffset = vl.core.getOffset();
 
       // 三屏高的项，两种对齐相差两屏
       expect(endOffset - startOffset).toBe(EXPANDED_TALL - CLIENT_SIZE);
@@ -504,45 +502,45 @@ describe('展开超过一屏的项，收起后的落点', () => {
       const list = makeList(COUNT);
       const { vl, clientEl, expand } = setupAutoAlign(list);
 
-      scrollTo(clientEl, 800);
+      scrollTo(vl, 800);
       settle(clientEl);
 
       const index = vl.core.getState().inViewBegin + 1;
       expand(index, EXPANDED_TALL);
 
       const pos = vl.core.getItemPosByIndex(index);
-      expect(clientEl.scrollTop + CLIENT_SIZE).toBe(pos.bottom);
+      expect(vl.core.getOffset() + CLIENT_SIZE).toBe(pos.bottom);
     });
 
     it('展开后仍在一屏内：一个像素都不动', () => {
       const list = makeList(COUNT);
       const { vl, clientEl, expand } = setupAutoAlign(list);
 
-      scrollTo(clientEl, 800);
+      scrollTo(vl, 800);
       settle(clientEl);
 
       const index = vl.core.getState().inViewBegin + 1;
-      const offsetBefore = clientEl.scrollTop;
+      const offsetBefore = vl.core.getOffset();
       // 200 < CLIENT_SIZE(300)，装得下
       expand(index, 200);
 
-      expect(clientEl.scrollTop).toBe(offsetBefore);
+      expect(vl.core.getOffset()).toBe(offsetBefore);
     });
 
     it('展开五屏高的消息也只露出它的末段，不会溢出视口', () => {
       const list = makeList(COUNT);
       const { vl, clientEl, expand } = setupAutoAlign(list);
 
-      scrollTo(clientEl, 800);
+      scrollTo(vl, 800);
       settle(clientEl);
 
       const index = vl.core.getState().inViewBegin + 1;
       expand(index, CLIENT_SIZE * 5);
 
       const pos = vl.core.getItemPosByIndex(index);
-      expect(clientEl.scrollTop + CLIENT_SIZE).toBe(pos.bottom);
+      expect(vl.core.getOffset() + CLIENT_SIZE).toBe(pos.bottom);
       // 视口完全落在这条消息内部
-      expect(clientEl.scrollTop).toBeGreaterThan(pos.top);
+      expect(vl.core.getOffset()).toBeGreaterThan(pos.top);
     });
   });
 
@@ -557,14 +555,14 @@ describe('展开超过一屏的项，收起后的落点', () => {
     settle(clientEl);
 
     const pos = vl.core.getItemPosByIndex(TALL_INDEX);
-    const viewTop = clientEl.scrollTop;
+    const viewTop = vl.core.getOffset();
     expect(pos.top).toBeGreaterThanOrEqual(viewTop);
     expect(pos.bottom).toBeLessThanOrEqual(viewTop + CLIENT_SIZE);
 
     // 已经完整可见了，再调一次不应该再动
-    const stable = clientEl.scrollTop;
+    const stable = vl.core.getOffset();
     vl.scrollIntoView(TALL_INDEX);
     settle(clientEl);
-    expect(clientEl.scrollTop).toBe(stable);
+    expect(vl.core.getOffset()).toBe(stable);
   });
 });

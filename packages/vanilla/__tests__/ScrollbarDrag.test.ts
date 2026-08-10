@@ -76,7 +76,6 @@ function mount(count = 1000, options: Partial<VirtListDOMOptions<Item>> = {}) {
     itemKey: 'id',
     itemPreSize: PRE_SIZE,
     fixed: true,
-    scrollbar: 'custom',
     scrollbarAutoHide: 0,
     renderItem: ((item: Item, _i: number, el: HTMLElement) => {
       el.textContent = item.text;
@@ -165,7 +164,6 @@ describe('自绘滚动条与列表联动', () => {
   it('拖拽全程内容与偏移量同步，绝不落在没有 DOM 的位置上', () => {
     const { vl, thumb } = mount();
     const travel = thumbTravel(vl, thumb);
-    const contentEl = vl.clientEl.firstElementChild as HTMLElement;
 
     // 拖拽输入按帧合并（同一帧里来的多个 mousemove 只算一次），
     // 所以要显式驱动帧才能观察到结果。只抽干「本次之前排入」的回调，
@@ -196,12 +194,16 @@ describe('自绘滚动条与列表联动', () => {
 
         const offset = vl.core.getOffset();
         const m = /translate3d\(\s*[^,]+,\s*(-?[\d.]+)px/.exec(
-          contentEl.style.transform,
+          vl.itemsEl.style.transform,
         );
-        // 内容位移必须等于偏移量的相反数——这就是「同帧提交」的可观测形式
-        expect(Number(m![1])).toBe(-offset);
-
         const { renderBegin, renderEnd } = vl.core.state;
+        // 渲染块的位移必须等于「它的文档位置 - 偏移量」——
+        // 这就是「内容与偏移量同帧提交」的可观测形式
+        expect(Number(m![1])).toBeCloseTo(
+          vl.core.getItemPosByIndex(renderBegin).top - offset,
+          6,
+        );
+
         const top = vl.core.getItemPosByIndex(renderBegin).top;
         const bottom = vl.core.getItemPosByIndex(renderEnd).bottom;
         expect(top).toBeLessThanOrEqual(offset);
@@ -253,17 +255,4 @@ describe('自绘滚动条与列表联动', () => {
     expect(track.isConnected).toBe(false);
   });
 
-  it('native 模式不创建自绘滚动条', () => {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    const vl = new VirtList<Item>(container, {
-      list: makeList(100),
-      itemKey: 'id',
-      itemPreSize: PRE_SIZE,
-      renderItem: (() => {}) as any,
-    } as VirtListDOMOptions<Item>);
-    mounted.push(vl);
-
-    expect(vl.clientEl.querySelector('.virt-scrollbar')).toBeNull();
-  });
 });

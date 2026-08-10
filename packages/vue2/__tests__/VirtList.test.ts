@@ -211,22 +211,22 @@ describe('Vue2 VirtList', () => {
 
   it('暴露滚动 API', () => {
     vi.useFakeTimers();
-    const { vm, api, clientEl } = mount();
+    const { vm, api } = mount();
 
     api().scrollToIndex(10);
-    expect(clientEl.scrollTop).toBe(400);
+    expect(api().getOffset()).toBe(400);
 
     api().scrollToOffset(55);
-    expect(clientEl.scrollTop).toBe(55);
+    expect(api().getOffset()).toBe(55);
 
     api().scrollToBottom();
     // scrollToBottom 停在浏览器允许的可滚动上限（总高 - 可视高度），
     // 而不是把总高原样写进 scrollTop —— 后者在真实浏览器里会被裁掉
-    expect(clientEl.scrollTop).toBe(2000 - 200);
+    expect(api().getOffset()).toBe(2000 - 200);
 
     api().scrollToTop();
     vi.runAllTimers();
-    expect(clientEl.scrollTop).toBe(0);
+    expect(api().getOffset()).toBe(0);
 
     vm.$destroy();
   });
@@ -249,12 +249,12 @@ describe('Vue2 VirtList', () => {
   });
 
   it('事件被 emit', () => {
-    const scroll = vi.fn();
+    const offsetChange = vi.fn();
     const toBottom = vi.fn();
     const update = vi.fn();
     const itemResize = vi.fn();
-    const { vm, clientEl } = mount({}, undefined, {
-      scroll,
+    const { vm, api } = mount({}, undefined, {
+      offsetChange,
       toBottom,
       update,
       itemResize,
@@ -262,12 +262,10 @@ describe('Vue2 VirtList', () => {
 
     expect(update).toHaveBeenCalled();
 
-    clientEl.scrollTop = 400;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(scroll).toHaveBeenCalled();
+    api().scrollFromUser(400);
+    expect(offsetChange).toHaveBeenCalled();
 
-    clientEl.scrollTop = 1800;
-    clientEl.dispatchEvent(new Event('scroll'));
+    api().scrollFromUser(1800);
     expect(toBottom).toHaveBeenCalled();
 
     flushResize('0', 88);

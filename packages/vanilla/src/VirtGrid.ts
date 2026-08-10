@@ -5,6 +5,7 @@ import type {
   ListState,
   StyleValue,
   VirtListEvents,
+  VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
 
@@ -30,8 +31,10 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   scrollDuration?: number;
   /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
   smoothMaxDistance?: number;
-  /** 滚动条实现方式，见 VirtListOptions.scrollbar */
-  scrollbar?: 'native' | 'custom';
+  /** 滚动条淡出延迟（ms），`0` 常驻 */
+  scrollbarAutoHide?: number;
+  /** 滑块的最小长度（px） */
+  scrollbarMinThumbSize?: number;
   /** 行的自定义 style */
   itemStyle?: StyleValue;
   /** 单元格渲染函数（可返回 HTMLElement，或直接渲染到传入 el） */
@@ -50,7 +53,10 @@ export interface VirtGridOptions<T extends Record<string, any>> {
 }
 
 export interface VirtGridEvents<T extends Record<string, any> = Record<string, any>> {
-  scroll?: (e: Event) => void;
+  /** 滚动了。容器 overflow:hidden，没有原生 scroll 事件，这是它的替代品 */
+  scroll?: (event: VirtScrollEvent) => void;
+  /** 滚动偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 scroll */
+  offsetChange?: (offset: number) => void;
   toTop?: (item: GridRow<T>) => void;
   toBottom?: (item: GridRow<T>) => void;
   itemResize?: (id: string, newSize: number) => void;
@@ -93,6 +99,7 @@ export class VirtGrid<T extends Record<string, any>> {
 
     const listEvents: VirtListEvents<GridRow<T>> = {
       scroll: (e) => events?.scroll?.(e),
+      offsetChange: (offset) => events?.offsetChange?.(offset),
       toTop: (item) => events?.toTop?.(item),
       toBottom: (item) => events?.toBottom?.(item),
       itemResize: (id, size) => events?.itemResize?.(id, size),
@@ -110,7 +117,8 @@ export class VirtGrid<T extends Record<string, any>> {
         buffer: options.buffer,
         scrollDuration: options.scrollDuration,
         smoothMaxDistance: options.smoothMaxDistance,
-        scrollbar: options.scrollbar,
+        scrollbarAutoHide: options.scrollbarAutoHide,
+        scrollbarMinThumbSize: options.scrollbarMinThumbSize,
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {
@@ -204,6 +212,32 @@ export class VirtGrid<T extends Record<string, any>> {
 
   scrollToOffset(offset: number, options?: VirtScrollOptions): void {
     this._virtListDOM.scrollToOffset(offset, options);
+  }
+
+  /** 底层虚拟列表的计算内核（与 VirtList.core 一致，供进阶用法与测试使用） */
+  get core() {
+    return this._virtListDOM.core;
+  }
+
+  /**
+   * 上报一次用户发起的滚动。
+   *
+   * 与 `scrollToOffset` 的区别是语义：这是「用户动了」，会触发 toTop / toBottom
+   * 与自动续拉；`scrollToOffset` 是「程序要求去某处」，不触发。
+   * 接自定义输入源（自建手势、外部滚动条）时用它。
+   */
+  scrollFromUser(offset: number): void {
+    this._virtListDOM.core.scrollFromUser(offset);
+  }
+
+  /**
+   * 当前滚动偏移量。
+   *
+   * 容器的 `scrollTop` 恒为 0（内容靠 transform 移动），
+   * 读滚动位置必须走这里。
+   */
+  getOffset(): number {
+    return this._virtListDOM.core.getOffset();
   }
 
   /** 取消进行中的平滑滚动动画 */

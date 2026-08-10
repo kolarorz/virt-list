@@ -10,6 +10,12 @@ import { VirtList } from '../src/VirtList';
  *
  * 列表靠渐进修正来收敛（每次 ResizeObserver 回调重算一次目标），这些用例验证它
  * 真的能收敛到底，而不是停在半路。
+ *
+ * 曾经这里还有三个用例，验的是「账本比浏览器实际内容矮几百 px 时仍要滚到浏览器
+ * 允许的真实底部」——原生滚动下账本（ResizeObserver 增量维护）与 scrollHeight
+ * （浏览器按盒模型算）必然错开，实测差过 420px，那时必须两头取大来仲裁。
+ * 滚动位置改由 JS 掌管之后**账本就是唯一真相**，内容画在哪儿、能滚多远由同一份
+ * 账本决定，这种不一致从定义上就不存在了，所以那三个用例连同仲裁逻辑一起删掉。
  */
 
 const PRE_SIZE = 40;
@@ -132,17 +138,16 @@ function settle(clientEl: HTMLElement, list: Item[], rounds = 40) {
   for (let i = 0; i < rounds; i += 1) {
     measure(list);
     flushRaf();
-    clientEl.dispatchEvent(new Event('scroll'));
   }
 }
 
 /** 是否真的贴在底部 */
-function atBottom(vl: VirtList<Item>, clientEl: HTMLElement) {
+function atBottom(vl: VirtList<Item>) {
   const total = vl.core.getTotalSize();
-  const bottom = clientEl.scrollTop + CLIENT_SIZE;
+  const bottom = vl.core.getOffset() + CLIENT_SIZE;
   return {
     ok: Math.abs(Math.round(bottom) - Math.round(total)) <= 2,
-    scrollTop: clientEl.scrollTop,
+    scrollTop: vl.core.getOffset(),
     bottom,
     total,
     gap: Math.round(total - bottom),
@@ -157,7 +162,7 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
     vl.scrollToBottom();
     settle(clientEl, list);
 
-    const r = atBottom(vl, clientEl);
+    const r = atBottom(vl);
     expect(
       r.ok,
       `没到底：scrollTop=${r.scrollTop}，视口底=${r.bottom}，总高=${r.total}，差 ${r.gap}px`,
@@ -169,13 +174,12 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
     const { vl, clientEl } = setup(list);
 
     clientEl.scrollTop = 20000;
-    clientEl.dispatchEvent(new Event('scroll'));
     settle(clientEl, list, 6);
 
     vl.scrollToBottom();
     settle(clientEl, list);
 
-    const r = atBottom(vl, clientEl);
+    const r = atBottom(vl);
     expect(
       r.ok,
       `没到底：scrollTop=${r.scrollTop}，视口底=${r.bottom}，总高=${r.total}，差 ${r.gap}px`,
@@ -191,7 +195,7 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
     vl.scrollToBottom();
     settle(clientEl, list);
 
-    const r = atBottom(vl, clientEl);
+    const r = atBottom(vl);
     expect(r.ok, `没到底，差 ${r.gap}px`).toBe(true);
   });
 
@@ -204,12 +208,12 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
 
     vl.scrollToTop();
     settle(clientEl, list);
-    expect(clientEl.scrollTop).toBe(0);
+    expect(vl.core.getOffset()).toBe(0);
 
     vl.scrollToBottom();
     settle(clientEl, list);
 
-    const r = atBottom(vl, clientEl);
+    const r = atBottom(vl);
     expect(r.ok, `没到底，差 ${r.gap}px`).toBe(true);
   });
 
@@ -240,7 +244,7 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
         vl.scrollToBottom();
         settle(clientEl, list);
 
-        const r = atBottom(vl, clientEl);
+        const r = atBottom(vl);
         expect(
           r.ok,
           `先 ${name} 后没到底：scrollTop=${r.scrollTop}，视口底=${r.bottom}，` +
@@ -256,7 +260,6 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
       // 模拟滚轮：往下滚一段再往上滚一段（会立下锚点）
       for (const y of [4000, 8000, 6000, 3000]) {
         clientEl.scrollTop = y;
-        clientEl.dispatchEvent(new Event('scroll'));
         measure(list);
         flushRaf();
       }
@@ -264,191 +267,9 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
       vl.scrollToBottom();
       settle(clientEl, list);
 
-      const r = atBottom(vl, clientEl);
+      const r = atBottom(vl);
       expect(r.ok, `没到底，差 ${r.gap}px`).toBe(true);
     });
-  });
-
-  /**
-   * 列表内部记的总高度，和浏览器实际布局出来的 scrollHeight 不一致。
-   *
-   * 真实环境里这个差是必然会有的：listTotalSize 是靠 ResizeObserver 的上报增量
-   * 维护的账本，而 scrollHeight 由浏览器按实际盒模型算（亚像素、测量滞后、
-   * 项外边距……任一项都会让两者错开几百 px）。
-   *
-   * 关键在于"到底了没有"这件事，**浏览器才是权威**：只要 scrollTop 还没到
-   * scrollHeight - clientHeight，用户就还能往下滚，不管账本怎么说。
-   */
-  it('账本比浏览器实际内容矮时，仍要滚到浏览器允许的最底部', () => {
-    const list = makeList(COUNT);
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-
-    const vl = new VirtList<Item>(container, {
-      list,
-      itemKey: 'id',
-      itemPreSize: PRE_SIZE,
-      renderItem: (item, _index, el) => {
-        el.textContent = item.text;
-      },
-    });
-
-    const clientEl = vl.clientEl;
-    /** 账本之外的那部分高度（用户实测约 417px） */
-    const UNTRACKED = 420;
-    let scrollValue = 0;
-    Object.defineProperty(clientEl, 'clientHeight', {
-      configurable: true,
-      get: () => CLIENT_SIZE,
-    });
-    Object.defineProperty(clientEl, 'scrollHeight', {
-      configurable: true,
-      // 浏览器看到的内容比列表账本更高
-      get: () => vl.core.getTotalSize() + UNTRACKED,
-    });
-    Object.defineProperty(clientEl, 'scrollTop', {
-      configurable: true,
-      get: () => scrollValue,
-      set: (v: number) => {
-        const max = Math.max(0, clientEl.scrollHeight - clientEl.clientHeight);
-        scrollValue = Math.min(Math.max(v, 0), max);
-      },
-    });
-
-    measure(list);
-    flushRaf();
-
-    vl.scrollToBottom();
-    settle(clientEl, list);
-
-    const max = clientEl.scrollHeight - clientEl.clientHeight;
-    const remain = Math.round(max - clientEl.scrollTop);
-    expect(
-      remain <= 2,
-      `距底还差 ${remain}px：scrollTop=${clientEl.scrollTop}，` +
-        `可滚上限=${max}，账本总高=${vl.core.getTotalSize()}`,
-    ).toBe(true);
-  });
-
-  /**
-   * 账本偏矮时，"到底"之后的任何一次列表变更都不该把人拽回来。
-   *
-   * 列表变更会把偏移量收回可滚动范围内（列表变短时浏览器也这么干）。如果那个
-   * 上限拿账本算，就会比浏览器的真实上限矮几百 px，于是把已经贴底的视口往上拽。
-   * 用户测到的 scrollTop 正好等于 `账本总高 - 可视高度`，就是这么来的。
-   */
-  it('账本偏矮时，到底之后的列表变更不该把视口拽回来', () => {
-    const list = makeList(COUNT);
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-
-    const vl = new VirtList<Item>(container, {
-      list,
-      itemKey: 'id',
-      itemPreSize: PRE_SIZE,
-      renderItem: (item, _index, el) => {
-        el.textContent = item.text;
-      },
-    });
-
-    const clientEl = vl.clientEl;
-    /** 浏览器实际内容比账本高出这么多（用户实测约 417px） */
-    const UNTRACKED = 420;
-    let scrollValue = 0;
-    Object.defineProperty(clientEl, 'clientHeight', {
-      configurable: true,
-      get: () => CLIENT_SIZE,
-    });
-    Object.defineProperty(clientEl, 'scrollHeight', {
-      configurable: true,
-      get: () => vl.core.getTotalSize() + UNTRACKED,
-    });
-    Object.defineProperty(clientEl, 'scrollTop', {
-      configurable: true,
-      get: () => scrollValue,
-      set: (v: number) => {
-        const max = Math.max(0, clientEl.scrollHeight - clientEl.clientHeight);
-        scrollValue = Math.min(Math.max(v, 0), max);
-      },
-    });
-
-    measure(list);
-    flushRaf();
-
-    vl.scrollToBottom();
-    settle(clientEl, list);
-
-    const maxBefore = clientEl.scrollHeight - clientEl.clientHeight;
-    expect(Math.round(maxBefore - clientEl.scrollTop)).toBeLessThanOrEqual(2);
-
-    // 触发一次列表变更（内容没变，只是重新 setList —— 各类操作里改数据就是这条路）
-    vl.setList([...list]);
-    settle(clientEl, list);
-
-    const max = clientEl.scrollHeight - clientEl.clientHeight;
-    const remain = Math.round(max - clientEl.scrollTop);
-    expect(
-      remain <= 2,
-      `列表变更后被拽回来了：scrollTop=${clientEl.scrollTop}，可滚上限=${max}，` +
-        `账本总高=${vl.core.getTotalSize()}，差 ${remain}px`,
-    ).toBe(true);
-  });
-
-  /**
-   * 账本比浏览器实际内容矮时，必须滚到**浏览器**允许的最底部。
-   *
-   * 曾经的写法是把"账本总高"这个偏大的值写进 scrollTop，指望浏览器裁到上限。
-   * 但账本本身就可能矮几百 px（增量维护 + 亚像素 + 测量滞后），写进去的值根本
-   * 没超过真实上限，于是永远差最后几项——2000 项的列表停在 1995 就是这么来的。
-   */
-  it('账本偏矮时也要滚到浏览器的真实底部（不能差最后几项）', () => {
-    const list = makeList(COUNT);
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-
-    const vl = new VirtList<Item>(container, {
-      list,
-      itemKey: 'id',
-      itemPreSize: PRE_SIZE,
-      renderItem: (item, _index, el) => {
-        el.textContent = item.text;
-      },
-    });
-
-    const clientEl = vl.clientEl;
-    /** 浏览器实际内容比账本高出这么多（用户实测约 417px ≈ 最后 4 项） */
-    const UNTRACKED = 420;
-    let scrollValue = 0;
-    Object.defineProperty(clientEl, 'clientHeight', {
-      configurable: true,
-      get: () => CLIENT_SIZE,
-    });
-    Object.defineProperty(clientEl, 'scrollHeight', {
-      configurable: true,
-      get: () => vl.core.getTotalSize() + UNTRACKED,
-    });
-    Object.defineProperty(clientEl, 'scrollTop', {
-      configurable: true,
-      get: () => scrollValue,
-      set: (v: number) => {
-        const max = Math.max(0, clientEl.scrollHeight - clientEl.clientHeight);
-        scrollValue = Math.min(Math.max(v, 0), max);
-      },
-    });
-
-    measure(list);
-    flushRaf();
-
-    vl.scrollToBottom();
-    settle(clientEl, list);
-
-    const max = clientEl.scrollHeight - clientEl.clientHeight;
-    const remain = Math.round(max - clientEl.scrollTop);
-    expect(
-      remain <= 2,
-      `距底还差 ${remain}px：scrollTop=${clientEl.scrollTop}，可滚上限=${max}，` +
-        `账本总高=${vl.core.getTotalSize()}（账本比实际矮 ${UNTRACKED}px）`,
-    ).toBe(true);
   });
 
   /**
@@ -506,10 +327,10 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
     settle(clientEl, list);
 
     const max = clientEl.scrollHeight - clientEl.clientHeight;
-    const remain = Math.round(max - clientEl.scrollTop);
+    const remain = Math.round(max - vl.core.getOffset());
     expect(
       remain <= 2,
-      `被浏览器的回收掐断了：scrollTop=${clientEl.scrollTop}，可滚上限=${max}，` +
+      `被浏览器的回收掐断了：scrollTop=${vl.core.getOffset()}，可滚上限=${max}，` +
         `差 ${remain}px`,
     ).toBe(true);
   });
@@ -522,7 +343,7 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
     settle(clientEl, list, 10);
 
     // 总高不足一屏，可滚动上限为 0
-    expect(clientEl.scrollTop).toBe(0);
+    expect(vl.core.getOffset()).toBe(0);
     expect(vl.core.getTotalSize()).toBeLessThanOrEqual(CLIENT_SIZE);
   });
 });

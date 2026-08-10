@@ -1,33 +1,3 @@
-export const isScrollElement = (element: HTMLElement): boolean => {
-  const clientHeight =
-    element === document.documentElement
-      ? element.clientHeight
-      : element.offsetHeight;
-  const clientWidth =
-    element === document.documentElement
-      ? element.clientWidth
-      : element.offsetWidth;
-
-  return (
-    element.scrollHeight > clientHeight || element.scrollWidth > clientWidth
-  );
-};
-
-export const getScrollParentElement = (
-  container: HTMLElement,
-  top: HTMLElement = document.documentElement,
-): HTMLElement | null => {
-  let scrollElement: HTMLElement | null = null;
-  let element: HTMLElement | null = container;
-  while (element && element !== top && !scrollElement) {
-    if (isScrollElement(element)) {
-      scrollElement = element;
-    }
-    element = element.parentElement;
-  }
-  return scrollElement;
-};
-
 export const isSiblingElement = (a: Element, b: Element): boolean => {
   return a.previousElementSibling === b || a.nextElementSibling === b;
 };

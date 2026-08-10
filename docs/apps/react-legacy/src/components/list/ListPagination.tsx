@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 const PAGE_MAX = 10;
 
 let uid = 0;

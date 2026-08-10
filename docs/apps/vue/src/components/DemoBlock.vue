@@ -1,6 +1,9 @@
 <template>
   <div class="demo-block">
-    <slot />
+    <!-- scrollbar 只在绑定 DOM 时读一次，所以切换靠 key 变化整体重挂载 demo -->
+    <div>
+      <slot />
+    </div>
     <div class="demo-block__actions">
       <span class="demo-block__divider" />
       <button class="demo-block__toggle" @click="showCode = !showCode">
@@ -32,13 +35,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { DemoSource } from '../../../_shared/demoSource';
-
 const props = defineProps<{
   source: DemoSource;
 }>();
 
 const showCode = ref(false);
 const copyText = ref('复制');
+
 
 async function onCopy() {
   try {

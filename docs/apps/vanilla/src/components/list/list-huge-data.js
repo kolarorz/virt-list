@@ -3,7 +3,7 @@ import { VirtList } from '@virt-list/vanilla';
 const template = `
   <div class="demo-panel">
     <div class="demo-toolbar">
-      <button class="virt-list-btn virt-list-btn-secondary" id="btnLoad">生成 30w 数据</button>
+      <button class="virt-list-btn virt-list-btn-secondary" id="btnLoad">生成 100 万条数据</button>
       <button class="virt-list-btn" id="btnTop" disabled>scrollToTop</button>
       <button class="virt-list-btn" id="btnBottom" disabled>scrollToBottom</button>
       <span id="loadStatus" style="font-size:12px;color:var(--demo-c-text-2);"></span>
@@ -48,7 +48,7 @@ export function bootstrapHugeData(root) {
         '数据量越大，虚拟列表相对于全量渲染的性能优势越明显。',
       ];
       const list = [];
-      for (let i = 0; i < 300000; i++) {
+      for (let i = 0; i < 1000000; i++) {
         const n = (i % 4) + 1;
         const parts = [];
         for (let s = 0; s < n; s++) parts.push(hugeTexts[(i + s * 2) % hugeTexts.length]);

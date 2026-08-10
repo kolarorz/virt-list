@@ -5,7 +5,7 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="60"
+        :item-pre-size="108"
         horizontal
         @update="onUpdate"
       >
@@ -14,8 +14,10 @@
             class="demo-col-item"
             :style="{ minWidth: `${itemData.width}px`, width: `${itemData.width}px` }"
           >
-            <div style="font-weight: bold">{{ itemData.id }}</div>
-            <div style="font-size: 11px; color: var(--demo-c-text-3)">w:{{ itemData.width }}</div>
+            <div class="demo-col-card">
+              <span class="demo-col-index">{{ itemData.id }}</span>
+              <span class="demo-col-size">{{ itemData.width }}px</span>
+            </div>
           </div>
         </template>
       </VirtList>
@@ -27,7 +29,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
 
-const WIDTHS = [60, 80, 100, 110, 130];
+const WIDTHS = [76, 92, 108, 124, 148];
 
 function generateList(count: number) {
   return Array.from({ length: count }, (_, i) => ({

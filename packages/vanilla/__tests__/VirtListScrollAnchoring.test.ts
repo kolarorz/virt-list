@@ -111,15 +111,14 @@ function setup(list: Item[]) {
   return { vl, clientEl };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
 /** 渲染区间是否覆盖整个视口 */
 function coversViewport(vl: VirtList<Item>, clientEl: HTMLElement) {
   const state = vl.core.getState();
-  const offset = clientEl.scrollTop;
+  const offset = vl.core.getOffset();
   const top = vl.core.getItemPosByIndex(state.renderBegin).top;
   const bottom = vl.core.getItemPosByIndex(state.renderEnd).bottom;
   const atEnd = state.renderEnd >= vl.core.props.list.length - 1;
@@ -149,14 +148,14 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
     const { vl, clientEl } = setup(list);
 
     // 展开 #20 到一屏以上
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
 
     // 停在一个渲染余量刚好为零的位置：区间只到 #22，多一点都没有。
     // 用户日志里就是这种状态（渲染项数 3），任何偏移量滞后都会立刻露白
-    scrollTo(clientEl, 2200);
+    scrollTo(vl, 2200);
     measure();
     expect(vl.core.getState().renderEnd).toBe(22);
 
@@ -178,11 +177,11 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
-    scrollTo(clientEl, 2200);
+    scrollTo(vl, 2200);
     measure();
 
     for (const [drift, tweak] of [
@@ -190,7 +189,7 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
       [-60, 78],
       [120, 66],
     ] as const) {
-      clientEl.scrollTop = clientEl.scrollTop + drift;
+      clientEl.scrollTop = vl.core.getOffset() + drift;
       // 尺寸也真的变一点，触发上报（锚定的诱因）
       sizes.set(list[22]!.id, tweak);
       measure();
@@ -215,7 +214,7 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
@@ -223,7 +222,7 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
     const pos = vl.core.getItemPosByIndex(TALL);
     // 从这一项顶部一路滚到它底部之后，步长小到能暴露 off-by-one
     for (let y = pos.top; y <= pos.bottom + CLIENT_SIZE; y += 20) {
-      scrollTo(clientEl, y);
+      scrollTo(vl, y);
       measure();
 
       const cov = coversViewport(vl, clientEl);
@@ -238,21 +237,21 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
 
   it('在超高项内部滚动时，起始项不变也会更新结束项', () => {
     const list = makeList(COUNT);
-    const { vl, clientEl } = setup(list);
+    const { vl } = setup(list);
 
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
 
     const pos = vl.core.getItemPosByIndex(TALL);
-    scrollTo(clientEl, pos.top);
+    scrollTo(vl, pos.top);
     measure();
     const beginAtTop = vl.core.getState().inViewBegin;
     const endAtTop = vl.core.getState().inViewEnd;
 
     // 滚到这一项的末段：起始项仍是它，结束项必须往后推
-    scrollTo(clientEl, pos.bottom - 100);
+    scrollTo(vl, pos.bottom - 100);
     measure();
     const state = vl.core.getState();
 
@@ -274,18 +273,18 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
     const top = vl.core.getItemPosByIndex(TALL).top;
-    scrollTo(clientEl, top);
+    scrollTo(vl, top);
     measure();
 
     // 一项就撑满了视口
     expect(vl.core.getState().inViewEnd).toBe(TALL + 1);
 
     // 折叠回去：只改尺寸，不动 scrollTop
-    const offsetBefore = clientEl.scrollTop;
+    const offsetBefore = vl.core.getOffset();
     sizes.set(list[TALL]!.id, 142);
     measure();
 
-    expect(clientEl.scrollTop).toBe(offsetBefore);
+    expect(vl.core.getOffset()).toBe(offsetBefore);
     const cov = coversViewport(vl, clientEl);
     expect(
       cov.ok,
@@ -301,7 +300,7 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
 
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top);
     measure();
 
     for (let i = 0; i < 4; i += 1) {
@@ -331,7 +330,7 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 600);
+    scrollTo(vl, 600);
     measure();
 
     // 视口内第二项撑得很高，然后缩回去
@@ -361,16 +360,16 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
 
     // 先让 #20 有个折叠态的实测高度
     sizes.set(list[TALL]!.id, 142);
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 200);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 200);
     measure();
 
     // 滚到只剩它底部 20px 露在视口顶部
     const pos = vl.core.getItemPosByIndex(TALL);
-    scrollTo(clientEl, pos.bottom - 20);
+    scrollTo(vl, pos.bottom - 20);
     measure();
     expect(vl.core.getState().inViewBegin).toBe(TALL);
 
-    const offsetBefore = clientEl.scrollTop;
+    const offsetBefore = vl.core.getOffset();
     const topBefore = vl.core.getItemPosByIndex(TALL).top;
 
     // 展开
@@ -379,7 +378,7 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
 
     // 这一项的顶部没动，滚动位置也不该动
     expect(vl.core.getItemPosByIndex(TALL).top).toBe(topBefore);
-    expect(clientEl.scrollTop).toBe(offsetBefore);
+    expect(vl.core.getOffset()).toBe(offsetBefore);
 
     // 而且视口要被填满（这一项现在够高了）
     const cov = coversViewport(vl, clientEl);
@@ -391,9 +390,9 @@ describe('浏览器偷偷改动 scrollTop（滚动锚定）', () => {
 
   it('没有暗改时不会多做无用功（偏移量一致则不重算）', () => {
     const list = makeList(COUNT);
-    const { vl, clientEl } = setup(list);
+    const { vl } = setup(list);
 
-    scrollTo(clientEl, 800);
+    scrollTo(vl, 800);
     measure();
     const before = { ...vl.core.getState() };
 

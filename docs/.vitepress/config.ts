@@ -2,14 +2,14 @@ import { defineConfig } from 'vitepress';
 import { fileURLToPath, URL } from 'node:url';
 
 const deployBase = process.env.DEPLOY_BASE;
+const base = deployBase || '/';
 
 /** frameworks 缺省表示所有框架都有该示例；指定则只在这些框架的侧边栏里出现 */
 const listDemos: { text: string; link: string; frameworks?: string[] }[] = [
   { text: '基础', link: 'list-basic' },
   { text: '空状态', link: 'list-empty' },
   { text: '渲染buffer', link: 'list-buffer' },
-  { text: '海量数据', link: 'list-huge-data' },
-  { text: '自绘滚动条', link: 'list-scrollbar' },
+  { text: '100万条数据', link: 'list-huge-data' },
   { text: '固定高度', link: 'list-fixed' },
   { text: '水平滚动', link: 'list-horizontal' },
   { text: '插槽', link: 'list-slots' },
@@ -88,6 +88,7 @@ function buildGuideSidebar(fw: string) {
         { text: '算法与复杂度', link: `/${fw}/guide/algorithms` },
         { text: '架构设计', link: `/${fw}/guide/architecture` },
         { text: '设计决策', link: `/${fw}/guide/design-decisions` },
+        { text: '为什么不用占位元素', link: `/${fw}/guide/why-no-spacer` },
         { text: '与同类方案对比', link: `/${fw}/guide/comparison` },
       ],
     },
@@ -108,9 +109,12 @@ function buildApiSidebar(fw: string) {
 }
 
 export default defineConfig({
-  base: deployBase || '/',
+  base,
   title: 'VirtList',
   description: 'A high-performance virtual list component for JavaScript',
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }],
+  ],
   themeConfig: {
     socialLinks: [
       {

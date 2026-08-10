@@ -21,6 +21,7 @@ import type {
   IScrollParams,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
+  VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
@@ -39,6 +40,8 @@ export interface VirtTreeProps {
   fixed?: boolean;
   scrollDuration?: number;
   smoothMaxDistance?: number;
+  scrollbarAutoHide?: number;
+  scrollbarMinThumbSize?: number;
   showLine?: boolean;
   itemClass?: string;
   listClass?: string;
@@ -91,7 +94,15 @@ export interface VirtTreeProps {
   onCheck?: VirtTreeDOMEvents['check'];
   onDragstart?: VirtTreeDOMEvents['dragstart'];
   onDragend?: VirtTreeDOMEvents['dragend'];
-  onScroll?: (e: Event) => void;
+  /**
+   * 滚动了。容器 overflow:hidden，没有原生 scroll 事件，这是它的替代品。
+   *
+   * 与 React 的合成 `onScroll` 不冲突：本组件只把 style / className 交给根 div，
+   * 事件 props 一律不透传。
+   */
+  onScroll?: (event: VirtScrollEvent) => void;
+  /** 滚动偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 onScroll */
+  onOffsetChange?: (offset: number) => void;
   onToTop?: (item: TreeNode) => void;
   onToBottom?: (item: TreeNode) => void;
   onItemResize?: (id: string, size: number) => void;
@@ -119,6 +130,10 @@ export interface VirtTreeRef {
   scrollTo: (params: IScrollParams) => void;
   scrollToTop: (options?: VirtScrollOptions) => void;
   scrollToBottom: (options?: VirtScrollOptions) => void;
+  /** 当前滚动偏移量。容器的 scrollTop 恒为 0（内容靠 transform 移动），必须走这里读 */
+  getOffset: () => number;
+  /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
+  scrollFromUser: (offset: number) => void;
   cancelScroll: () => void;
   setList: (list: TreeData) => void;
   forceUpdate: () => void;
@@ -168,6 +183,8 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       fixed: props.fixed,
       scrollDuration: props.scrollDuration,
       smoothMaxDistance: props.smoothMaxDistance,
+      scrollbarAutoHide: props.scrollbarAutoHide,
+      scrollbarMinThumbSize: props.scrollbarMinThumbSize,
       showLine: props.showLine,
       itemClass: props.itemClass,
       listClass: props.listClass,
@@ -247,6 +264,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       dragstart: (...args) => eventsRef.current.onDragstart?.(...args),
       dragend: (...args) => eventsRef.current.onDragend?.(...args),
       scroll: (e) => eventsRef.current.onScroll?.(e),
+      offsetChange: (o) => eventsRef.current.onOffsetChange?.(o),
       toTop: (item) => eventsRef.current.onToTop?.(item),
       toBottom: (item) => eventsRef.current.onToBottom?.(item),
       itemResize: (id, size) => eventsRef.current.onItemResize?.(id, size),
@@ -325,6 +343,8 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
     scrollTo: (params) => treeRef.current?.scrollTo(params),
     scrollToTop: (opts) => treeRef.current?.scrollToTop(opts),
     scrollToBottom: (opts) => treeRef.current?.scrollToBottom(opts),
+    getOffset: () => treeRef.current?.getOffset() ?? 0,
+    scrollFromUser: (o) => treeRef.current?.scrollFromUser(o),
     cancelScroll: () => treeRef.current?.cancelScroll(),
     setList: (list) => treeRef.current?.setList(list),
     forceUpdate: () => treeRef.current?.forceUpdate(),

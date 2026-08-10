@@ -1,0 +1,127 @@
+/**
+ * 左侧导航
+ *
+ * 这个站的侧边栏比一般文档站长：示例分组一口气 20 项，三组加起来 35 条链接。
+ * 所以两件事最重要——扫读时能一眼分出「组」和「项」，以及当前位置足够醒目。
+ *
+ * 覆盖 VitePress scoped 样式需要 html:root 前缀，理由见 layout.css 顶部注释。
+ */
+
+/* ===== 分组之间：分隔线两侧留白对称，别让线贴着下一组的标题 ===== */
+html:root .VPSidebar .group {
+  padding-top: 4px;
+}
+
+html:root .VPSidebar .group + .group {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+html:root .VPSidebar .VPSidebarItem.level-0 {
+  padding-bottom: 4px;
+}
+
+/* ===== 分组标题 =====
+ * 原本是 14px/700，和 14px/500 的条目只差一个字重，扫读时层级不明显。
+ * 改成更小的字号 + 字距，靠「形态」而不是「粗细」区分，中文下更干净。
+ */
+html:root .VPSidebar .VPSidebarItem.level-0 > .item > .text,
+html:root .VPSidebar .VPSidebarItem.level-0 > .item > .link > .text {
+  padding: 2px 0 6px;
+  line-height: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--vp-c-text-3);
+}
+
+/* ===== 条目：整行胶囊 =====
+ * 只靠文字变色标记当前项，在 20 项的长列表里不够抓眼。
+ * 负边距让底色向左右各溢出 10px（侧边栏有 32px 内边距，不会被裁），
+ * 于是背景条看起来是包住整行的，而不是紧贴文字。
+ */
+html:root .VPSidebar .VPSidebarItem.level-1 > .item > .link,
+html:root .VPSidebar .VPSidebarItem.level-2 > .item > .link {
+  margin: 0 -10px;
+  padding: 0 10px;
+  border-radius: var(--vt-radius-sm);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html:root .VPSidebar .VPSidebarItem.level-1 > .item > .link:hover,
+html:root .VPSidebar .VPSidebarItem.level-2 > .item > .link:hover {
+  background-color: var(--vp-c-default-soft);
+}
+
+html:root .VPSidebar .VPSidebarItem.level-1.is-active > .item > .link,
+html:root .VPSidebar .VPSidebarItem.level-2.is-active > .item > .link {
+  background-color: var(--vp-c-brand-soft);
+}
+
+html:root .VPSidebar .VPSidebarItem.level-1.is-active > .item > .link > .text,
+html:root .VPSidebar .VPSidebarItem.level-2.is-active > .item > .link > .text {
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+
+/* 长列表里行高比字号更影响扫读速度：24 → 22，35 项少占 70px */
+html:root .VPSidebar .VPSidebarItem.level-1 .text,
+html:root .VPSidebar .VPSidebarItem.level-2 .text {
+  padding: 5px 0;
+  line-height: 22px;
+  font-size: 14px;
+}
+
+/* 折叠箭头默认和标题一样重，压暗一档，别和分组标题抢注意力 */
+html:root .VPSidebar .VPSidebarItem.level-0 > .item > .caret {
+  color: var(--vp-c-text-3);
+  opacity: 0.7;
+}
+
+html:root .VPSidebar .VPSidebarItem.level-0 > .item:hover > .caret {
+  opacity: 1;
+}
+
+/* ===== 侧边栏自己的滚动条：默认那根在浅色底上过于抢眼 ===== */
+@media (min-width: 960px) {
+  html:root .VPSidebar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--vp-c-divider) transparent;
+  }
+
+  html:root .VPSidebar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  html:root .VPSidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  html:root .VPSidebar::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-color: var(--vp-c-divider);
+    background-clip: content-box;
+  }
+
+  html:root .VPSidebar:hover::-webkit-scrollbar-thumb {
+    background-color: var(--vp-c-text-3);
+  }
+}
+
+/* ===== 移动端抽屉 =====
+ * 默认宽度 calc(100vw - 64px)、上限 320px。在 390 宽的机型上留 64px 的
+ * 遮罩缝隙偏窄，点空白关闭抽屉容易误触到列表项。
+ */
+@media (max-width: 959px) {
+  html:root .VPSidebar {
+    padding: 24px 24px 96px;
+    width: calc(100vw - 88px);
+    max-width: 300px;
+  }
+
+  html:root .VPSidebar .group {
+    width: 100%;
+  }
+}

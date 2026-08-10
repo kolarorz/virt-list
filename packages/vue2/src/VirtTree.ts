@@ -47,6 +47,14 @@ export const VirtTree = defineComponent({
     fixed: { type: Boolean, default: false },
     scrollDuration: { type: Number, default: 300 },
     smoothMaxDistance: { type: Number, default: 0 },
+    /**
+     * 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar。
+     *
+     * 缺省值刻意留空而非写 'native'：写死会让本组件永远显式传值，
+     * 从而盖掉 DEFAULT_OPTIONS 里的默认值。留空则交由下层统一兜底（结果同样是 native）。
+     */
+    scrollbarAutoHide: { type: Number, default: undefined },
+    scrollbarMinThumbSize: { type: Number, default: undefined },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -100,6 +108,8 @@ export const VirtTree = defineComponent({
         itemPreSize: props.itemPreSize,
         scrollDuration: props.scrollDuration,
         smoothMaxDistance: props.smoothMaxDistance,
+        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         fixed: props.fixed,
         showLine: props.showLine,
         itemClass: props.itemClass,
@@ -194,6 +204,7 @@ export const VirtTree = defineComponent({
         dragstart: (data) => emit('dragstart', data),
         dragend: (data) => emit('dragend', data),
         scroll: (e) => emit('scroll', e),
+        offsetChange: (o) => emit('offsetChange', o),
         toTop: (item) => emit('toTop', item),
         toBottom: (item) => emit('toBottom', item),
         itemResize: (id, size) => emit('itemResize', id, size),
@@ -251,6 +262,8 @@ export const VirtTree = defineComponent({
       scrollToTop: (options?: VirtScrollOptions) => tree?.scrollToTop(options),
       scrollToBottom: (options?: VirtScrollOptions) =>
         tree?.scrollToBottom(options),
+      getOffset: () => tree?.getOffset() ?? 0,
+      scrollFromUser: (o: number) => tree?.scrollFromUser(o),
       cancelScroll: () => tree?.cancelScroll(),
       setList: (list: TreeData) => tree?.setList(list),
       forceUpdate: () => tree?.forceUpdate(),

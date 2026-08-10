@@ -111,9 +111,8 @@ function setup(list: Item[]) {
   return { vl, clientEl };
 }
 
-function scrollTo(clientEl: HTMLElement, offset: number) {
-  clientEl.scrollTop = offset;
-  clientEl.dispatchEvent(new Event('scroll'));
+function scrollTo(vl: VirtList<any>, offset: number) {
+  vl.core.scrollFromUser(offset);
 }
 
 /**
@@ -124,7 +123,7 @@ function scrollTo(clientEl: HTMLElement, offset: number) {
  */
 function coversViewport(vl: VirtList<Item>, clientEl: HTMLElement) {
   const state = vl.core.getState();
-  const offset = clientEl.scrollTop;
+  const offset = vl.core.getOffset();
   const top = vl.core.getItemPosByIndex(state.renderBegin).top;
   const bottom = vl.core.getItemPosByIndex(state.renderEnd).bottom;
   const atEnd = state.renderEnd >= vl.core.props.list.length - 1;
@@ -208,7 +207,7 @@ describe('程序化滚动后的偏移量同步', () => {
     const { vl, clientEl } = setup(list);
 
     // 展开 #20，让它高过一屏
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
     sizes.set(list[TALL]!.id, EXPANDED);
     measure();
@@ -230,7 +229,7 @@ describe('程序化滚动后的偏移量同步', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 500);
+    scrollTo(vl, 500);
     measure();
 
     // 直接跳到远处，不派发 scroll，只让 ResizeObserver 触发
@@ -249,7 +248,7 @@ describe('程序化滚动后的偏移量同步', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, 500);
+    scrollTo(vl, 500);
     measure();
 
     vl.scrollToBottom();
@@ -267,7 +266,7 @@ describe('程序化滚动后的偏移量同步', () => {
     const list = makeList(COUNT);
     const { vl, clientEl } = setup(list);
 
-    scrollTo(clientEl, vl.core.getItemPosByIndex(TALL).top - 100);
+    scrollTo(vl, vl.core.getItemPosByIndex(TALL).top - 100);
     measure();
 
     // 展开与定位同一步发出，之后只靠 ResizeObserver 推进修正

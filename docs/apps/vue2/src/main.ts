@@ -3,6 +3,8 @@ import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helpe
 import App from './App';
 import './style.css';
 import { syncStandaloneTheme } from '../../_shared/theme';
+// 自绘滚动条的样式：所有 demo 都用它，脚手架层常驻引入
+import '@virt-list/vanilla/src/scrollbar/scrollbar.css';
 
 type FrameworkKind = 'react' | 'vue' | 'vue2';
 

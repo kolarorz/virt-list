@@ -884,31 +884,27 @@ describe('VirtTree 其余公开 API', () => {
     ).toBe('renamed');
   });
 
-  it('事件透传：scroll / toTop / toBottom / update', () => {
+  it('事件透传：offsetChange / toTop / toBottom / update', () => {
     const events = {
-      scroll: vi.fn(),
+      offsetChange: vi.fn(),
       toTop: vi.fn(),
       toBottom: vi.fn(),
       update: vi.fn(),
     };
-    const { tree, clientEl } = mount(
+    const { tree } = mount(
       { list: makeTree(40, 0), itemPreSize: 32, buffer: 0 },
       events,
     );
     // 视口 400、40 行 × 32 = 1280
     expect(events.update).toHaveBeenCalled();
 
-    clientEl.scrollTop = 100;
-    clientEl.dispatchEvent(new Event('scroll'));
-    expect(events.scroll).toHaveBeenCalled();
-
-    clientEl.scrollTop = 880;
-    clientEl.dispatchEvent(new Event('scroll'));
+    // toTop / toBottom 由「用户滚动」触发，程序化滚动不会
+    tree.core.scrollFromUser(880);
+    expect(events.offsetChange).toHaveBeenCalledWith(880);
     expect(events.toBottom).toHaveBeenCalled();
     expect(events.toBottom.mock.calls[0]![0].key).toBe('39');
 
-    clientEl.scrollTop = 0;
-    clientEl.dispatchEvent(new Event('scroll'));
+    tree.core.scrollFromUser(0);
     expect(events.toTop).toHaveBeenCalled();
     expect(events.toTop.mock.calls[0]![0].key).toBe('0');
 
