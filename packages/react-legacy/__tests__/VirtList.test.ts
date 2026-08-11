@@ -66,7 +66,7 @@ function mount(props: Record<string, unknown> = {}) {
         ref: listRef,
         list: makeList(50),
         itemKey: 'id',
-        itemPreSize: 40,
+        estimatedSize: 40,
         buffer: 0,
         renderItem: (item: Item, _index: number, el: HTMLElement) => {
           el.textContent = item.text;
@@ -124,7 +124,7 @@ describe('React-legacy VirtList', () => {
         createElement(VirtList as any, {
           list: makeList(50),
           itemKey: 'id',
-          itemPreSize: 40,
+          estimatedSize: 40,
           buffer: 0,
           children: ({ itemData, index }: any) =>
             createElement('span', null, `react-${index}-${itemData.id}`),
@@ -149,7 +149,7 @@ describe('React-legacy VirtList', () => {
         createElement(VirtList as any, {
           list: [],
           itemKey: 'id',
-          itemPreSize: 40,
+          estimatedSize: 40,
           renderHeader: () => createElement('div', null, 'H'),
           renderFooter: () => createElement('div', null, 'F'),
           renderStickyHeader: () => createElement('div', null, 'SH'),
@@ -180,7 +180,7 @@ describe('React-legacy VirtList', () => {
     const api = listRef.current!;
 
     expect(api.getState().renderEnd).toBe(6);
-    expect(api.reactiveData.listTotalSize).toBe(2000);
+    expect(api.state.itemsTotalSize).toBe(2000);
     expect(api.slotSize.clientSize).toBe(200);
     expect(api.getItemSize('0')).toBe(40);
     expect(api.getItemPosByIndex(2)).toEqual({
@@ -227,7 +227,7 @@ describe('React-legacy VirtList', () => {
     expect(api.getState().inViewBegin).toBe(0);
 
     api.setList(makeList(2));
-    expect(api.getState().listTotalSize).toBe(80);
+    expect(api.getState().itemsTotalSize).toBe(80);
 
     expect(() => api.forceUpdate()).not.toThrow();
 
@@ -245,7 +245,7 @@ describe('React-legacy VirtList', () => {
             ref: listRef,
             list,
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
             renderItem: (item: Item, _i: number, el: HTMLElement) => {
               el.textContent = item.text;
             },
@@ -260,7 +260,7 @@ describe('React-legacy VirtList', () => {
 
     render(makeList(3));
 
-    expect(listRef.current!.getState().listTotalSize).toBe(120);
+    expect(listRef.current!.getState().itemsTotalSize).toBe(120);
     expect(renderedIds(container)).toEqual(['0', '1', '2']);
 
     unmount(container);

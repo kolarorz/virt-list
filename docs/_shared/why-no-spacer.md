@@ -42,7 +42,7 @@ Performance 面板录制后回看。
 
 ## 代价
 
-放弃原生滚动不是只有好处。完整的取舍清单在 API 文档的「滚动是怎么工作的」一节，
+放弃原生滚动不是只有好处。完整的取舍清单在[滚动是怎么工作的](./custom-scrollbar)一节，
 最主要的一条是：**拖选文本到容器边缘时不再自动滚动**，这是原生滚动免费提供的能力。
 
 <PlaygroundHost framework="vanilla" example-id="list-scrollbar" />

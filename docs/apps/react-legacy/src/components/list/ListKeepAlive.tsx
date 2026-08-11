@@ -119,7 +119,7 @@ export default function KeepAlive() {
             ref={userListRef}
             list={users}
             itemKey="id"
-            itemPreSize={70}
+            estimatedSize={70}
           >
             {({ itemData: user }) => (
               <div className="demo-ka-card">
@@ -137,7 +137,7 @@ export default function KeepAlive() {
             ref={productListRef}
             list={products}
             itemKey="id"
-            itemPreSize={70}
+            estimatedSize={70}
           >
             {({ itemData: product }) => (
               <div className="demo-ka-card">

@@ -33,6 +33,13 @@ jobs:
       - name: Run tests with coverage
         run: pnpm test:coverage
 
-      # 只构建 packages/*：docs 与示例应用另有既存类型错误，不在此设门禁
+      # 只构建 packages/*：docs 与示例应用的类型检查另有 typecheck 脚本
       - name: Build packages
         run: pnpm build:packages
+
+      # 构建产物必须能被 Node 直接 import：包是 "type": "module"，而 Node 的 ESM
+      # 解析不补扩展名、不做目录解析，主入口也不能出现 import 'xxx.css'。
+      # 打包器会替你补全这些，所以这类缺陷只有在 SSR / 纯 Node 环境下才暴露
+      # —— 0.0.5 就是这么发出去一个 Node 下 import 不了的 @virt-list/vue 的
+      - name: Check ESM output
+        run: pnpm check:esm

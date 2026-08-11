@@ -20,7 +20,7 @@ virt-list 采用三层架构，核心逻辑与框架完全解耦：
 
 - 维护 `sizesMap`（item key → 实测尺寸）
 - 根据滚动方向计算可视区间 `[inViewBegin, inViewEnd]`
-- 管理渲染区间 `[renderBegin, renderEnd]` 和虚拟占位 `virtualSize`
+- 管理渲染区间 `[renderBegin, renderEnd]` 与渲染块的位移量 `leadingSize`
 - 通过 `ResizeObserver` 监听尺寸变化并修正滚动位置
 - 输出 `renderList`（需要渲染的数据子集），通知上层
 
@@ -64,20 +64,31 @@ vanilla 层构建的滚动容器结构：
 
 ```
 container（用户提供的挂载点）
-└─ clientEl（overflow: auto，滚动容器）
-   ├─ stickyHeaderEl（position: sticky，吸顶区域）
-   ├─ headerEl（参与滚动的头部）
-   ├─ listEl（min-height: listTotalSize，撑出滚动空间）
-   │  ├─ virtualEl（height: virtualSize，虚拟占位）
-   │  ├─ item[0]
-   │  ├─ item[1]
-   │  └─ ...
-   ├─ footerEl（参与滚动的底部）
-   └─ stickyFooterEl（position: sticky，吸底区域）
+└─ clientEl（overflow: hidden，视口；滚动位置由 JS 掌管）
+   ├─ scrollContentEl（height: 0，自身不平移，仅作各段的定位参照）
+   │  ├─ headerEl（参与滚动的头部）      ← transform 残差
+   │  ├─ listEl（height: 0）
+   │  │  └─ itemsEl                     ← transform 残差
+   │  │     ├─ item[renderBegin]
+   │  │     ├─ item[renderBegin + 1]
+   │  │     └─ ...
+   │  └─ footerEl（参与滚动的底部）      ← transform 残差
+   ├─ stickyHeaderEl（position: absolute; top: 0，吸顶区域）
+   ├─ stickyFooterEl（position: absolute; bottom: 0，吸底区域）
+   └─ scrollbarEl └─ thumbEl（自绘滚动条）
 ```
 
-- `listEl` 的 `min-height` 等于所有项的尺寸总和，形成完整的滚动空间
-- `virtualEl` 的高度等于 `renderBegin` 之前所有项的尺寸之和，将实际渲染的 DOM 推到正确位置
+- **没有任何元素的几何尺寸与列表长度相关**。不存在撑出滚动空间的占位元素，也不存在
+  `leadingSize` 那么高的占位块（`leadingSize` 是渲染块的 `transform` 位移量，不是谁的高度），
+  所有偏移都由 `transform` 表达，最高的元素只有一屏
+- 每段写入的是**残差**（`该段的文档位置 − offset`），而不是绝对位置。这样任何单个
+  `transform` 的位移量都不超过一屏多一点，碰不到浏览器对单个 `transform` 的位移上限
+  （Chrome 实测 33,554,400px）
+- 吸顶 / 吸底区**不占内容流**（相对视口绝对定位），但都**占滚动空间**：两者都计入
+  `getSlotsTotalSize()`，因而参与总尺寸与最大偏移量的计算。吸顶区还是内容坐标系的
+  起点，其余各段都从它之后排起
+- `position: sticky` 的粘附由原生滚动驱动，`overflow: hidden` 下永远不触发，
+  所以吸顶 / 吸底改用相对视口的绝对定位
 
 ## 增量 DOM Patch
 

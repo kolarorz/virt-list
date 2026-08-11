@@ -83,7 +83,7 @@ function setup(list: Item[], opts?: { initialPosition?: 'top' | 'bottom' }) {
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
+    estimatedSize: PRE_SIZE,
     initialPosition: opts?.initialPosition,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
@@ -126,17 +126,17 @@ function snapshot(vl: VirtList<Item>, clientEl: HTMLElement) {
     .filter((id) => !['client', 'header', 'footer'].includes(id));
   return {
     scrollTop: vl.core.getOffset(),
-    virtualSize: state.virtualSize,
+    leadingSize: state.leadingSize,
     renderBegin: state.renderBegin,
     renderEnd: state.renderEnd,
     inViewBegin: state.inViewBegin,
     firstRenderedId: itemIds[0],
     itemCount: itemIds.length,
     /** 渲染出的这批 DOM 在文档流中占据的区间（相对滚动容器内容顶部） */
-    renderedTop: HEADER_SIZE + state.virtualSize,
+    renderedTop: HEADER_SIZE + state.leadingSize,
     renderedBottom:
       HEADER_SIZE +
-      state.virtualSize +
+      state.leadingSize +
       itemIds.reduce((sum, id) => sum + sizeOfItem(id), 0),
   };
 }
@@ -188,8 +188,8 @@ describe('加载上一页（头部插入）后的 DOM 几何', () => {
       `滚 1px 后 renderBegin 从 ${before.renderBegin} 跳到 ${after.renderBegin}`,
     ).toBeLessThanOrEqual(1);
     expect(
-      Math.abs(after.virtualSize - before.virtualSize),
-      `滚 1px 后 virtualSize 从 ${before.virtualSize} 跳到 ${after.virtualSize}`,
+      Math.abs(after.leadingSize - before.leadingSize),
+      `滚 1px 后 leadingSize 从 ${before.leadingSize} 跳到 ${after.leadingSize}`,
     ).toBeLessThanOrEqual(sizeOfItem(before.firstRenderedId ?? 'a-0'));
   });
 

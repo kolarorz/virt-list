@@ -168,7 +168,7 @@ export default function Smooth() {
           ref={virtListRef}
           list={list}
           itemKey="id"
-          itemPreSize={40}
+          estimatedSize={40}
           buffer={2}
           scrollDuration={duration}
           onUpdate={(_, state) =>

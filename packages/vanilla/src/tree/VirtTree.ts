@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { VirtList } from '../VirtList';
+import { VirtList } from '../VirtList.js';
 import type { VirtScrollOptions } from '@virt-list/core';
 import type {
   TreeNode,
@@ -8,16 +8,16 @@ import type {
   TreeData,
   TreeFieldNames,
   TreeInfo,
-  IScrollParams,
+  VirtTreeScrollTarget,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
-} from './types';
+} from './types.js';
 import {
   isSiblingElement,
   findAncestorWithClass,
   getPrevSibling,
   getNextSibling,
-} from './utils';
+} from './utils.js';
 
 const DEFAULT_FIELD_NAMES: Required<TreeFieldNames> = {
   key: 'key',
@@ -410,22 +410,52 @@ export class VirtTree {
 
   // ----- Scroll -----
 
-  scrollTo(scroll: IScrollParams): void {
-    const { key, align, offset, behavior, duration } = scroll;
-    const scrollOptions: VirtScrollOptions | undefined = behavior
-      ? { behavior, duration }
-      : undefined;
+  /**
+   * 按目标描述滚动。三种意图（绝对偏移 / 定位到节点 / 滚进视野）合在一个入口里，
+   * 逐个参数拼起来往往不如直接方法好读——见 `scrollToOffset` / `scrollToKey` /
+   * `scrollKeyIntoView`。
+   */
+  scrollTo(target: VirtTreeScrollTarget): void {
+    const { key, offset, align = 'nearest', ...options } = target;
 
+    // 给了绝对位置就不必再解析 key
     if (offset !== undefined && offset >= 0) {
-      this._virtListDOM.scrollToOffset(offset, scrollOptions);
+      this._virtListDOM.scrollToOffset(offset, options);
       return;
     }
-    if (!key) return;
-    if (align === 'top') {
-      this._scrollToTarget(key, true, scrollOptions);
+    if (key === undefined) return;
+
+    if (align === 'nearest') {
+      this.scrollKeyIntoView(key, options);
     } else {
-      this._scrollToTarget(key, false, scrollOptions);
+      this.scrollToKey(key, { ...options, align });
     }
+  }
+
+  /**
+   * 定位到指定节点。节点被折叠时先展开它的祖先。
+   *
+   * 无论当前是否可见都会滚动；只想「不可见才滚」用 `scrollKeyIntoView`。
+   */
+  scrollToKey(key: TreeNodeKey, options?: VirtScrollOptions): void {
+    const index = this._revealKey(key);
+    if (index < 0) return;
+    this._virtListDOM.scrollToIndex(index, options);
+  }
+
+  /**
+   * 把指定节点滚进可视区域，已完整可见则不动。
+   * 同样会先展开被折叠节点的祖先。
+   */
+  scrollKeyIntoView(key: TreeNodeKey, options?: VirtScrollOptions): void {
+    const index = this._revealKey(key);
+    if (index < 0) return;
+    this._virtListDOM.scrollIntoView(index, options);
+  }
+
+  /** 滚动到指定偏移量 */
+  scrollToOffset(offset: number, options?: VirtScrollOptions): void {
+    this._virtListDOM.scrollToOffset(offset, options);
   }
 
   scrollToTop(options?: VirtScrollOptions): void {
@@ -434,6 +464,11 @@ export class VirtTree {
 
   scrollToBottom(options?: VirtScrollOptions): void {
     this._virtListDOM.scrollToBottom(options);
+  }
+
+  /** 滚动容器（唯一的 scrollport），与 `VirtList.clientEl` 一致 */
+  get clientEl(): HTMLElement {
+    return this._virtListDOM.clientEl;
   }
 
   /** 底层虚拟列表的计算内核（与 VirtList.core 一致，供进阶用法与测试使用） */
@@ -462,9 +497,27 @@ export class VirtTree {
     return this._virtListDOM.core.getOffset();
   }
 
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset(): number {
+    return this._virtListDOM.getMaxOffset();
+  }
+
+  /** 内容总尺寸（所有可见节点 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize(): number {
+    return this._virtListDOM.getTotalSize();
+  }
+
   /** 取消进行中的平滑滚动动画 */
   cancelScroll(): void {
     this._virtListDOM.cancelScroll();
+  }
+
+  /**
+   * 把内容重新摆到当前偏移量上（keep-alive / `display:none` 切回来时用）。
+   * 详见 `VirtList.resume`。
+   */
+  resume(): void {
+    this._virtListDOM.resume();
   }
 
   // ----- Data -----
@@ -809,24 +862,20 @@ export class VirtTree {
 
   // ==================== Private: Scroll ====================
 
-  private _scrollToTarget(
-    key: TreeNodeKey,
-    isTop: boolean,
-    options?: VirtScrollOptions,
-  ): void {
-    let idx = this._renderList.findIndex((l) => l.key === key);
-    if (idx < 0) {
+  /**
+   * 让某个节点在可见列表里露出来，返回它的下标（-1 表示树里没这个 key）。
+   *
+   * 折叠的节点不在可见列表中，得先展开祖先、重算列表，之后下标才有意义。
+   */
+  private _revealKey(key: TreeNodeKey): number {
+    let index = this._renderList.findIndex((l) => l.key === key);
+    if (index < 0) {
       this.expandNode(key, true);
       this._computeRenderList();
       this._virtListDOM.setList(this._renderList);
-      idx = this._renderList.findIndex((l) => l.key === key);
+      index = this._renderList.findIndex((l) => l.key === key);
     }
-    if (idx < 0) return;
-    if (isTop) {
-      this._virtListDOM.scrollToIndex(idx, options);
-    } else {
-      this._virtListDOM.scrollIntoView(idx, options);
-    }
+    return index;
   }
 
   // ==================== Private: DOM Rendering ====================
@@ -837,7 +886,7 @@ export class VirtTree {
 
   private _createVirtList(): void {
     const opts = this._options;
-    const defaultSize = opts.itemPreSize ?? 32;
+    const defaultSize = opts.estimatedSize ?? 32;
     const customGroup = opts.customGroup ?? 'virt-tree-group';
     const listClass = `${customGroup} ${opts.listClass ?? ''}`;
 
@@ -846,14 +895,15 @@ export class VirtTree {
       {
         list: this._renderList,
         itemKey: 'key',
-        itemPreSize: defaultSize,
-        fixed: opts.fixed,
+        estimatedSize: defaultSize,
+        fixedSize: opts.fixedSize,
         itemGap: opts.itemGap,
         buffer: opts.buffer ?? 2,
         scrollDuration: opts.scrollDuration,
         smoothMaxDistance: opts.smoothMaxDistance,
-        scrollbarAutoHide: opts.scrollbarAutoHide,
+        scrollbarAutoHideDelay: opts.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: opts.scrollbarMinThumbSize,
+        keyboard: opts.keyboard,
         listStyle: 'position:relative;',
         listClass,
         itemClass: (_item: TreeNode) => {
@@ -900,10 +950,10 @@ export class VirtTree {
    */
   private _renderTreeNode(node: TreeNode, itemEl: HTMLElement): HTMLElement | void {
     const opts = this._options;
-    const defaultSize = opts.itemPreSize ?? 32;
+    const defaultSize = opts.estimatedSize ?? 32;
     const indent = opts.indent ?? 16;
     const iconSize = opts.iconSize ?? 16;
-    const fixed = opts.fixed ?? false;
+    const fixedSize = opts.fixedSize ?? false;
     const showLine = opts.showLine ?? false;
     const itemGap = opts.itemGap ?? 0;
     const checkable = opts.checkable ?? false;
@@ -935,7 +985,7 @@ export class VirtTree {
     if (node.disableSelect) wrapper.classList.add('is-disabled');
     if (isFocused) wrapper.classList.add('is-focused');
     wrapper.style.minHeight = `${defaultSize}px`;
-    if (fixed) wrapper.style.height = `${defaultSize}px`;
+    if (fixedSize) wrapper.style.height = `${defaultSize}px`;
 
     const nodeKey = node.key;
 
@@ -1028,7 +1078,7 @@ export class VirtTree {
     // Content
     const content = document.createElement('div');
     content.className = 'virt-tree-node-content';
-    if (fixed) content.classList.add('is-fixed-height');
+    if (fixedSize) content.classList.add('is-fixed-height');
     content.addEventListener('click', (e) => {
       e.stopPropagation();
       const currentNode = this.getTreeNode(nodeKey);

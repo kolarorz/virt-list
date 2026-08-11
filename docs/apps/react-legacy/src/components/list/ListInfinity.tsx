@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
-import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
+import { useRef, useState, useCallback } from 'react';
+import { VirtList, type LoadDirection, type LoadState } from '@virt-list/react-legacy';
 
 interface Item {
   id: number;
@@ -35,40 +35,31 @@ function delayItems(count: number, startIndex: number, ms: number): Promise<Item
 
 export default function Infinity() {
   const [list, setList] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState('');
-  const virtListRef = useRef<VirtListRef<Item>>(null);
-  const busyRef = useRef(false);
-  const loadingUiRef = useRef(false);
-  loadingUiRef.current = loading;
-  const listRef = useRef<Item[]>([]);
+  const loadStateRef = useRef<LoadState | null>(null);
+  /** 事件回调里要读最新的 list，用 ref 兜住闭包 */
+  const listRef = useRef<Item[]>(list);
   listRef.current = list;
 
-  const loadMore = useCallback(async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setLoading(true);
-    const start = listRef.current.length;
-    const newItems = await delayItems(200, start, 1000);
-    busyRef.current = false;
-    setLoading(false);
-    setList((prev) => prev.concat(newItems));
+  const updateStats = useCallback((state?: any) => {
+    setStats(
+      `总数: ${listRef.current.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
+        loadStateRef.current?.loadingBottom ? ' | 加载中...' : ''
+      }`,
+    );
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      busyRef.current = true;
-      setLoading(true);
-      const first = await delayItems(200, 0, 0);
-      if (cancelled) return;
-      setList(first);
-      busyRef.current = false;
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
+  /**
+   * 触底取数。
+   *
+   * 列表初始为空，首屏这一次加载也由组件自动发起——内容填不满视口时会继续要
+   * 下一页，不需要在 useEffect 里手动拉第一页。
+   */
+  const onLoadMore = useCallback(async (direction: LoadDirection) => {
+    if (direction !== 'bottom') return false;
+    const newItems = await delayItems(200, listRef.current.length, 1000);
+    setList((prev) => prev.concat(newItems));
+    return true;
   }, []);
 
   return (
@@ -76,21 +67,19 @@ export default function Infinity() {
       <div className="demo-stats">{stats}</div>
       <div className="demo-list-container">
         <VirtList<Item>
-          ref={virtListRef}
           list={list}
           itemKey="id"
-          itemPreSize={40}
-          onToBottom={() => {
-            void loadMore();
+          estimatedSize={40}
+          loadMore={onLoadMore}
+          hasMoreTop={false}
+          onLoadStateChange={(s) => {
+            loadStateRef.current = s;
+            updateStats();
           }}
-          onUpdate={(_, state) => {
-            setStats(
-              `总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}${loadingUiRef.current ? ' | 加载中...' : ''}`,
-            );
-          }}
-          renderFooter={() =>
-            loading ? <div className="demo-loading-bar">加载中...</div> : null
-          }
+          onUpdate={(_, state) => updateStats(state)}
+          renderFooter={(loadState) => (
+            <div className="demo-loading-bar">{loadState.loadingBottom ? '加载中...' : ' '}</div>
+          )}
         >
           {({ itemData }) => (
             <div className="demo-row-item">

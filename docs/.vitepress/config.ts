@@ -5,6 +5,9 @@ const deployBase = process.env.DEPLOY_BASE;
 const base = deployBase || '/';
 
 /** frameworks 缺省表示所有框架都有该示例；指定则只在这些框架的侧边栏里出现 */
+/** 已经有 AI 场景文档的框架，与 useFramework.ts 的 MODULE_FRAMEWORKS.ai 同步 */
+const AI_FRAMEWORKS = ['vanilla', 'vue', 'vue2', 'react', 'react-legacy'];
+
 const listDemos: { text: string; link: string; frameworks?: string[] }[] = [
   { text: '基础', link: 'list-basic' },
   { text: '空状态', link: 'list-empty' },
@@ -51,6 +54,23 @@ const gridDemos = [
 
 function buildExamplesSidebar(fw: string) {
   return [
+    // 示例是大家找 demo 的第一站，AI 场景的演示在这里也要露出一条入口。
+    // 链接指向 ai 模块本身，避免同一个 demo 维护两份页面
+    ...(AI_FRAMEWORKS.includes(fw)
+      ? [
+          {
+            text: 'AI 场景',
+            collapsed: false,
+            items: [
+              { text: '流式对话', link: `/${fw}/ai/streaming` },
+              { text: '整段复制', link: `/${fw}/ai/copy` },
+              { text: '搜索与跳转', link: `/${fw}/ai/search` },
+              { text: 'Agent 执行流', link: `/${fw}/ai/trace` },
+              { text: '语义滚动条', link: `/${fw}/ai/outline` },
+            ],
+          },
+        ]
+      : []),
     {
       text: '虚拟列表',
       collapsed: false,
@@ -79,6 +99,8 @@ function buildGuideSidebar(fw: string) {
         { text: '项目介绍', link: `/${fw}/guide/introduction` },
         { text: '快速开始', link: `/${fw}/guide/started` },
         { text: '特殊说明', link: `/${fw}/guide/instructions` },
+        { text: '分页与无限加载', link: `/${fw}/guide/load-more` },
+        { text: '滚动是怎么工作的', link: `/${fw}/guide/custom-scrollbar` },
       ],
     },
     {
@@ -90,6 +112,30 @@ function buildGuideSidebar(fw: string) {
         { text: '设计决策', link: `/${fw}/guide/design-decisions` },
         { text: '为什么不用占位元素', link: `/${fw}/guide/why-no-spacer` },
         { text: '与同类方案对比', link: `/${fw}/guide/comparison` },
+      ],
+    },
+  ];
+}
+
+/**
+ * AI 场景。
+ *
+ * 与其他三个模块是不同维度：`guide` 讲怎么用、`examples` 是单点演示、
+ * `api` 是参数表，而这里讲的是**多个能力协同起来解决一类场景**——
+ * 流式输出、贴底跟随、脱离、历史加载在 AI 对话里必须一起工作。
+ */
+function buildAiSidebar(fw: string) {
+  return [
+    {
+      text: 'AI 场景',
+      items: [
+        { text: '概览', link: `/${fw}/ai/overview` },
+        { text: '流式输出与贴底跟随', link: `/${fw}/ai/streaming` },
+        { text: '整段复制', link: `/${fw}/ai/copy` },
+        { text: '搜索与引用跳转', link: `/${fw}/ai/search` },
+        { text: '会话历史', link: `/${fw}/ai/history` },
+        { text: 'Agent 执行流', link: `/${fw}/ai/trace` },
+        { text: '语义滚动条', link: `/${fw}/ai/outline` },
       ],
     },
   ];
@@ -112,6 +158,9 @@ export default defineConfig({
   base,
   title: 'VirtList',
   description: 'A high-performance virtual list component for JavaScript',
+  // _shared 下的片段只用于 @include，不作为独立页面构建
+  // （否则片段里的相对链接无从解析，搜索索引里也会多出一份重复内容）
+  srcExclude: ['_shared/**'],
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }],
   ],
@@ -128,6 +177,10 @@ export default defineConfig({
     },
     nav: [
       { component: 'FwNavLink', props: { text: '指南', mod: 'guide' } },
+      {
+        component: 'FwNavLink',
+        props: { text: 'AI 场景', mod: 'ai', badge: true },
+      },
       { component: 'FwNavLink', props: { text: '示例', mod: 'examples' } },
       { component: 'FwNavLink', props: { text: 'API', mod: 'api' } },
     ],
@@ -143,6 +196,13 @@ export default defineConfig({
       '/vue2/examples/': buildExamplesSidebar('vue2'),
       '/react/examples/': buildExamplesSidebar('react'),
       '/react-legacy/examples/': buildExamplesSidebar('react-legacy'),
+
+      // 五个框架当前都已覆盖。这套「按框架列表生成」的写法保留着：
+      // 下一个逐步铺开的模块可以照用，未覆盖的框架下导航会指向已覆盖的那个、
+      // 框架切换器也会置灰（见 theme/composables/useFramework.ts 的 MODULE_FRAMEWORKS）
+      ...Object.fromEntries(
+        AI_FRAMEWORKS.map((fw) => [`/${fw}/ai/`, buildAiSidebar(fw)]),
+      ),
 
       '/vanilla/api/': buildApiSidebar('vanilla'),
       '/vue/api/': buildApiSidebar('vue'),

@@ -38,9 +38,8 @@ export function bootstrapTreeDefault(root) {
       indent,
       selectable: true,
       defaultExpandAll: true,
-      expandOnClickNode: true,
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderNode: (node) => {
         const el = document.createElement('div');
         el.className = 'virt-tree-node';

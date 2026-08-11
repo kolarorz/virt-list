@@ -26,8 +26,8 @@ function createList(count = 20) {
   const vl = new VirtList<{ id: string; text: string }>(container, {
     list: makeList(count),
     itemKey: 'id',
-    itemPreSize: 40,
-    fixed: true,
+    estimatedSize: 40,
+    fixedSize: true,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
     },

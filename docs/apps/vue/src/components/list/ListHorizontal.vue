@@ -5,7 +5,7 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="108"
+        :estimated-size="108"
         horizontal
         @update="onUpdate"
       >

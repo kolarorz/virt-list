@@ -68,7 +68,7 @@ function setup(
           {
             list: makeList(50),
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
             buffer: 0,
             renderItem: (item: Item, _index: number, el: HTMLElement) => {
               el.textContent = item.text;
@@ -108,12 +108,12 @@ describe('Vue useVirtList', () => {
   it('暴露响应式状态与尺寸信息', () => {
     const { app, api } = setup();
 
-    expect(api.reactiveData.renderEnd).toBe(6);
-    expect(api.getState().listTotalSize).toBe(2000);
+    expect(api.state.renderEnd).toBe(6);
+    expect(api.getState().itemsTotalSize).toBe(2000);
     expect(api.slotSize.clientSize).toBe(200);
     expect(api.sizesMap).toBeInstanceOf(Map);
     expect(api.resizeObserver).toBeDefined();
-    expect(api.getSlotSize()).toBe(0);
+    expect(api.getSlotsTotalSize()).toBe(0);
 
     app.unmount();
   });
@@ -184,7 +184,7 @@ describe('Vue useVirtList', () => {
     expect(api.getState().inViewBegin).toBe(0);
 
     api.setList(makeList(2));
-    expect(api.getState().listTotalSize).toBe(80);
+    expect(api.getState().itemsTotalSize).toBe(80);
     expect(container.querySelectorAll('.virt-list__client [data-id]').length)
       .toBeGreaterThan(0);
 
@@ -199,15 +199,10 @@ describe('Vue useVirtList', () => {
 
     api.scrollFromUser(400);
 
-    const added = [{ id: 'new-0', text: 'new-0' }];
-    list.unshift(...added);
-    api.setList(list);
-    api.addedList2Top(added);
+    api.setList([{ id: 'new-0', text: 'new-0' }, ...list]);
     expect(api.getOffset()).toBe(440);
 
-    const deleted = list.splice(0, 1);
-    api.setList(list);
-    api.deletedList2Top(deleted);
+    api.setList([...list]);
     expect(api.getOffset()).toBe(400);
 
     app.unmount();

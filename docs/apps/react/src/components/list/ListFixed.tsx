@@ -26,8 +26,8 @@ export default function Fixed() {
         <VirtList<Item>
           list={list}
           itemKey="id"
-          itemPreSize={40}
-          fixed
+          estimatedSize={40}
+          fixedSize
           onUpdate={(_, state) =>
             setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
           }

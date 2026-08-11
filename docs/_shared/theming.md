@@ -1,6 +1,14 @@
 ## 样式与主题
 
-树组件的默认样式来自 `@virt-list/vanilla/src/tree/tree.css`（各框架包已在 `VirtTree` 内部引入，无需手动导入）。
+树组件的默认样式随各包的 `style.css` 一起交付，**需要手动引一次**（与滚动条样式同一份）：
+
+```ts
+import '@virt-list/vue/style.css'; // 换成你装的那个包
+```
+
+组件的 JS 里刻意不 `import` 这份 css：那会让整个包在纯 Node 环境（SSR）下 import 不了
+——Node 不认 `.css` 扩展名。
+
 所有可定制项都通过 CSS 变量暴露，**覆盖变量即可换肤**，不需要与选择器优先级搏斗。
 
 ### 暗色模式

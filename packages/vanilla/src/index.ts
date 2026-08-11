@@ -1,9 +1,9 @@
-export { VirtList } from './VirtList';
-export { VirtGrid } from './VirtGrid';
-export { VirtTree } from './tree';
-export { DEFAULT_DOM_OPTIONS } from './defaults';
+export { VirtList } from './VirtList.js';
+export { VirtGrid } from './VirtGrid.js';
+export { VirtTree } from './tree/index.js';
+export { DEFAULT_DOM_OPTIONS } from './defaults.js';
 
-export type { VirtGridOptions, VirtGridEvents, GridRow } from './VirtGrid';
+export type { VirtGridOptions, VirtGridEvents, GridRow } from './VirtGrid.js';
 export type {
   TreeNode,
   TreeNodeData,
@@ -12,10 +12,10 @@ export type {
   TreeFieldNames,
   TreeInfo,
   CheckedInfo,
-  IScrollParams,
+  VirtTreeScrollTarget,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
-} from './tree';
+} from './tree/index.js';
 export type {
   ListState,
   SlotSize,
@@ -25,7 +25,7 @@ export type {
   LoadState,
   LoadDirection,
 } from '@virt-list/core';
-export { normalizeStyle, mergeStyles, setAttrs, applyStyle, applyClass } from './utils';
+export { normalizeStyle, mergeStyles, setAttrs, applyStyle, applyClass } from './utils.js';
 
 /**
  * 自绘滚动条的可复用零件。
@@ -42,15 +42,18 @@ export { normalizeStyle, mergeStyles, setAttrs, applyStyle, applyClass } from '.
  * 外观样式在 `./scrollbar.css`（子路径导出）。宿主的容器类名与 `.virt-list__client`
  * 不同时，那份里的 hover 显形选择器要自己重写。
  */
-export { Scrollbar } from './scrollbar/Scrollbar';
-export type { ScrollbarHost, ScrollbarOptions } from './scrollbar/Scrollbar';
-export { InputController } from './scrollbar/InputController';
-export type { InputHost, InputControllerOptions } from './scrollbar/InputController';
+export { Scrollbar } from './scrollbar/Scrollbar.js';
+export type { ScrollbarHost, ScrollbarOptions } from './scrollbar/Scrollbar.js';
+export { InputController } from './scrollbar/InputController.js';
+export type { InputHost, InputControllerOptions } from './scrollbar/InputController.js';
 export {
   computeThumb,
   positionToRatio,
   ratioToPosition,
   pointerToRatio,
   DEFAULT_MIN_THUMB_SIZE,
-} from './scrollbar/geometry';
-export type { ThumbGeometry } from './scrollbar/geometry';
+} from './scrollbar/geometry.js';
+export type { ThumbGeometry } from './scrollbar/geometry.js';
+// 流式输出的帧内合并：与虚拟列表无耦合的纯工具，一并透出免得使用方直接依赖 core
+export { createStreamBuffer } from '@virt-list/core';
+export type { StreamBuffer } from '@virt-list/core';

@@ -62,7 +62,7 @@ export function bootstrapOperations(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item';

@@ -2,8 +2,8 @@ import {
   computeThumb,
   pointerToRatio,
   DEFAULT_MIN_THUMB_SIZE,
-} from './geometry';
-import { createFrameScheduler, type FrameScheduler } from './scheduler';
+} from './geometry.js';
+import { createFrameScheduler, type FrameScheduler } from './scheduler.js';
 
 /** 滚动条向宿主要的三个数，以及把用户意图交回去的两个回调 */
 export interface ScrollbarHost {

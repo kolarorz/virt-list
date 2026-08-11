@@ -37,8 +37,7 @@ export function bootstrapResize(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
-      buffer: 2,
+      estimatedSize: 40,
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item';

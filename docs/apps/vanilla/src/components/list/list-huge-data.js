@@ -63,8 +63,7 @@ export function bootstrapHugeData(root) {
         {
           list,
           itemKey: 'id',
-          itemPreSize: 40,
-          buffer: 5,
+          estimatedSize: 40,
           renderItem: (item) => {
             const row = document.createElement('div');
             row.className = 'demo-row-item';

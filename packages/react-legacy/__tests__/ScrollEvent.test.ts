@@ -62,8 +62,8 @@ describe('React 17: onScroll', () => {
     const { container, onScroll, instRef } = mount(VirtList, {
       list: makeList(50),
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _i: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -87,8 +87,8 @@ describe('React 17: onScroll', () => {
       list: makeList(60),
       gridItems: 3,
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -111,8 +111,8 @@ describe('React 17: onScroll', () => {
   it('VirtTree 触发 onScroll', () => {
     const { container, onScroll, instRef } = mount(VirtTree, {
       list: makeList(50).map((item) => ({ ...item, label: item.text })),
-      itemPreSize: 32,
-      fixed: true,
+      estimatedSize: 32,
+      fixedSize: true,
     });
     onScroll.mockClear();
 
@@ -127,5 +127,28 @@ describe('React 17: onScroll', () => {
     });
 
     ReactDOM.unmountComponentAtNode(container);
+  });
+});
+
+/*
+ * clientEl 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。
+ * 它必须是那个 data-id="client" 的 scrollport，不是组件根元素——
+ * 原生 scroll 不冒泡，挂错地方就永远收不到。
+ */
+describe('React 17: clientEl 逃生舱', () => {
+  it('指向 scrollport 而不是根元素', () => {
+    const { instRef } = mount(VirtList, {
+      list: makeList(50),
+      itemKey: 'id',
+      estimatedSize: 40,
+      fixedSize: true,
+      renderItem: (item: Item, _i: number, el: HTMLElement) => {
+        el.textContent = item.text;
+      },
+    });
+
+    const clientEl = instRef.current.clientEl as HTMLElement;
+    expect(clientEl).toBeTruthy();
+    expect(clientEl.dataset.id).toBe('client');
   });
 });

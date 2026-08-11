@@ -50,8 +50,8 @@ describe('React VirtList', () => {
           ref: listRef,
           list,
           itemKey: 'id',
-          itemPreSize: 20,
-          fixed: true,
+          estimatedSize: 20,
+          fixedSize: true,
           buffer: 3,
           // renderItem 是 DOM 语义的逃生通道：写入传入的 el 或返回一个 HTMLElement。
           // React 节点要走 children 渲染 prop（见下面的用例）
@@ -94,8 +94,8 @@ describe('React VirtList', () => {
           ref: listRef,
           list,
           itemKey: 'id',
-          itemPreSize: 16,
-          fixed: true,
+          estimatedSize: 16,
+          fixedSize: true,
           buffer: 4,
           // renderItem 是 DOM 语义的逃生通道：写入传入的 el 或返回一个 HTMLElement。
           // React 节点要走 children 渲染 prop（见下面的用例）

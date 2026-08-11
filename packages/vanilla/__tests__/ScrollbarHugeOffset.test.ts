@@ -16,7 +16,7 @@ import type { VirtListDOMOptions } from '@virt-list/core';
  *   残差最大也就一屏多一点，**任何单个 transform 都碰不到上限**，于是天花板消失。
  *
  * 这条不变量是本文件的全部内容。它很容易被破坏：只要哪天改回"位移层整体
- * translate(-offset) + itemsEl 再 translate(+virtualSize)"，两个 transform 就都会
+ * translate(-offset) + itemsEl 再 translate(+leadingSize)"，两个 transform 就都会
  * 携带完整量级，越限时各自被夹、合成崩掉——真实 Chrome 里的表现是超过 3355 万 px
  * 之后滚动被量化成按项跳（offset 每 +20px 画面完全不动，跨过项边界才整跳一项）。
  *
@@ -69,8 +69,8 @@ function mount() {
   const vl = new VirtList<Item>(container, {
     list: Array.from({ length: COUNT }, (_, i) => ({ id: i })),
     itemKey: 'id',
-    itemPreSize: ROW,
-    fixed: true,
+    estimatedSize: ROW,
+    fixedSize: true,
     buffer: 0,
     renderItem: (() => {}) as any,
   } as VirtListDOMOptions<Item>);

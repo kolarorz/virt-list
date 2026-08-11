@@ -17,6 +17,7 @@ describe('@virt-list/vanilla 公共导出', () => {
       'applyClass',
       'applyStyle',
       'computeThumb',
+      'createStreamBuffer',
       'mergeStyles',
       'normalizeStyle',
       'pointerToRatio',

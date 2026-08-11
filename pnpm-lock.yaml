@@ -222,6 +222,9 @@ importers:
       vite-plugin-qiankun:
         specifier: ^1.0.15
         version: 1.0.15(typescript@5.9.3)(vite@7.3.1(@types/node@24.10.13))
+      vue-tsc:
+        specifier: ^3.1.5
+        version: 3.2.5(typescript@5.9.3)
 
   packages/core: {}
 

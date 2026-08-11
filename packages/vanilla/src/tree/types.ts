@@ -1,4 +1,8 @@
-import type { ListState, VirtScrollEvent } from '@virt-list/core';
+import type {
+  ListState,
+  VirtScrollEvent,
+  VirtScrollOptions,
+} from '@virt-list/core';
 
 /** 树节点原始数据（用户传入的未加工数据） */
 export type TreeNodeData = Record<string, any>;
@@ -74,19 +78,29 @@ export interface CheckedInfo {
   halfCheckedNodes: TreeData;
 }
 
-/** scrollTo 方法的参数 */
-export interface IScrollParams {
-  /** 目标节点 key */
+/**
+ * `scrollTo` 的参数：一个「滚到哪 + 怎么滚」的组合体。
+ *
+ * `align` 与 `VirtScrollOptions.align` 用的是同一套词汇（`start` / `end`），
+ * 只多一个 `nearest`——列表那边由独立的 `scrollIntoView` 方法承担这层语义，
+ * 树这边为了让 `scrollTo` 一个入口能表达全部意图，把它并进了 align。
+ *
+ * 三种意图也各有直接方法，通常比拼参数对象更好读：
+ * `scrollToOffset` / `scrollToKey` / `scrollKeyIntoView`。
+ */
+export type VirtTreeScrollTarget = Omit<VirtScrollOptions, 'align'> & {
+  /** 目标节点 key。节点被折叠时会先展开它的祖先 */
   key?: TreeNodeKey;
-  /** 对齐方式：'top' 滚动到顶部，'view' 滚动到可视区域内 */
-  align?: 'view' | 'top';
-  /** 直接指定滚动偏移量（优先级最高） */
+  /** 直接指定滚动偏移量，优先级高于 `key` */
   offset?: number;
-  /** 滚动方式：'auto'（默认）瞬时跳转，'smooth' 平滑动画 */
-  behavior?: 'auto' | 'smooth';
-  /** 平滑动画时长（ms），缺省取 scrollDuration */
-  duration?: number;
-}
+  /**
+   * 目标节点与视口的对齐方式：
+   * - `'nearest'`（默认）：已完整可见就不动，否则滚到最近的那条边
+   * - `'start'`：节点顶部对齐视口顶部
+   * - `'end'`：节点底部对齐视口底部
+   */
+  align?: 'start' | 'end' | 'nearest';
+};
 
 /**
  * 虚拟树配置项。
@@ -105,17 +119,19 @@ export interface VirtTreeDOMOptions {
   /** 渲染缓冲行数 */
   buffer?: number;
   /** 节点预估高度（px） */
-  itemPreSize?: number;
+  estimatedSize?: number;
   /** 是否固定行高 */
-  fixed?: boolean;
+  fixedSize?: boolean;
   /** smooth 滚动的默认动画时长（ms），默认 300 */
   scrollDuration?: number;
   /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
   smoothMaxDistance?: number;
   /** 滚动条淡出延迟（ms），`0` 常驻 */
-  scrollbarAutoHide?: number;
+  scrollbarAutoHideDelay?: number;
   /** 滑块的最小长度（px） */
   scrollbarMinThumbSize?: number;
+  /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+  keyboard?: boolean;
   /** 是否显示连接线 */
   showLine?: boolean;
   /** 节点行的自定义 class */

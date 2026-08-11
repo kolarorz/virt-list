@@ -328,9 +328,17 @@
 .demo-toolbar label,
 .input-container label,
 .virt-list-control-group label,
+.demo-chat-toolbar label,
 .virt-grid-controls span {
   color: var(--demo-c-text-2);
   font-size: var(--demo-fs-sm);
+}
+
+/* 工具栏里的复选项：勾选框与文字同行对齐 */
+.demo-chat-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ===================================================================
@@ -633,6 +641,232 @@
   font-size: var(--demo-fs-md);
   line-height: 1.6;
   word-break: break-word;
+}
+
+/* AI 对话：复用上面的气泡，只补「自己发的」与「正在生成」两种状态 */
+.demo-ai-row.is-user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.demo-ai-row.is-user .demo-chat-bubble {
+  border-top-left-radius: var(--demo-radius-lg);
+  border-top-right-radius: var(--demo-radius-sm);
+  background-color: var(--demo-c-bg-soft);
+}
+
+/* 生成中的光标。inline-block + vertical-align 让它贴着最后一个字，
+   而不是另起一行——流式文本的最后一行长度每帧都在变 */
+.demo-ai-caret {
+  display: inline-block;
+  margin-left: 2px;
+  width: 2px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background-color: var(--demo-c-brand-text);
+  animation: demo-ai-blink 1s steps(2, start) infinite;
+}
+
+@keyframes demo-ai-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-ai-caret {
+    animation: none;
+  }
+}
+
+/* 消息序号，搜索示例里用来对照跳转位置 */
+.demo-ai-index {
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-sm);
+}
+
+/* 搜索命中：普通命中淡底，当前命中用品牌色实底 */
+.demo-hit {
+  border-radius: 2px;
+  background-color: var(--demo-c-warning-soft);
+  color: var(--demo-c-warning-text);
+}
+
+.demo-hit.is-current {
+  background-color: var(--demo-c-brand-1);
+  color: var(--demo-c-on-accent);
+}
+
+.demo-chat-bubble.is-current-hit {
+  border-color: var(--demo-c-brand-1);
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+/* ===================================================================
+ * 8.1 Agent 执行流 / 日志视图
+ * =================================================================== */
+
+.demo-trace {
+  background-color: var(--demo-c-code-bg);
+  font-family: var(--demo-font-mono);
+}
+
+.demo-trace-line {
+  padding: 1px 10px;
+  color: var(--demo-c-code-text);
+  font-size: var(--demo-fs-sm);
+  line-height: 1.55;
+}
+
+.demo-trace-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* 有详情的行才可点，给出对应的指针与悬停反馈 */
+.demo-trace-head.is-clickable {
+  cursor: pointer;
+}
+
+.demo-trace-head.is-clickable:hover {
+  background-color: var(--demo-c-surface-hover);
+}
+
+.demo-trace-caret {
+  width: 10px;
+  flex-shrink: 0;
+  color: var(--demo-c-text-3);
+}
+
+.demo-trace-seq {
+  flex-shrink: 0;
+  color: var(--demo-c-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.demo-trace-badge {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 3px;
+  background-color: var(--demo-c-fill-2);
+  color: var(--demo-c-text-2);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.demo-trace-text {
+  word-break: break-word;
+}
+
+/* 四类事件各自的强调色，只染徽标与正文，底色留给悬停状态 */
+.demo-trace-line.kind-thought .demo-trace-badge {
+  background-color: var(--demo-c-brand-soft);
+  color: var(--demo-c-brand-text);
+}
+
+.demo-trace-line.kind-tool .demo-trace-text {
+  color: var(--demo-c-brand-text);
+}
+
+.demo-trace-line.kind-output .demo-trace-badge {
+  background-color: var(--demo-c-success-soft);
+  color: var(--demo-c-success-text);
+}
+
+.demo-trace-line.kind-error .demo-trace-badge {
+  background-color: var(--demo-c-danger-soft);
+  color: var(--demo-c-danger-text);
+}
+
+.demo-trace-line.kind-error .demo-trace-text {
+  color: var(--demo-c-danger-text);
+}
+
+.demo-trace-detail {
+  margin: 2px 0 4px 26px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--demo-c-border-strong);
+  background-color: var(--demo-c-bg-soft);
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* 语义滚动条：列表在左，分段导航条在右 */
+.demo-outline-layout {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.demo-outline-layout .demo-list-container {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * 高度跟随列表容器（flex 的 align-items: stretch 按 margin box 拉伸，
+ * 所以这一条与列表严格同高）。
+ *
+ * 色块之间不留 gap：段数一多，gap 的总和会把可分配的高度吃光——
+ * 每个色块都有最小可见高度，压到最小值之后整条仍然装不下，
+ * 于是溢出容器、看起来比列表高一截。段与段的区分靠颜色和 hover，不靠缝隙。
+ * 真正的上限在数据侧（见 outline.ts 的 MAX_SECTIONS），这里只是兜底。
+ *
+ * box-sizing 是为了宽度：14px 要包含 padding 与 border，否则实际宽度是 20px。
+ */
+.demo-outline {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 14px;
+  flex-shrink: 0;
+  padding: 2px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-sm);
+  background-color: var(--demo-c-bg-soft);
+  overflow: hidden;
+}
+
+/* 每段一个色块，高度由 flex-grow 按行数分配 */
+.demo-outline-block {
+  min-height: 2px;
+  padding: 0;
+  border: 0;
+  background-color: var(--demo-c-fill-3);
+  cursor: pointer;
+  transition: opacity 0.15s, outline-color 0.15s;
+  opacity: 0.55;
+}
+
+/* 相邻色块之间用 1px 的透明描边分隔，不占用布局高度 */
+.demo-outline-block + .demo-outline-block {
+  box-shadow: 0 -1px 0 var(--demo-c-bg-soft);
+}
+
+.demo-outline-block:hover {
+  opacity: 1;
+}
+
+.demo-outline-block.is-active {
+  opacity: 1;
+  outline: 1px solid var(--demo-c-brand-1);
+  outline-offset: 1px;
+}
+
+.demo-outline-block.kind-tool {
+  background-color: var(--demo-c-brand-1);
+}
+
+.demo-outline-block.kind-output {
+  background-color: var(--demo-c-success);
+}
+
+.demo-outline-block.kind-error {
+  background-color: var(--demo-c-danger);
 }
 
 .demo-chat-toolbar {

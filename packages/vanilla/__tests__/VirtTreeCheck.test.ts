@@ -34,7 +34,7 @@ function makeTree(roots = 20, children = 4) {
 function makeTreeInstance(data: any, opts: any = {}) {
   return new VirtTree(createContainer(), {
     list: data,
-    itemPreSize: 30,
+    estimatedSize: 30,
     checkable: true,
     ...opts,
   } as any);

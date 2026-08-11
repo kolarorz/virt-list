@@ -14,7 +14,6 @@ syncStandaloneTheme(Boolean(qiankunWindow.__POWERED_BY_QIANKUN__));
 import { bootstrapBasic } from './components/list/list-basic.js';
 import { bootstrapBuffer } from './components/list/list-buffer.js';
 import { bootstrapHugeData } from './components/list/list-huge-data.js';
-import { bootstrapScrollbar } from './components/list/list-scrollbar.js';
 import { bootstrapFixed } from './components/list/list-fixed.js';
 import { bootstrapHorizontal } from './components/list/list-horizontal.js';
 import { bootstrapSlots } from './components/list/list-slots.js';
@@ -50,6 +49,12 @@ import { bootstrapTreeDragArea } from './components/tree/tree-dragarea.js';
 
 import { bootstrapGridBasic } from './components/grid/grid-basic.js';
 
+import { bootstrapAiStreaming } from './components/ai/ai-streaming.js';
+import { bootstrapAiCopy } from './components/ai/ai-copy.js';
+import { bootstrapAiSearch } from './components/ai/ai-search.js';
+import { bootstrapAiTrace } from './components/ai/ai-trace.js';
+import { bootstrapAiOutline } from './components/ai/ai-outline.js';
+
 /** 构建时已高亮的源码：{ html, raw }，见 _shared/vitePluginHighlightSource.js */
 const highlightedSources = import.meta.glob('./components/**/*.js', {
   query: '?highlight',
@@ -61,7 +66,6 @@ const demoBootstrapMap = {
   'list-basic': bootstrapBasic,
   'list-buffer': bootstrapBuffer,
   'list-huge-data': bootstrapHugeData,
-  'list-scrollbar': bootstrapScrollbar,
   'list-fixed': bootstrapFixed,
   'list-horizontal': bootstrapHorizontal,
   'list-slots': bootstrapSlots,
@@ -96,51 +100,24 @@ const demoBootstrapMap = {
   'tree-dragarea': bootstrapTreeDragArea,
 
   'grid-basic': bootstrapGridBasic,
+
+  'ai-streaming': bootstrapAiStreaming,
+  'ai-copy': bootstrapAiCopy,
+  'ai-search': bootstrapAiSearch,
+  'ai-trace': bootstrapAiTrace,
+  'ai-outline': bootstrapAiOutline,
 };
 
-const demoSourceMap = {
-  'list-basic': './components/list/list-basic.js',
-  'list-buffer': './components/list/list-buffer.js',
-  'list-huge-data': './components/list/list-huge-data.js',
-  'list-scrollbar': './components/list/list-scrollbar.js',
-  'list-fixed': './components/list/list-fixed.js',
-  'list-horizontal': './components/list/list-horizontal.js',
-  'list-slots': './components/list/list-slots.js',
-  'list-flat-render': './components/list/list-flat-render.js',
-  'list-operations': './components/list/list-operations.js',
-  'list-smooth': './components/list/list-smooth.js',
-  'list-resize': './components/list/list-resize.js',
-  'list-dynamic': './components/list/list-dynamic.js',
-  'list-table': './components/list/list-table.js',
-  'list-infinity': './components/list/list-infinity.js',
-  'list-chat': './components/list/list-chat.js',
-  'list-advanced': './components/list/list-advanced.js',
-  'list-pagination': './components/list/list-pagination.js',
-  'list-keep-alive': './components/list/list-keep-alive.js',
-  'list-empty': './components/list/list-empty.js',
-  'list-reactive': './components/list/list-reactive.js',
-
-  'tree-basic': './components/tree/tree-basic.js',
-  'tree-checkbox': './components/tree/tree-checkbox.js',
-  'tree-expand': './components/tree/tree-expand.js',
-  'tree-filter': './components/tree/tree-filter.js',
-  'tree-select': './components/tree/tree-select.js',
-  'tree-showline': './components/tree/tree-showline.js',
-  'tree-content': './components/tree/tree-content.js',
-  'tree-drag': './components/tree/tree-drag.js',
-  'tree-focus': './components/tree/tree-focus.js',
-  'tree-operate': './components/tree/tree-operate.js',
-  'tree-slots': './components/tree/tree-slots.js',
-  'tree-icon': './components/tree/tree-icon.js',
-  'tree-default': './components/tree/tree-default.js',
-  'tree-dragarea': './components/tree/tree-dragarea.js',
-
-  'grid-basic': './components/grid/grid-basic.js',
-};
-
+/**
+ * 源码路径由 exampleId 直接推出（`list-chat` → `./components/list/list-chat.js`），
+ * 不再手维护一张映射表——漏一条不会报错，只会静默显示成别的示例的代码。
+ */
 function getDemoSource(exampleId) {
-  const path = demoSourceMap[exampleId] || demoSourceMap['list-basic'];
-  return highlightedSources[path] || { html: '', raw: '' };
+  const kind = exampleId.split('-')[0];
+  return (
+    highlightedSources[`./components/${kind}/${exampleId}.js`] ??
+    highlightedSources['./components/list/list-basic.js'] ?? { html: '', raw: '' }
+  );
 }
 
 let cleanup = null;

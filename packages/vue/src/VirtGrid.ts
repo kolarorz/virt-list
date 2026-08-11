@@ -28,8 +28,7 @@ import type {
 export const VirtGrid = defineComponent({
   name: 'VirtGrid',
   emits: {
-    // 与 VirtList 同理：根元素 overflow:hidden 不会原生滚动，
-    // 原生 scroll 又不冒泡，所以叫 scroll 不会拦掉任何东西
+    // 叫 scroll 不会拦掉任何东西，三条论据见 VirtList 的 emits.scroll 注释
     scroll: (_event: VirtScrollEvent) => true,
     offsetChange: (_offset: number) => true,
     toTop: (_item: unknown) => true,
@@ -41,20 +40,17 @@ export const VirtGrid = defineComponent({
     list: { type: Array as PropType<any[]>, required: true },
     gridItems: { type: Number, required: true },
     itemKey: { type: String, required: true },
-    itemPreSize: { type: Number, default: 50 },
+    estimatedSize: { type: Number, default: 50 },
     itemGap: { type: Number, default: 0 },
-    fixed: { type: Boolean, default: false },
+    fixedSize: { type: Boolean, default: false },
     buffer: { type: Number, default: 2 },
     scrollDuration: { type: Number, default: 300 },
     smoothMaxDistance: { type: Number, default: 0 },
-    /**
-     * 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar。
-     *
-     * 缺省值刻意留空而非写 'native'：写死会让本组件永远显式传值，
-     * 从而盖掉 DEFAULT_OPTIONS 里的默认值。留空则交由下层统一兜底（结果同样是 native）。
-     */
-    scrollbarAutoHide: { type: Number, default: undefined },
+    /** 滚动条淡出延迟（ms），`0` 常驻。留空交由 DEFAULT_DOM_OPTIONS 兜底 */
+    scrollbarAutoHideDelay: { type: Number, default: undefined },
     scrollbarMinThumbSize: { type: Number, default: undefined },
+    /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+    keyboard: { type: Boolean, default: true },
     itemStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: undefined },
     renderItem: { type: Function as PropType<(item: any, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
@@ -94,9 +90,9 @@ export const VirtGrid = defineComponent({
           list: props.list,
           gridItems: props.gridItems,
           itemKey: props.itemKey,
-          itemPreSize: props.itemPreSize,
+          estimatedSize: props.estimatedSize,
           itemGap: props.itemGap,
-          fixed: props.fixed,
+          fixedSize: props.fixedSize,
           buffer: props.buffer,
           itemStyle: props.itemStyle,
           renderItem: props.renderItem ?? ((item, rowIndex, listIndex, el) => {
@@ -110,8 +106,9 @@ export const VirtGrid = defineComponent({
           }),
           scrollDuration: props.scrollDuration,
           smoothMaxDistance: props.smoothMaxDistance,
-          scrollbarAutoHide: props.scrollbarAutoHide,
+          scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
           scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+          keyboard: props.keyboard,
           renderStickyHeader: props.renderStickyHeader,
           renderStickyFooter: props.renderStickyFooter,
           renderHeader: props.renderHeader,
@@ -157,10 +154,24 @@ export const VirtGrid = defineComponent({
       scrollToOffset: (o: number, options?: VirtScrollOptions) =>
         grid?.scrollToOffset(o, options),
       getOffset: () => grid?.getOffset() ?? 0,
+      getMaxOffset: () => grid?.getMaxOffset() ?? 0,
+      getTotalSize: () => grid?.getTotalSize() ?? 0,
       scrollFromUser: (o: number) => grid?.scrollFromUser(o),
       cancelScroll: () => grid?.cancelScroll(),
+      resume: () => grid?.resume(),
       forceUpdate: () => grid?.forceUpdate(),
     };
+
+    /**
+     * 滚动容器（唯一的 scrollport）。
+     *
+     * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
+     * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
+     */
+    Object.defineProperty(api, 'clientEl', {
+      get: () => grid?.clientEl,
+      enumerable: true,
+    });
 
     expose(api);
 

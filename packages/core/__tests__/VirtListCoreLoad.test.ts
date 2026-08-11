@@ -49,8 +49,8 @@ function setup(opts: SetupOptions) {
     {
       list: opts.list,
       itemKey: 'id',
-      itemPreSize: ITEM_SIZE,
-      fixed: true,
+      estimatedSize: ITEM_SIZE,
+      fixedSize: true,
       loadMore: opts.loadMore,
       stickyBottom: opts.stickyBottom,
       initialPosition: opts.initialPosition,
@@ -132,7 +132,7 @@ describe('声明式加载（core 集成）', () => {
     await flush();
 
     expect(loadMore).toHaveBeenCalledWith('top');
-    // 加载历史消息后视口内容没有被推走——过去要手写 addedList2Top + forceUpdate
+    // 加载历史消息后视口内容没有被推走——过去要手写头部位移补偿 + forceUpdate
     expect(core.props.list[core.getState().inViewBegin]!.id).toBe(keyAtTop);
     expect(core.getOffset()).toBe(20 * ITEM_SIZE);
   });
@@ -194,7 +194,7 @@ describe('声明式加载（core 集成）', () => {
       {
         list: makeList(20),
         itemKey: 'id',
-        itemPreSize: ITEM_SIZE,
+        estimatedSize: ITEM_SIZE,
         hasMoreTop: false,
         hasMoreBottom: false,
       },
@@ -258,9 +258,9 @@ describe('声明式加载（core 集成）', () => {
     const core = new VirtListCore<Item>({
       list,
       itemKey: 'id',
-      itemPreSize: ITEM_SIZE,
-      fixed: true,
-      start: 10,
+      estimatedSize: ITEM_SIZE,
+      fixedSize: true,
+      initialIndex: 10,
       initialPosition: 'bottom',
     });
     const el = makeScrollEl(() => core.getTotalSize(), CLIENT_SIZE);

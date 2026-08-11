@@ -67,7 +67,7 @@ function mount(props: Record<string, unknown> = {}, slots?: any) {
               list: makeList(30),
               gridItems: 3,
               itemKey: 'id',
-              itemPreSize: 40,
+              estimatedSize: 40,
               buffer: 0,
               renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
                 el.textContent = item.text;
@@ -120,7 +120,7 @@ describe('Vue VirtGrid', () => {
               list: list.value,
               gridItems: 3,
               itemKey: 'id',
-              itemPreSize: 40,
+              estimatedSize: 40,
               renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
                 el.textContent = item.text;
               },
@@ -152,7 +152,7 @@ describe('Vue VirtGrid', () => {
               list: makeList(12),
               gridItems: gridItems.value,
               itemKey: 'id',
-              itemPreSize: 40,
+              estimatedSize: 40,
               renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
                 el.textContent = item.text;
               },
@@ -184,7 +184,7 @@ describe('Vue VirtGrid', () => {
               list: makeList(12),
               gridItems: gridItems.value,
               itemKey: 'id',
-              itemPreSize: 40,
+              estimatedSize: 40,
               renderItem: (_i: Item, _r: number, _l: number, el: HTMLElement) => {
                 el.textContent = 'x';
               },

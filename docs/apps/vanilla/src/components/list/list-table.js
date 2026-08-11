@@ -50,7 +50,7 @@ export function bootstrapTable(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
       stickyHeaderStyle: 'background:var(--demo-c-fill-2);',
       renderStickyHeader: () => {
         const header = document.createElement('div');

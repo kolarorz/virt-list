@@ -5,8 +5,8 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="40"
-        fixed
+        :estimated-size="40"
+        fixedSize
         @update="onUpdate"
       >
         <template #default="{ itemData }">

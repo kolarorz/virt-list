@@ -12,7 +12,7 @@ function baseOptions(list = makeList(50)) {
   return {
     list,
     itemKey: 'id' as const,
-    itemPreSize: 40,
+    estimatedSize: 40,
   };
 }
 
@@ -116,15 +116,83 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       expect(core.slotSize.footerSize).toBe(40);
       expect(core.slotSize.stickyHeaderSize).toBe(50);
       expect(core.slotSize.stickyFooterSize).toBe(60);
-      expect(core.getSlotSize()).toBe(180);
+      expect(core.getSlotsTotalSize()).toBe(180);
     });
 
-    it('插槽尺寸不计入 listTotalSize，但计入 getTotalSize', () => {
+    /**
+     * 插槽尺寸变化必须**通知上层**。
+     *
+     * 回归用例。原来 RO 回调只把新尺寸写进账本，而 `_notify()` 只在列表项有尺寸增量
+     * （`diff !== 0`）时才调 —— 插槽的 entry 不计入 `diff`，于是这条变化永远传不出去。
+     * `stickyHeaderSize` 是 DOM 层摆放内容的起点，它 0 → 42 之后没人重摆，
+     * 首帧内容就整体压在吸顶区背后，要等下一次滚动/数据变化才「自己好了」
+     * （virt-table 的表格首行被固定表头压住即此因）。
+     */
+    it('插槽尺寸变化会通知上层（update）', () => {
+      const update = vi.fn();
+      const core = new VirtListCore(baseOptions(), { update });
+      update.mockClear();
+
+      flush([entry('stickyHeader', 42)]);
+
+      expect(core.slotSize.stickyHeaderSize).toBe(42);
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('插槽尺寸没变则不通知（RO 每轮都会把没变的插槽也报一遍）', () => {
+      const update = vi.fn();
+      const core = new VirtListCore(baseOptions(), { update });
+      flush([entry('stickyHeader', 42)]);
+      update.mockClear();
+
+      flush([entry('stickyHeader', 42)]);
+
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('列表项与插槽同轮变化时只通知一次', () => {
+      const update = vi.fn();
+      const core = new VirtListCore(baseOptions(), { update });
+      update.mockClear();
+
+      flush([entry('stickyHeader', 42), entry('3', 88)]);
+
+      expect(core.slotSize.stickyHeaderSize).toBe(42);
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('setSlotSize 同步写入账本并通知，重复写同一个值是空操作', () => {
+      const update = vi.fn();
+      const core = new VirtListCore(baseOptions(), { update });
+      update.mockClear();
+
+      // DOM 层刚建好吸顶表头、手里已有 offsetHeight 时走这条同步通道，不必等 RO
+      core.setSlotSize('stickyHeader', 42);
+      expect(core.slotSize.stickyHeaderSize).toBe(42);
+      expect(core.getTotalSize()).toBe(50 * 40 + 42);
+      expect(update).toHaveBeenCalledTimes(1);
+
+      core.setSlotSize('stickyHeader', 42);
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('setSlotSize 写入后 RO 报来同一个值不会再通知一次', () => {
+      const update = vi.fn();
+      const core = new VirtListCore(baseOptions(), { update });
+      core.setSlotSize('stickyHeader', 42);
+      update.mockClear();
+
+      flush([entry('stickyHeader', 42)]);
+
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('插槽尺寸不计入 itemsTotalSize，但计入 getTotalSize', () => {
       const core = new VirtListCore(baseOptions(makeList(10)));
 
       flush([entry('header', 30)]);
 
-      expect(core.getState().listTotalSize).toBe(400);
+      expect(core.getState().itemsTotalSize).toBe(400);
       expect(core.getTotalSize()).toBe(430);
     });
 
@@ -147,12 +215,12 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       flush([bogus]);
 
       expect(core.slotSize.clientSize).toBe(0);
-      expect(core.getState().listTotalSize).toBe(50 * 40);
+      expect(core.getState().itemsTotalSize).toBe(50 * 40);
     });
   });
 
   describe('列表项尺寸', () => {
-    it('实测尺寸写入 sizesMap，并按差值调整 listTotalSize', () => {
+    it('实测尺寸写入 sizesMap，并按差值调整 itemsTotalSize', () => {
       const itemResize = vi.fn();
       const core = new VirtListCore(baseOptions(makeList(10)), { itemResize });
 
@@ -160,19 +228,19 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
 
       expect(core.getItemSize('0')).toBe(100);
       // 10 项估算 400，第 0 项 +60
-      expect(core.getState().listTotalSize).toBe(460);
+      expect(core.getState().itemsTotalSize).toBe(460);
       expect(itemResize).toHaveBeenCalledWith('0', 100);
     });
 
-    it('尺寸没变时不触发 itemResize，也不动 listTotalSize', () => {
+    it('尺寸没变时不触发 itemResize，也不动 itemsTotalSize', () => {
       const itemResize = vi.fn();
       const core = new VirtListCore(baseOptions(makeList(10)), { itemResize });
 
-      // 40 正好等于 itemPreSize + itemGap 的回退值
+      // 40 正好等于 estimatedSize + itemGap 的回退值
       flush([entry('0', 40)]);
 
       expect(itemResize).not.toHaveBeenCalled();
-      expect(core.getState().listTotalSize).toBe(400);
+      expect(core.getState().itemsTotalSize).toBe(400);
     });
 
     it('多项一次上报时差值累加', () => {
@@ -181,7 +249,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       flush([entry('0', 50), entry('1', 60), entry('2', 30)]);
 
       // +10 +20 -10
-      expect(core.getState().listTotalSize).toBe(420);
+      expect(core.getState().itemsTotalSize).toBe(420);
     });
 
     it('borderBoxSize 缺失时退回 contentRect', () => {
@@ -230,10 +298,10 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       expect(core.getItemSize('0')).toBe(50);
     });
 
-    it('fixed 模式下上报被 getItemSize 忽略（始终返回估算值）', () => {
+    it('fixedSize 模式下上报被 getItemSize 忽略（始终返回估算值）', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(10)),
-        fixed: true,
+        fixedSize: true,
       });
 
       flush([entry('0', 100)]);
@@ -241,7 +309,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       expect(core.getItemSize('0')).toBe(40);
     });
 
-    it('尺寸变化会通知上层刷新（listTotalSize 已变，UI 需更新占位高度）', () => {
+    it('尺寸变化会通知上层刷新（itemsTotalSize 已变，UI 需更新占位高度）', () => {
       const update = vi.fn();
       const core = new VirtListCore(baseOptions(makeList(10)), { update });
       update.mockClear();
@@ -252,36 +320,36 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
     });
   });
 
-  describe('渲染窗口之外的上报（virtualSize 失效与重算）', () => {
+  describe('渲染窗口之外的上报（leadingSize 失效与重算）', () => {
     it('窗口外的项变高后，滚动定位仍落在正确位置', () => {
       const el = makeScrollEl();
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
 
-      // 向下滚到第 10 项，renderBegin 前进到 10，virtualSize 增量维护为 400
+      // 向下滚到第 10 项，renderBegin 前进到 10，leadingSize 增量维护为 400
       core.scrollFromUser(400);
       expect(core.getState().renderBegin).toBe(10);
-      expect(core.getState().virtualSize).toBe(400);
+      expect(core.getState().leadingSize).toBe(400);
 
-      // 第 0 项在渲染窗口之外，它变高不会体现在增量维护的 virtualSize 里。
+      // 第 0 项在渲染窗口之外，它变高不会体现在增量维护的 leadingSize 里。
       // 这类上报会把增量值标记为失效，而通知上层之前必须补一次全量重算——
-      // DOM 层拿 virtualSize 当虚拟占位高度来摆放整个渲染块，用陈旧值会让
+      // DOM 层拿 leadingSize 当虚拟占位高度来摆放整个渲染块，用陈旧值会让
       // 这一块内容整体偏移（视口里某几项凭空消失，再滚一下才恢复）
       flush([entry('0', 100)]);
-      expect(core.getState().virtualSize).toBe(460);
+      expect(core.getState().leadingSize).toBe(460);
 
       // 定位到窗口内的项：落点正确，且区间会立刻跟到新位置上
       core.scrollToIndex(12);
 
       // 程序化滚动之后内部偏移量与区间当场同步（不等浏览器回送 scroll 事件），
-      // 所以 renderBegin 前进到 12，virtualSize 随之变成它之前所有项的累计
+      // 所以 renderBegin 前进到 12，leadingSize 随之变成它之前所有项的累计
       expect(core.getOffset()).toBe(460 + 80);
       expect(core.getState().renderBegin).toBe(12);
-      expect(core.getState().virtualSize).toBe(540);
+      expect(core.getState().leadingSize).toBe(540);
     });
 
-    it('窗口内的项变高不会让 virtualSize 失效', () => {
+    it('窗口内的项变高不会让 leadingSize 失效', () => {
       const el = makeScrollEl();
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
@@ -291,13 +359,13 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       // 第 12 项在渲染窗口内
       flush([entry('12', 100)]);
 
-      expect(core.getState().virtualSize).toBe(400);
+      expect(core.getState().leadingSize).toBe(400);
 
       // 同上：程序化滚动会让区间当场跟到新位置，renderBegin 前进到 11
       core.scrollToIndex(11);
       expect(core.getOffset()).toBe(440);
       expect(core.getState().renderBegin).toBe(11);
-      expect(core.getState().virtualSize).toBe(440);
+      expect(core.getState().leadingSize).toBe(440);
     });
   });
 
@@ -306,7 +374,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       vi.useFakeTimers();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
-        start: 8,
+        initialIndex: 8,
       });
 
       flush([entry('client', 200)]);
@@ -323,7 +391,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
       const el = makeScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
-        start: 8,
+        initialIndex: 8,
       });
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
@@ -387,7 +455,7 @@ describe('VirtListCore 的 ResizeObserver 输入', () => {
 
       expect(core.resizeObserver).toBeUndefined();
       expect(() => core.bindDOM(el)).not.toThrow();
-      expect(core.getState().listTotalSize).toBe(400);
+      expect(core.getState().itemsTotalSize).toBe(400);
       expect(() => core.destroy()).not.toThrow();
     });
   });

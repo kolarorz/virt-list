@@ -57,8 +57,8 @@ function mount(opts: MountOptions) {
               ref: listRef,
               list: opts.list.value,
               itemKey: 'id',
-              itemPreSize: ITEM_SIZE,
-              fixed: true,
+              estimatedSize: ITEM_SIZE,
+              fixedSize: true,
               loadMore: opts.loadMore,
               stickyBottom: opts.stickyBottom,
               initialPosition: opts.initialPosition,
@@ -160,7 +160,7 @@ describe('Vue VirtList 声明式加载', () => {
     app.unmount();
   });
 
-  it('顶部加载后视口内容不跳动（不需要手动 addedList2Top）', async () => {
+  it('顶部加载后视口内容不跳动（不需要手动补偿）', async () => {
     const list = ref(makeList(60));
     const loadMore = vi.fn(async (dir: LoadDirection) => {
       if (dir !== 'top') return false;
@@ -199,7 +199,7 @@ describe('Vue VirtList 声明式加载', () => {
     await flush();
 
     // 挂载即定位到了底部
-    expect(listRef.value!.getOffset()).toBe(listRef.value.getState().listTotalSize);
+    expect(listRef.value!.getOffset()).toBe(listRef.value.getState().itemsTotalSize);
 
     // clientSize 在 jsdom 里是挂载后手动补的（浏览器由 ResizeObserver 给出），
     await flush();

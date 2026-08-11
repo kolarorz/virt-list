@@ -1,6 +1,6 @@
 # VirtGrid API
 
-## 属性
+## 配置项
 
 | 参数         | 说明             | 类型                                                         | 是否必须                     |
 | ------------ | ---------------- | ------------------------------------------------------------ | ---------------------------- |
@@ -29,4 +29,7 @@
 | scrollToBottom  | 滚动到底部                                           | `options?: VirtScrollOptions` |
 | scrollToOffset  | 滚动到指定偏移量（px）                               | `offset, options?: VirtScrollOptions` |
 | cancelScroll    | 取消进行中的平滑滚动动画                             | -              |
+| resume    | 重挂 DOM 后把内容摆回当前偏移量                             | -              |
+| getMaxOffset    | 当前允许的最大偏移量                             | -              |
+| getTotalSize    | 内容总尺寸（所有行 + 各插槽）                             | -              |
 | forceUpdate     | 强制更新                                             | -              |

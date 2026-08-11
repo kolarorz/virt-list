@@ -1,25 +1,18 @@
 <template>
   <div class="demo-panel">
     <div class="demo-stats">{{ statsText }}</div>
-    <div
-      class="demo-stats"
-      :style="diagText ? 'color: #c00; font-weight: bold' : ''"
-    >
-      自检：{{ diagText || '正常' }}
-    </div>
-    <div ref="containerRef" class="demo-list-container">
+    <div class="demo-list-container">
       <VirtList
         ref="virtListRef"
         :list="list"
         item-key="id"
-        :item-pre-size="76"
+        :estimated-size="76"
         :load-more="onLoadMore"
         :has-more-bottom="false"
         initial-position="bottom"
         sticky-bottom
         @load-state-change="onLoadStateChange"
         @update="onUpdate"
-        @offset-change="onOffsetChange"
       >
         <template #header="{ loadState }">
           <div class="demo-loading-bar">
@@ -46,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineComponent, h, onBeforeUnmount, ref, type PropType } from 'vue';
+import { defineComponent, h, ref, type PropType } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 import type { LoadDirection, LoadState } from '@virt-list/vue2';
 import {
@@ -56,7 +49,6 @@ import {
   type ChatMessage,
 } from '../../../../_shared/chatData';
 import { formatChatStats } from '../../../../_shared/demoStats';
-import { createBlankScreenDiagnostics } from '../../../../_shared/blankScreenDiagnostics';
 
 const PAGE_SIZE = 30;
 /** 超过这个字数才需要折叠 */
@@ -131,10 +123,7 @@ const ChatBubble = defineComponent({
 });
 
 const virtListRef = ref<any>(null);
-const containerRef = ref<HTMLElement | null>(null);
 const statsText = ref('');
-/** 白屏自检的结论，空串表示一切正常 */
-const diagText = ref('');
 const page = ref(4);
 const list = ref<ChatMessage[]>(generateChatPage(page.value, PAGE_SIZE));
 const loadState = ref<LoadState | null>(null);
@@ -146,20 +135,6 @@ const loadState = ref<LoadState | null>(null);
  * 写入只用于项被重建时恢复状态。
  */
 const expandedIds = new Set<number>();
-
-/** 白屏自检（临时诊断，定位完会删掉）*/
-const diagnostics = createBlankScreenDiagnostics(
-  {
-    root: () => containerRef.value,
-    listLength: () => list.value.length,
-    slotSize: () => virtListRef.value?.slotSize,
-    itemSize: (key) => virtListRef.value?.getItemSize(key) ?? -1,
-  },
-  (text) => {
-    diagText.value = text;
-  },
-);
-onBeforeUnmount(() => diagnostics.dispose());
 
 /**
  * 展开 / 收起单条消息。
@@ -231,12 +206,6 @@ function onLoadStateChange(state: LoadState) {
 
 function onUpdate(_list: any[], state: any) {
   updateStats(state);
-  diagnostics.schedule(state);
-}
-
-/** 区间没变、只是位置错了的情况 update 不会触发，所以滚动时也要量 */
-function onOffsetChange() {
-  diagnostics.schedule(virtListRef.value?.getState());
 }
 
 function updateStats(state?: any) {

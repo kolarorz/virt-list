@@ -80,7 +80,7 @@ function mount(
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: 40,
+    estimatedSize: 40,
     renderItem: ((item: Item, _i: number, el: HTMLElement) => {
       el.textContent = item.text;
     }) as any,
@@ -120,9 +120,9 @@ describe('transform 定位的 DOM 布局', () => {
   it('没有任何元素的几何尺寸随列表长度增长', () => {
     // 50w × 100px = 5000 万 px，超过 Chrome 实测的元素高度上限 33,554,428px。
     // 若靠占位元素撑开滚动空间，它会被浏览器截断，尾部约 16 万项永远滚不到
-    const { vl } = mount({ itemPreSize: 100 }, makeList(500_000));
+    const { vl } = mount({ estimatedSize: 100 }, makeList(500_000));
 
-    expect(vl.core.getState().listTotalSize).toBe(50_000_000);
+    expect(vl.core.getState().itemsTotalSize).toBe(50_000_000);
     expect(vl.listEl.style.height).toBe('0px');
     expect(vl.listEl.style.minHeight).toBe('');
 
@@ -191,7 +191,7 @@ describe('transform 定位的 DOM 布局', () => {
     const footerEl = vl.clientEl.querySelector<HTMLElement>(
       '[data-id="footer"]',
     )!;
-    expect(translateY(footerEl)).toBe(vl.core.getState().listTotalSize);
+    expect(translateY(footerEl)).toBe(vl.core.getState().itemsTotalSize);
   });
 
   it('吸顶区改绝对定位，其占的滚动空间计入各段的文档位置', () => {

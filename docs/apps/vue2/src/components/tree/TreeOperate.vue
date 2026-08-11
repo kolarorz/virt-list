@@ -22,8 +22,8 @@
             class="demo-input" style="width: 100px"
           />
         </label>
-        <button type="button" class="virt-list-btn virt-list-btn-primary" @click="scrollToTop">scrollTo top</button>
-        <button type="button" class="virt-list-btn virt-list-btn-success" @click="scrollToView">scrollTo view</button>
+        <button type="button" class="virt-list-btn virt-list-btn-primary" @click="scrollToKey">scrollToKey</button>
+        <button type="button" class="virt-list-btn virt-list-btn-success" @click="scrollKeyIntoView">scrollKeyIntoView</button>
         <label style="display: flex; align-items: center; gap: 6px">
           <span>offset</span>
           <input
@@ -32,7 +32,7 @@
             class="demo-input" style="width: 88px"
           />
         </label>
-        <button type="button" class="virt-list-btn virt-list-btn-secondary" @click="scrollToOffset">scrollTo offset</button>
+        <button type="button" class="virt-list-btn virt-list-btn-secondary" @click="scrollToOffset">scrollToOffset</button>
       </div>
     </div>
     <div class="virt-tree-wrapper">
@@ -84,13 +84,13 @@ function expandNode() {
 function collapseNode() {
   treeRef.value?.expandNode(nodeKeyInput.value, false);
 }
-function scrollToTop() {
-  treeRef.value?.scrollTo({ key: scrollKeyInput.value, align: 'top' });
+function scrollToKey() {
+  treeRef.value?.scrollToKey(scrollKeyInput.value);
 }
-function scrollToView() {
-  treeRef.value?.scrollTo({ key: scrollKeyInput.value, align: 'view' });
+function scrollKeyIntoView() {
+  treeRef.value?.scrollKeyIntoView(scrollKeyInput.value);
 }
 function scrollToOffset() {
-  treeRef.value?.scrollTo({ offset: offsetInput.value });
+  treeRef.value?.scrollToOffset(offsetInput.value);
 }
 </script>

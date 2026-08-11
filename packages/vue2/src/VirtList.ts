@@ -22,7 +22,7 @@ import type {
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
-import { createSlotMounter } from './compat';
+import { createSlotMounter } from './compat.js';
 
 // ======================== Types ========================
 
@@ -40,15 +40,21 @@ export interface EmitFunction<T> {
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
   containerRef: Ref<HTMLElement | null>;
-  reactiveData: ListState;
+  state: ListState;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
   getState: () => ListState;
   getOffset: () => number;
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset: () => number;
+  /** 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize: () => number;
+  /** 给定偏移量落在第几项，是 `getItemPosByIndex(index).top` 的逆运算 */
+  getIndexByOffset: (offset: number) => number;
   /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
   scrollFromUser: (offset: number) => void;
-  getSlotSize: () => number;
+  getSlotsTotalSize: () => number;
   reset: () => void;
   scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
   scrollIntoView: (index: number, options?: VirtScrollOptions) => void;
@@ -56,11 +62,11 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   scrollToBottom: (options?: VirtScrollOptions) => void;
   scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
   cancelScroll: () => void;
+  /** 容器被隐藏/重新挂载后（keep-alive）把内容重新摆到当前偏移量上 */
+  resume: () => void;
   manualRender: (begin: number, end: number) => void;
   getItemSize: (itemKey: string) => number;
   deleteItemSize: (itemKey: string) => void;
-  deletedList2Top: (list: T[]) => void;
-  addedList2Top: (list: T[]) => void;
   getItemPosByIndex: (
     index: number,
   ) => { top: number; current: number; bottom: number };
@@ -104,14 +110,17 @@ export function useVirtList<T extends Record<string, any>>(
 
   return {
     containerRef,
-    get reactiveData() { return getVL().state; },
+    get state() { return getVL().state; },
     get slotSize() { return getVL().core.slotSize; },
     get sizesMap() { return getVL().core.sizesMap; },
     get resizeObserver() { return getVL().core.resizeObserver; },
     getState: () => getVL().state,
     getOffset: () => getVL().core.getOffset(),
+    getMaxOffset: () => getVL().core.getMaxOffset(),
+    getTotalSize: () => getVL().core.getTotalSize(),
+    getIndexByOffset: (offset: number) => getVL().core.getIndexByOffset(offset),
     scrollFromUser: (o: number) => getVL().core.scrollFromUser(o),
-    getSlotSize: () => getVL().core.getSlotSize(),
+    getSlotsTotalSize: () => getVL().core.getSlotsTotalSize(),
     reset: () => vl?.reset(),
     scrollToIndex: (i, opts) => vl?.scrollToIndex(i, opts),
     scrollIntoView: (i, opts) => vl?.scrollIntoView(i, opts),
@@ -119,11 +128,10 @@ export function useVirtList<T extends Record<string, any>>(
     scrollToBottom: (opts) => vl?.scrollToBottom(opts),
     scrollToOffset: (o, opts) => vl?.scrollToOffset(o, opts),
     cancelScroll: () => vl?.cancelScroll(),
+    resume: () => vl?.resume(),
     manualRender: (b, e) => vl?.core.manualRender(b, e),
     getItemSize: (k) => getVL().core.getItemSize(k),
     deleteItemSize: (k) => getVL().core.deleteItemSize(k),
-    deletedList2Top: (l) => vl?.deletedList2Top(l),
-    addedList2Top: (l) => vl?.addedList2Top(l),
     getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
     forceUpdate: () => vl?.forceUpdate(),
     setList: (l) => vl?.setList(l),
@@ -138,19 +146,23 @@ export const VirtList = defineComponent({
   props: {
     list: { type: Array as () => any[], default: () => [] },
     itemKey: { type: [String, Number], required: true },
-    itemPreSize: { type: Number },
+    estimatedSize: { type: Number },
     itemGap: { type: Number, default: 0 },
     renderControl: { type: Function, default: undefined },
-    fixed: { type: Boolean, default: false },
+    /** 每项对应的纯文本，给出即开启跨虚拟化的选区复制 */
+    copyText: { type: Function, default: undefined },
+    /** 复制时各项之间的分隔符，默认换行 */
+    copySeparator: { type: String, default: undefined },
+    fixedSize: { type: Boolean, default: false },
     buffer: { type: Number, default: 0 },
     bufferTop: { type: Number, default: 0 },
     bufferBottom: { type: Number, default: 0 },
-    scrollDistance: { type: Number, default: 0 },
+    edgeThreshold: { type: Number, default: 0 },
     scrollDuration: { type: Number, default: 300 },
     smoothMaxDistance: { type: Number, default: 0 },
     horizontal: { type: Boolean, default: false },
-    start: { type: Number, default: 0 },
-    offset: { type: Number, default: 0 },
+    initialIndex: { type: Number, default: 0 },
+    initialOffset: { type: Number, default: 0 },
     loadMore: {
       type: Function as PropType<
         (direction: LoadDirection) => boolean | void | Promise<boolean | void>
@@ -165,18 +177,10 @@ export const VirtList = defineComponent({
     },
     stickyBottom: { type: Boolean, default: false },
     stickyThreshold: { type: Number, default: 0 },
-    /**
-     * 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar。
-     *
-     * 缺省值刻意留空而非写 'native'：写死会让本组件永远显式传值，
-     * 从而盖掉 DEFAULT_OPTIONS 里的默认值。留空则交由下层统一兜底（结果同样是 native）。
-     */
-    scrollbar: {
-      type: String as PropType<'native' | 'custom'>,
-      default: undefined,
-    },
-    scrollbarAutoHide: { type: Number, default: undefined },
+    scrollbarAutoHideDelay: { type: Number, default: undefined },
     scrollbarMinThumbSize: { type: Number, default: undefined },
+    /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+    keyboard: { type: Boolean, default: true },
     listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
     listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
@@ -201,27 +205,30 @@ export const VirtList = defineComponent({
       const opts: VirtListDOMOptions<any> = {
         list: props.list,
         itemKey: String(props.itemKey),
-        itemPreSize: props.itemPreSize!,
+        estimatedSize: props.estimatedSize!,
         itemGap: props.itemGap,
-        fixed: props.fixed,
+        fixedSize: props.fixedSize,
         buffer: props.buffer,
         bufferTop: props.bufferTop,
         bufferBottom: props.bufferBottom,
-        scrollDistance: props.scrollDistance,
+        edgeThreshold: props.edgeThreshold,
         scrollDuration: props.scrollDuration,
         smoothMaxDistance: props.smoothMaxDistance,
         horizontal: props.horizontal,
-        start: props.start,
-        offset: props.offset,
+        initialIndex: props.initialIndex,
+        initialOffset: props.initialOffset,
         loadMore: props.loadMore,
         hasMoreTop: props.hasMoreTop,
         hasMoreBottom: props.hasMoreBottom,
         initialPosition: props.initialPosition,
         stickyBottom: props.stickyBottom,
         stickyThreshold: props.stickyThreshold,
-        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+        keyboard: props.keyboard,
         renderControl: props.renderControl as any,
+        copyText: props.copyText as any,
+        copySeparator: props.copySeparator,
         listStyle: props.listStyle,
         listClass: props.listClass,
         itemStyle: props.itemStyle as any,
@@ -315,14 +322,18 @@ export const VirtList = defineComponent({
     });
 
     const api = {
-      reactiveData: undefined as unknown as ListState,
+      clientEl: undefined as unknown as HTMLElement,
+      state: undefined as unknown as ListState,
       slotSize: undefined as unknown as SlotSize,
       sizesMap: undefined as unknown as Map<string, number>,
       resizeObserver: undefined as ResizeObserver | undefined,
       getState: () => vl!.state,
       getOffset: () => vl!.core.getOffset(),
+      getMaxOffset: () => vl!.core.getMaxOffset(),
+      getTotalSize: () => vl!.core.getTotalSize(),
+      getIndexByOffset: (offset: number) => vl!.core.getIndexByOffset(offset),
       scrollFromUser: (o: number) => vl!.core.scrollFromUser(o),
-      getSlotSize: () => vl!.core.getSlotSize(),
+      getSlotsTotalSize: () => vl!.core.getSlotsTotalSize(),
       reset: () => vl?.reset(),
       scrollToIndex: (index: number, options?: VirtScrollOptions) =>
         vl?.scrollToIndex(index, options),
@@ -334,17 +345,10 @@ export const VirtList = defineComponent({
       scrollToOffset: (offset: number, options?: VirtScrollOptions) =>
         vl?.scrollToOffset(offset, options),
       cancelScroll: () => vl?.cancelScroll(),
+      resume: () => vl?.resume(),
       manualRender: (begin: number, end: number) => vl?.core.manualRender(begin, end),
       getItemSize: (itemKey: string) => vl!.core.getItemSize(itemKey),
       deleteItemSize: (itemKey: string) => vl!.core.deleteItemSize(itemKey),
-      deletedList2Top: (list: any[]) => {
-        vl?.setList(props.list);
-        vl?.deletedList2Top(list);
-      },
-      addedList2Top: (list: any[]) => {
-        vl?.setList(props.list);
-        vl?.addedList2Top(list);
-      },
       getItemPosByIndex: (index: number) => vl!.core.getItemPosByIndex(index),
       forceUpdate: () => {
         vl?.forceUpdate();
@@ -353,7 +357,17 @@ export const VirtList = defineComponent({
       getLoadState: () => vl!.getLoadState(),
     };
 
-    Object.defineProperty(api, 'reactiveData', {
+    /**
+     * 滚动容器（唯一的 scrollport）。
+     *
+     * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
+     * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
+     */
+    Object.defineProperty(api, 'clientEl', {
+      get: () => vl?.clientEl,
+      enumerable: true,
+    });
+    Object.defineProperty(api, 'state', {
       get: () => vl?.state,
       enumerable: true,
     });

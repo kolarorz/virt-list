@@ -37,7 +37,7 @@ export function bootstrapFlatRender(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
       buffer: 2,
       stickyHeaderClass: 'demo-band demo-band--sticky-header',
       // 扁平模式：直接操作 el，不返回元素

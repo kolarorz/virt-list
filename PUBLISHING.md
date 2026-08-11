@@ -113,6 +113,10 @@ pnpm build:packages
 
 按依赖顺序执行：core → vanilla → vue + vue2 + react + react-legacy（并行）。
 
+每个包的 build 除了 `tsc`，还会跑一次 `scripts/build-styles.mjs`，把 vanilla 层的样式
+汇总成自己的 `dist/style.css`（经 exports 的 `./style.css` 子路径对外）。样式的唯一副本
+始终在 `packages/vanilla/src/`，改样式只改那里。
+
 ### 构建单个包
 
 ```bash
@@ -146,13 +150,20 @@ pnpm release 1.2.3      # 显式指定版本号
 
 1. 检查 git 工作区是否干净（非 master 分支只告警）
 2. 校验 6 个包版本号一致，计算目标版本
-3. 检查 npm 登录状态
-4. 把新版本号写入全部 `packages/*/package.json`
-5. `pnpm test`
-6. `pnpm build:packages`
-7. `pnpm publish -r --filter './packages/*'`（依赖拓扑序由 pnpm 决定，`workspace:*` 自动替换为真实版本号）
-8. `git commit -m "chore: release vX.Y.Z"` + `git tag vX.Y.Z`
-9. `git push --follow-tags`
+3. **向 registry 确认目标版本尚未发布**——npm 不允许覆盖已有版本，而这一步若留到第 8 步
+   才发现，前面的测试与构建就全白跑了。本地版本号落后于线上时（例如本地 0.0.4 而线上
+   已有 0.0.5，patch 算出来正好撞上）会在这里直接拦下并告诉你该对齐到哪个版本
+4. 检查 npm 登录状态
+5. 把新版本号写入全部 `packages/*/package.json`
+6. `pnpm test`
+7. `pnpm build:packages`
+8. `pnpm publish -r --filter './packages/*'`（依赖拓扑序由 pnpm 决定，`workspace:*` 自动替换为真实版本号）
+9. `git commit -m "chore: release vX.Y.Z"` + `git tag vX.Y.Z`
+10. `git push --follow-tags`
+
+> **必须用 `pnpm publish`，不能用 `npm publish`。** 只有 pnpm 会把 `workspace:*` 替换成
+> 真实版本号；`npm pack` / `npm publish` 会把它原样写进 tarball，装的时候直接
+> `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "workspace:"`。
 
 **先演练再发布**：
 
@@ -277,9 +288,10 @@ beta 验证通过后回到正式版：`pnpm release 0.1.0`。
 - [x] `package.json` 中 `version` 已更新 —— 脚本自动写入
 - [x] `workspace:*` 会被自动替换为实际版本号 —— pnpm publish 自动处理
 - [x] 工作区无未提交更改 —— 脚本自动检查
-- [ ] 各包 `dist/` 目录包含 `.js`、`.d.ts`、`.js.map` 文件
-- [ ] `files` 字段正确（`dist` + `src` 用于 CSS 和源码映射）
-- [ ] `exports` 字段正确配置
+- [x] 构建产物能被 Node 直接 import —— `pnpm check:esm`，CI 里也有这一步
+- [ ] 各包 `dist/` 目录包含 `.js`、`.d.ts`、`.js.map`，以及 `style.css`（core 除外）
+- [ ] `files` 字段正确（`dist` + `src` 用于 CSS 和源码映射；`LICENSE` 与 `README` 由 npm 自动带上）
+- [ ] `exports` 字段正确配置（含 `./style.css`）
 - [ ] `peerDependencies` 版本范围合理
 
 ## 发布后验证

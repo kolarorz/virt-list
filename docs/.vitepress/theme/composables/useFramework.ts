@@ -2,10 +2,27 @@ import { computed } from 'vue';
 import { useRoute, useData, withBase } from 'vitepress';
 
 export type Framework = 'vanilla' | 'vue' | 'vue2' | 'react' | 'react-legacy';
-export type ModuleName = 'guide' | 'examples' | 'api';
+export type ModuleName = 'guide' | 'ai' | 'examples' | 'api';
 
 const FRAMEWORKS: Framework[] = ['vanilla', 'vue', 'vue2', 'react', 'react-legacy'];
-const MODULES: ModuleName[] = ['guide', 'examples', 'api'];
+const MODULES: ModuleName[] = ['guide', 'ai', 'examples', 'api'];
+
+/**
+ * 只在部分框架下存在的模块。
+ *
+ * `ai` 正在逐个框架铺开，未覆盖的框架下那些页面还不存在。列在这里之后，
+ * 导航会把入口指向已覆盖的框架（而不是链到一个 404），框架切换器也会把
+ * 未覆盖的项置灰。铺开一个框架就往数组里加一个，此外无需改动任何地方。
+ */
+export const MODULE_FRAMEWORKS: Partial<Record<ModuleName, Framework[]>> = {
+  ai: ['vanilla', 'vue', 'vue2', 'react', 'react-legacy'],
+};
+
+/** 该框架下这个模块是否已有内容 */
+export function hasModule(fw: Framework, mod: ModuleName): boolean {
+  const only = MODULE_FRAMEWORKS[mod];
+  return !only || only.includes(fw);
+}
 
 export const FRAMEWORK_LABELS: Record<Framework, string> = {
   vanilla: 'Vanilla',
@@ -29,12 +46,15 @@ export const FRAMEWORK_ICONS: Record<Framework, string> = {
  */
 const MODULE_ENTRY: Record<ModuleName, string> = {
   guide: 'introduction',
+  ai: 'overview',
   examples: 'list/list-basic',
   api: 'virt-list',
 };
 
 export function getModuleLink(fw: Framework, mod: ModuleName): string {
-  return withBase(`/${fw}/${mod}/${MODULE_ENTRY[mod]}`);
+  // 当前框架还没有这个模块时切到已覆盖的框架，而不是链到一个不存在的页面
+  const target = hasModule(fw, mod) ? fw : MODULE_FRAMEWORKS[mod]![0];
+  return withBase(`/${target}/${mod}/${MODULE_ENTRY[mod]}`);
 }
 
 /**
@@ -45,6 +65,11 @@ export function getFrameworkLink(fw: Framework, relativePath: string): string {
   const parts = relativePath.split('/').filter(Boolean);
   // parts[0] = current fw, parts[1] = mod, parts[2..] = page slug
   if (parts.length >= 2) {
+    const mod = parts[1] as ModuleName;
+    // 目标框架还没有这个模块（切换器里本就是置灰的，这里兜住直接改 URL 的情况）
+    if (MODULES.includes(mod) && !hasModule(fw, mod)) {
+      return withBase(`/${fw}/guide/${MODULE_ENTRY.guide}`);
+    }
     return withBase(`/${fw}/${parts.slice(1).join('/')}`);
   }
   return withBase(`/${fw}/guide/${MODULE_ENTRY.guide}`);

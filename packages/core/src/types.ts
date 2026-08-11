@@ -27,9 +27,14 @@ export type ClassValue =
  */
 export interface ListState {
   /** 所有列表项的尺寸总和（不含 slot） */
-  listTotalSize: number;
-  /** renderBegin 之前所有项的累计尺寸，用于虚拟占位 */
-  virtualSize: number;
+  itemsTotalSize: number;
+  /**
+   * renderBegin 之前所有项的累计尺寸。
+   *
+   * DOM 层拿它做渲染块的位移量（`itemsEl` 的 transform），**不是**某个占位元素的高度
+   * ——没有占位元素，所有偏移都由 transform 表达。名字是早期版本留下的。
+   */
+  leadingSize: number;
   /** 视口内第一个可见项的索引 */
   inViewBegin: number;
   /** 视口内最后一个可见项的索引 */
@@ -42,7 +47,18 @@ export interface ListState {
 
 /**
  * 各个插槽区域的尺寸，由 ResizeObserver 实时更新。
+ *
+ * 两个 sticky 区域**不占内容流**（它们相对视口绝对定位），但都**占滚动空间**：
+ * 两者都计入 `getSlotsTotalSize()`，因此都参与总尺寸与最大偏移量的计算。
  */
+/**
+ * 可由 DOM 层直接写入的插槽标识（见 `VirtListCore.setSlotSize`）。
+ *
+ * 不含 `client`：滚动容器的尺寸还要连带重算可视区间（`_onClientResize`），
+ * 只由 ResizeObserver 与 `bindDOM` 维护，不开放给 DOM 层单独写。
+ */
+export type SlotId = 'header' | 'footer' | 'stickyHeader' | 'stickyFooter';
+
 export interface SlotSize {
   /** 滚动容器的可视尺寸（高度或宽度） */
   clientSize: number;
@@ -50,9 +66,19 @@ export interface SlotSize {
   headerSize: number;
   /** 列表底部插槽尺寸（参与滚动） */
   footerSize: number;
-  /** 吸顶插槽尺寸（不参与滚动偏移计算） */
+  /**
+   * 吸顶插槽尺寸。
+   *
+   * 除了占滚动空间，它还是内容坐标系的**起点**：header / 列表 / footer 的文档位置
+   * 都从它之后排起（见 DOM 层的 `_applyLayout`）。`scrollIntoView` 与 `align: 'end'`
+   * 的目标计算也要扣掉它——它压在视口上沿，那一条的可用高度是少的。
+   */
   stickyHeaderSize: number;
-  /** 吸底插槽尺寸（不参与滚动偏移计算） */
+  /**
+   * 吸底插槽尺寸。
+   *
+   * 只占滚动空间（由 `getSlotsTotalSize()` 计入最大偏移量），不影响任何一段的摆放位置。
+   */
   stickyFooterSize: number;
 }
 
@@ -79,6 +105,16 @@ export interface VirtScrollOptions {
    * `'end'` 用于展开成好几屏的项——顶部对齐会把刚展开的内容推到视口外面去。
    */
   align?: 'start' | 'end';
+  /**
+   * 落位后把键盘焦点移到目标项。
+   *
+   * 引用跳转、搜索结果定位这类「程序把用户带到别处」的操作，视口动了而焦点没动，
+   * 屏幕阅读器用户不会得到任何提示，键盘用户接着按方向键也会从原处继续。
+   *
+   * 由 DOM 层消费（核心引擎不碰焦点）：目标项会被补上 `tabindex="-1"`，
+   * 能接收编程式焦点但不进入 Tab 序列。
+   */
+  focus?: boolean;
   /** 动画时长（ms），仅 smooth 生效；缺省取 options.scrollDuration */
   duration?: number;
   /**
@@ -139,7 +175,7 @@ export interface VirtScrollEvent {
   /**
    * 是否已在底部（水平模式下为最右）。
    *
-   * 判据是 0.5px 的容差，与 `toTop` / `toBottom` 用的 `scrollDistance`
+   * 判据是 0.5px 的容差，与 `toTop` / `toBottom` 用的 `edgeThreshold`
    * 阈值是两回事——后者是"快到了就提前触发取数"，这里是"确实到了"。
    */
   atEnd: boolean;
@@ -175,11 +211,11 @@ export interface VirtListOptions<T extends Record<string, any>> {
   /** 每项的唯一 key 字段名 */
   itemKey: string;
   /** 每项的预估尺寸（px），用于初始布局与未测量项的占位 */
-  itemPreSize: number;
+  estimatedSize: number;
   /** 列表项之间的间距（px） */
   itemGap?: number;
   /** 是否固定高度模式（跳过 ResizeObserver 测量） */
-  fixed?: boolean;
+  fixedSize?: boolean;
   /** 上下两侧的渲染缓冲项数（同时设置 bufferTop/bufferBottom） */
   buffer?: number;
   /** 向上方向单独设置的缓冲项数 */
@@ -189,7 +225,7 @@ export interface VirtListOptions<T extends Record<string, any>> {
   /** 是否启用水平滚动模式 */
   horizontal?: boolean;
   /** 触发 toTop/toBottom 事件的阈值距离（px） */
-  scrollDistance?: number;
+  edgeThreshold?: number;
   /** smooth 滚动的默认动画时长（ms） */
   scrollDuration?: number;
   /**
@@ -197,15 +233,32 @@ export interface VirtListOptions<T extends Record<string, any>> {
    * 缺省为两倍视口高度。设为 Infinity 表示全程逐帧滚动（长距离会明显露白）。
    */
   smoothMaxDistance?: number;
-  /** 初始化后自动滚动到的索引 */
-  start?: number;
-  /** 初始化后自动滚动到的偏移量 */
-  offset?: number;
+  /** 挂载后自动定位到的索引 */
+  initialIndex?: number;
+  /** 挂载后自动定位到的偏移量（px） */
+  initialOffset?: number;
   /** 自定义渲染区间控制（覆盖默认的 buffer 逻辑） */
   renderControl?: (
     begin: number,
     end: number,
   ) => { begin: number; end: number };
+
+  /**
+   * 每项对应的纯文本，给出即开启「跨虚拟化的选区复制」。
+   *
+   * 虚拟滚动只保留视口附近的 DOM，用户拖选跨越未渲染区域时，浏览器复制到的内容
+   * 会缺失中间那一段——而选区高亮是连续的，用户看不出少了东西。给出这个函数后，
+   * 复制时首尾两项按选区的实际范围取、中间项从数据补齐。
+   *
+   * 不给则完全不挂 copy 监听，行为与从前一致。
+   *
+   * ```ts
+   * copyText: (item) => `${item.role === 'user' ? '我' : 'AI'}：${item.text}`
+   * ```
+   */
+  copyText?: (item: T, index: number) => string;
+  /** 复制时各项之间的分隔符，默认换行 */
+  copySeparator?: string;
 
   /**
    * 触达边界时的取数回调，声明式分页 / 无限加载的入口。
@@ -235,7 +288,7 @@ export interface VirtListOptions<T extends Record<string, any>> {
   /**
    * 首屏定位。`'bottom'` 会在挂载后定位到列表底部，并在不定高场景下
    * 随尺寸测量渐进校准（聊天室的常规需求）。
-   * 与 start / offset 同时给出时，start / offset 优先。
+   * 与 initialIndex / initialOffset 同时给出时，后两者优先。
    */
   initialPosition?: 'top' | 'bottom';
   /**
@@ -245,7 +298,7 @@ export interface VirtListOptions<T extends Record<string, any>> {
    * 视口不会被拽走，新增量记在 loadState.pendingNew 里供上层渲染角标。
    */
   stickyBottom?: boolean;
-  /** 判定"贴底"的容差（px），缺省取 scrollDistance（至少 2px） */
+  /** 判定"贴底"的容差（px），缺省取 edgeThreshold（至少 2px） */
   stickyThreshold?: number;
 }
 
@@ -298,6 +351,23 @@ export interface VirtListEvents<T extends Record<string, any>> {
  */
 export interface VirtListDOMOptions<T extends Record<string, any>>
   extends VirtListOptions<T> {
+  /**
+   * 为辅助技术补上列表语义。
+   *
+   * 虚拟滚动只保留视口附近的 DOM，屏幕阅读器因此会以为「这个列表一共就这几十项」
+   * ——朗读出来是「第 3 项，共 20 项」，而真实数据有三万条。ARIA 正是为这种情况
+   * 提供了 `aria-posinset` / `aria-setsize`：位置与总数由我们显式告知，
+   * 不再由 DOM 里的元素个数推断。
+   *
+   * 开启后给渲染容器加 `role`（默认 `list`）、给每一项加 `role="listitem"`
+   * 与上述两个属性。默认关闭：加 role 会改变既有 DOM 的语义，
+   * 而使用方可能已经在外层自己声明了更合适的角色（表格、树、消息流）。
+   *
+   * 传字符串可换掉容器角色，例如单选列表用 `'listbox'`（项会变成 `option`）。
+   */
+  aria?: boolean | 'list' | 'listbox';
+  /** 供辅助技术朗读的列表名称，配合 `aria` 使用 */
+  ariaLabel?: string;
   /**
    * 列表项渲染函数。
    * - 返回 HTMLElement：自动 appendChild 到 item wrapper 中
@@ -355,25 +425,36 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
   stickyFooterClass?: ClassValue;
   stickyFooterStyle?: StyleValue;
   /** 滚动条停止滚动多久后淡出（ms），`0` 表示常驻。默认 1200 */
-  scrollbarAutoHide?: number;
+  scrollbarAutoHideDelay?: number;
   /** 滑块的最小长度（px），默认 20。太短会没法用鼠标抓住 */
   scrollbarMinThumbSize?: number;
+  /**
+   * 是否接管键盘（方向键 / PageUp-Down / Space / Home-End）。默认 `true`。
+   *
+   * 容器是 `overflow: hidden`，浏览器不提供任何滚动手段，键盘滚动也得由库实现。
+   * 需要关掉的情形：宿主自己已经在**祖先**元素上处理这些键（表格的单元格键盘导航
+   * 就是这样）。事件冒泡时库挂的监听在后代上、**先**触发，两边都响应的话一次按键
+   * 会既滚一段又移动一格。滚轮 / 触摸不受这个开关影响。
+   */
+  keyboard?: boolean;
 }
 
 /** 虚拟列表选项的默认值 */
 export const DEFAULT_OPTIONS = {
   itemGap: 0,
-  fixed: false,
+  fixedSize: false,
   buffer: 0,
   bufferTop: 0,
   bufferBottom: 0,
-  scrollDistance: 0,
+  edgeThreshold: 0,
   scrollDuration: 300,
   smoothMaxDistance: 0,
   horizontal: false,
-  start: 0,
-  offset: 0,
+  initialIndex: 0,
+  initialOffset: 0,
   renderControl: undefined,
+  copyText: undefined,
+  copySeparator: '\n',
   loadMore: undefined,
   hasMoreTop: true,
   hasMoreBottom: true,

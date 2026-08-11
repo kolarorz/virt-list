@@ -18,18 +18,18 @@
 | ------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------- | ---------------------------- |
 | list               | 数据列表                                                                                 | `T[]`                                                                                        | `[]`    | <font color="#f00">是</font> |
 | itemKey            | 项的唯一 id（否则会无法正常滚动）                                                        | `String \| Number`                                                                           | -       | <font color="#f00">是</font> |
-| itemPreSize        | 预估尺寸                                                                                 | `Number`                                                                                     | -       | -                            |
+| estimatedSize        | 预估尺寸                                                                                 | `Number`                                                                                     | -       | -                            |
 | itemGap            | 元素之间的间距（元素尺寸包含 itemGap）                                                   | `Number`                                                                                     | `0`     | -                            |
-| fixed              | 是否为固定高度，可提升性能<br />**注意：动态高度模式下请勿开启**                         | `Boolean`                                                                                    | `false` | -                            |
+| fixedSize              | 是否为固定高度，可提升性能<br />**注意：动态高度模式下请勿开启**                         | `Boolean`                                                                                    | `false` | -                            |
 | buffer             | 渲染量大、滚动白屏严重时使用；设置后 bufferTop、bufferBottom 会与 buffer 对齐            | `Number`                                                                                     | `0`     | -                            |
 | bufferTop          | 顶部 buffer 个数                                                                         | `Number`                                                                                     | `0`     | -                            |
 | bufferBottom       | 底部 buffer 个数                                                                         | `Number`                                                                                     | `0`     | -                            |
 | horizontal         | 是否水平滚动                                                                             | `Boolean`                                                                                    | `false` | -                            |
-| scrollDistance     | 滚动阈值（提前触发 toTop / toBottom），单位：px                                          | `Number`                                                                                     | `0`     | -                            |
+| edgeThreshold     | 滚动阈值（提前触发 toTop / toBottom），单位：px                                          | `Number`                                                                                     | `0`     | -                            |
 | scrollDuration     | 平滑滚动（`behavior: 'smooth'`）的默认动画时长，单位：ms                                | `Number`                                                                                    | `300`   | -                            |
 | smoothMaxDistance  | 平滑滚动允许逐帧穿越的最大距离（px），超出部分先瞬跳；缺省为两倍视口              | `Number`                                                                                    | 两倍视口 | -                            |
-| start              | 起始渲染下标                                                                             | `Number`                                                                                     | `0`     | -                            |
-| offset             | 起始渲染偏移量                                                                           | `Number`                                                                                     | `0`     | -                            |
+| initialIndex              | 挂载后自动定位到的索引                                                                             | `Number`                                                                                     | `0`     | -                            |
+| initialOffset             | 挂载后自动定位到的偏移量（px）                                                                           | `Number`                                                                                     | `0`     | -                            |
 | listStyle          | 列表容器样式                                                                             | `StyleValue`                                                                                 | `''`    | -                            |
 | listClass          | 列表容器类名                                                                             | `ClassValue`                                                                                 | `''`    | -                            |
 | itemStyle          | item 容器样式；可为函数 `(item, index) => StyleValue`                                    | `StyleValue \| (item, index) => StyleValue`                                                  | `''`    | -                            |
@@ -44,14 +44,19 @@
 | stickyFooterStyle  | stickyFooter 样式                                                                        | `StyleValue`                                                                                 | `''`    | -                            |
 | renderControl      | 渲染控制器                                                                               | `(begin: number, end: number) => { begin: number; end: number }`                           | -       | -                            |
 | renderItem         | 自定义渲染（优先级高于默认插槽）；返回 `HTMLElement` 或 `void`                         | `(item: T, index: number, el: HTMLElement) => HTMLElement \| void`                         | -       | -                            |
-| loadMore           | 触达边界时的取数回调，见下方 [分页与无限加载](#分页与无限加载)                          | `(direction: 'top' \| 'bottom') => boolean \| void \| Promise<boolean \| void>`             | -       | -                            |
+| loadMore           | 触达边界时的取数回调，见下方 [分页与无限加载](../guide/load-more)                          | `(direction: 'top' \| 'bottom') => boolean \| void \| Promise<boolean \| void>`             | -       | -                            |
 | hasMoreTop         | 顶部方向是否还有更多数据；可作为受控属性覆盖 `loadMore` 的返回值                        | `Boolean`                                                                                   | `true`  | -                            |
 | hasMoreBottom      | 底部方向是否还有更多数据；可作为受控属性覆盖 `loadMore` 的返回值                        | `Boolean`                                                                                   | `true`  | -                            |
-| initialPosition    | 首屏定位。`'bottom'` 会在挂载后定位到底部，并随尺寸测量渐进校准（聊天室常用）<br />与 `start` / `offset` 同时给出时后两者优先 | `'top' \| 'bottom'`                                            | `'top'` | -                            |
+| initialPosition    | 首屏定位。`'bottom'` 会在挂载后定位到底部，并随尺寸测量渐进校准（聊天室常用）<br />与 `initialIndex` / `initialOffset` 同时给出时后两者优先 | `'top' \| 'bottom'`                                            | `'top'` | -                            |
 | stickyBottom       | 尾部追加时是否自动跟随到底部；仅在**原本就贴底**时跟随                                  | `Boolean`                                                                                   | `false` | -                            |
-| stickyThreshold    | 判定"贴底"的容差（px），缺省取 `scrollDistance`（至少 2px）                             | `Number`                                                                                    | `0`     | -                            |
-| scrollbarAutoHide  | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                      | `Number`                                                                                    | `1200`  | -                            |
+| stickyThreshold    | 判定"贴底"的容差（px），缺省取 `edgeThreshold`（至少 2px）                             | `Number`                                                                                    | `0`     | -                            |
+| aria           | 为辅助技术补上列表语义。开启后渲染容器加 `role`（默认 `list`）、每项加 `role="listitem"` 与 `aria-posinset` / `aria-setsize`——**位置与总数取自数据，不由 DOM 元素个数推断** | `Boolean\|'list'\|'listbox'`                                                | `false` | -                            |
+| ariaLabel      | 供辅助技术朗读的列表名称，配合 `aria` 使用                                          | `String`                                                                      | -       | -                            |
+| copyText       | 每项对应的纯文本，**给出即开启跨虚拟化的选区复制**：用户选中的范围跨越未渲染区域时，中间那些没有 DOM 的项从数据补齐。不给则完全不挂 `copy` 监听 | `(item, index) => string`                                                     | -       | -                            |
+| copySeparator  | 复制时各项之间的分隔符                                                            | `String`                                                                      | `'\n'`  | -                            |
+| scrollbarAutoHideDelay  | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                      | `Number`                                                                                    | `1200`  | -                            |
 | scrollbarMinThumbSize | 滑块的最小长度（px）                                            | `Number`                                                                                    | `20`    | -                            |
+| keyboard          | 是否接管键盘（方向键 / PageUp-Down / Space / Home-End）。宿主已在**祖先**元素上处理这些键时关掉它——库的监听在后代上、先触发，两边都响应会让一次按键既滚一段又移动一格。滚轮 / 触摸不受影响 | `Boolean` | `true` | - |
 
 ## 插槽
 
@@ -68,7 +73,7 @@
 
 | 事件名       | 说明               | 回调参数                                                        |
 | ------------ | ------------------ | --------------------------------------------------------------- |
-| scroll       | 滚动。载荷是普通对象而不是 `Event`。字段见本页下方「滚动是怎么工作的」 | `(event: VirtScrollEvent)`                   |
+| scroll       | 滚动。载荷是普通对象而不是 `Event`，字段见 [VirtScrollEvent](#virtscrollevent) | `(event: VirtScrollEvent)`                   |
 | offsetChange | 偏移量变化。要跟着偏移量重写 DOM 时用它，只想感知滚动用 `scroll` | `(offset: number)`                |
 | toTop        | 触顶               | `(firstItem: T)`                                                |
 | toBottom     | 触底               | `(lastItem: T)`                                                 |
@@ -81,29 +86,49 @@
 | 方法名             | 说明                                                                           | 签名 / 参数                                                                         |
 | ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | reset              | 重置列表                                                                       | `() => void`                                                                          |
+| clientEl           | 滚动容器（唯一的 scrollport）。逃生舱：只认 DOM 元素的场合用它，感知滚动仍用 `@scroll` | `HTMLElement`                                    |
 | getOffset          | 获取滚动距离                                                                   | `() => number`                                                                        |
-| getSlotSize        | 获取插槽尺寸                                                                   | `() => SlotSize`                                                                      |
+| getMaxOffset       | 当前允许的最大偏移量，即 `getTotalSize() - clientSize`                          | `() => number`                                                                        |
+| getTotalSize       | 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight`                    | `() => number`                                                                        |
+| getIndexByOffset   | 给定偏移量落在第几项，`getItemPosByIndex(index).top` 的逆运算                   | `(offset: number) => number`                                                          |
+| getSlotsTotalSize        | 所有插槽尺寸之**和**（header + footer + sticky 两者）。分项数据读 `slotSize`     | `() => number`                                                                        |
 | scrollToTop        | 滚动到顶部                                                                     | `(options?: VirtScrollOptions) => void`                                                                          |
 | scrollToBottom     | 滚动到底部                                                                     | `(options?: VirtScrollOptions) => void`                                                                          |
 | scrollToIndex      | 滚动到指定下标                                                                 | `(index: number, options?: VirtScrollOptions) => void`                                                             |
 | scrollIntoView     | 滚动到指定下标（若不在可视区域内）                                             | `(index: number, options?: VirtScrollOptions) => void`                                                             |
 | scrollToOffset     | 滚动到指定偏移量（px）                                                         | `(offset: number, options?: VirtScrollOptions) => void`                                                            |
+| scrollFromUser     | 以「用户滚动」的语义写入偏移量：会触发 `toTop` / `toBottom` 判定与自动续拉，事件 `source` 为 `user`。接自建手势 / 外部滚动条时用它 | `(offset: number) => void`                                                            |
 | cancelScroll      | 取消进行中的平滑滚动动画                                                     | -                                                  |
+| resume             | 把内容重新摆到当前偏移量上。容器被隐藏 / 重新挂载后（keep-alive）用它复位       | `() => void`                                                                          |
 | getItemSize        | 获取指定 item 尺寸（按 **itemKey**）                                           | `(itemKey: string) => number`                                                         |
 | deleteItemSize     | 删除已缓存的 item 尺寸                                                         | `(itemKey: string) => void`                                                           |
 | getItemPosByIndex  | 获取指定下标的位置信息                                                         | `(index: number) => { top: number; current: number; bottom: number }`                |
 | forceUpdate        | 强制更新                                                                       | `() => void`                                                                          |
-| deletedList2Top    | 删除顶部数据（分页场景）                                                       | `(list: T[]) => void`                                                                 |
-| addedList2Top      | 添加顶部数据（分页场景）                                                       | `(list: T[]) => void`                                                                 |
 | manualRender       | 手动控制渲染范围                                                               | `(begin: number, end: number) => void`                                                |
 | getState    | 获取响应式数据                                                                 | `() => ListState`                                                                  |
 | getLoadState       | 获取当前加载状态                                                               | `() => LoadState`                                                                     |
 
-::: tip deletedList2Top / addedList2Top / forceUpdate 通常不再需要手动调用
-`list` 变化时，组件会自动识别头部的增删并补偿滚动位置，随后完成重算与渲染。
-这三个方法只在自动识别失败时才需要兜底——比如一次变更同时改动了头部的两端，
-或头部改动超过 2048 项。误调也是安全的：同一次列表变更已被自动补偿时，它们会直接短路，
-不会把视口推成两倍距离。
+::: tip estimatedSize 配错会有一次提示
+这个值是**未测量项的占位尺寸**。项渲染出来后一切以实测为准，所以它给错不会让布局
+最终出错，但它决定了**首屏渲染多少项**：给大了视口下半部分会短暂留白，
+给小了会白建一堆 DOM。远距离跳转的落位精度、以及尚未测量区间的滚动条长度也依赖它。
+
+因为这类症状很难反推到一个配置项上，组件会在收集到 32 项实测尺寸后比对一次：
+实测中位数与配置值相差一倍以上时，向控制台提示一次并给出建议值。
+只提示一次，改对了就不再出现。
+
+取中位数而不是均值，是为了让几条超长项不至于把结论带偏——中位数给出的正是
+「典型一项有多高」，也就是这个配置该填的值。
+:::
+
+::: tip 头部增删不需要手动补偿
+`list` 变化时，组件会自动识别头部的增删并补偿滚动位置，随后完成重算与渲染——头部插入、
+头部删除、以及「一端加一页另一端裁一页」这种总长度不变的双向分页，都在覆盖范围内。
+
+识别依据是首项 key 的移动，范围上界 65536 项。超出这个量级的头部改动识别不出来，
+视口不再维持——那更可能是整体换数据源，本就不该维持位置。
+
+`forceUpdate` 同理通常不必调用：列表变更已经带上了重算与通知。
 :::
 | setList            | 设置新的数据列表                                                               | `(list: T[]) => void`                                                                 |
 
@@ -115,6 +140,7 @@
 | -------- | ------------------------------------------------- | ------------------------------- | -------- |
 | behavior | `'auto'` 瞬时跳转；`'smooth'` 平滑动画            | `'auto' \| 'smooth'`            | `'auto'` |
 | align    | 目标项与视口的对齐方式（仅 `scrollToIndex` 生效）：`'start'` 项顶部对齐视口顶部；`'end'` 项底部对齐视口底部 | `'start' \| 'end'` | `'start'` |
+| focus     | 落位后把键盘焦点移到目标项。引用跳转 / 搜索定位这类「程序把用户带到别处」的操作，只动视口不动焦点会让辅助技术用户失去上下文。目标项会被补上 `tabindex="-1"` | `Boolean` | `false` |
 | duration | 动画时长（ms），缺省取属性 `scrollDuration`       | `number`                        | `300`    |
 | maxDistance | 本次逐帧穿越的最大距离（px），缺省取属性 `smoothMaxDistance`  | `number`                  | 两倍视口 |
 | onDone   | 动画结束回调，`canceled` 为 `true` 表示被中断     | `(canceled: boolean) => void`   | -        |
@@ -166,8 +192,8 @@ listRef.value.scrollToIndex(index, { align: 'end' });
 
 | 属性           | 类型     | 说明                                       |
 | -------------- | -------- | ------------------------------------------ |
-| listTotalSize  | `number` | 列表总尺寸（不含插槽）                     |
-| virtualSize    | `number` | 虚拟占位尺寸（0 到 renderBegin）           |
+| itemsTotalSize  | `number` | 列表总尺寸（不含插槽）                     |
+| leadingSize    | `number` | 渲染块的位移量：`[0, renderBegin)` 的尺寸之和（不含 header）。自建渲染层靠它定位自己的渲染块 |
 | inViewBegin    | `number` | 可视区起始下标                             |
 | inViewEnd      | `number` | 可视区结束下标                             |
 | renderBegin    | `number` | 实际渲染起始下标(包含buffer)                           |
@@ -175,7 +201,7 @@ listRef.value.scrollToIndex(index, { align: 'end' });
 
 ### SlotSize
 
-`getSlotSize()` 返回值类型：
+`slotSize` 属性（分项尺寸）的类型。`getSlotsTotalSize()` 返回的是它们的**和**，是个 `number`：
 
 | 属性               | 类型     | 说明                 |
 | ------------------ | -------- | -------------------- |
@@ -185,60 +211,7 @@ listRef.value.scrollToIndex(index, { align: 'end' });
 | stickyHeaderSize   | `number` | stickyHeader 插槽高度 |
 | stickyFooterSize   | `number` | stickyFooter 插槽高度 |
 
-## 分页与无限加载
-
-上下分页、无限加载、聊天室这几类场景的共同点是：**取数是业务逻辑，其余都是样板**。
-`loadMore` 把样板收进组件内部，使用方只需要回答"这个方向的下一批数据是什么"。
-
-```vue
-<VirtList
-  :list="list"
-  item-key="id"
-  :item-pre-size="60"
-  :load-more="onLoadMore"
->
-  <template #footer="{ loadState }">
-    <div>{{ loadState.loadingBottom ? '加载中' : loadState.hasMoreBottom ? '' : '没有更多了' }}</div>
-  </template>
-</VirtList>
-```
-
-```ts
-async function onLoadMore(direction: LoadDirection) {
-  const data = await fetchPage(direction === 'top' ? --page : ++page);
-  list.value = direction === 'top' ? data.concat(list.value) : list.value.concat(data);
-  // 返回该方向是否还有更多；返回 void 视为仍有更多
-  return data.length > 0;
-}
-```
-
-数据仍由使用方写入 `list`（这样才能适配框架自身的状态更新方式），组件负责其余全部：
-
-- **防重入**：加载进行中不会重复触发同一方向，不必自己维护 `loading` 标志
-- **位移补偿**：头部插入 / 删除后视口内容留在原处，不必调 `addedList2Top` / `deletedList2Top`
-- **重算与渲染**：不必再补一次 `forceUpdate()`
-- **`hasMore` 落位**：返回 `false` 后该方向不再触发
-- **首屏补齐**：初始为空或不足一屏时会自动继续取数，不必在挂载后手动拉第一页
-- **加载状态**：通过 header / footer 的 `loadState` 直接渲染提示条
-
-### 三类场景的写法
-
-| 场景 | 关键配置 |
-| ---- | -------- |
-| 无限加载（信息流） | `loadMore` + `hasMoreTop` 为 `false` |
-| 双向分页（日志、时间线） | `loadMore`，两个方向都实现；裁剪另一端的数据在回调里照常改 `list` 即可 |
-| 聊天室 | `loadMore`（只实现 `top`）+ `initialPosition` 为 `'bottom'` + `stickyBottom` + `hasMoreBottom` 为 `false` |
-
-### 顶部方向不会自动触发
-
-内容不足一屏时组件会自动向**底部**方向续拉——否则用户没有可滚动的余量，
-加载永远不会被触发。
-
-顶部方向不做这件事：`scrollTop` 为 0 是初始常态而不是用户意图，若自动触发，
-任何配置了 `loadMore` 的列表在挂载瞬间就会开始无限向上拉取历史数据。
-要更早的数据，必须由"主动向上滚到顶"这个动作来表达。
-
-### LoadState
+## LoadState
 
 header / footer 拿到的加载状态、`loadStateChange` 的回调参数、以及 `getLoadState()`
 的返回值都是这个类型：
@@ -251,10 +224,33 @@ header / footer 拿到的加载状态、`loadStateChange` 的回调参数、以�
 | hasMoreBottom   | `boolean` | 底部方向是否还有更多数据                                 |
 | pendingNew      | `number`  | 未贴底时尾部新增的项数，用于渲染"N 条新消息"角标；视口回到底部后归零（仅 `stickyBottom` 开启时累加） |
 
-### 贴底跟随
+## VirtScrollEvent
 
-`stickyBottom` 的关键在于**仅在原本就贴底时才跟随**：用户正在向上翻历史消息时
-来了新消息，视口不会被拽到底部，新增量记在 `loadState.pendingNew` 里，
-可以据此渲染一个"N 条新消息"的角标。用户滚回底部后自动归零。
+`scroll` 事件的载荷。容器是 `overflow: hidden`，浏览器不会自己滚动，所以这里给的不是原生
+`Event`，而是库内部的偏移量账本；为什么这样设计见指南的
+[滚动是怎么工作的](../guide/custom-scrollbar)。
 
-<!--@include: ../../_shared/custom-scrollbar.md-->
+| 字段       | 类型                              | 说明                                       |
+| ---------- | --------------------------------- | ------------------------------------------ |
+| offset     | `number`                          | 当前偏移量，对应原生语境的 `scrollTop`      |
+| delta      | `number`                          | 相对上一次的位移，正数朝列表尾部；恒不为 0  |
+| direction  | `'start' \| 'end'`                | 本次位移的方向                             |
+| clientSize | `number`                          | 视口尺寸，对应原生语境的 `clientHeight`     |
+| scrollSize | `number`                          | 内容总尺寸，对应原生语境的 `scrollHeight`   |
+| maxOffset  | `number`                          | `scrollSize - clientSize`，不为负           |
+| atStart    | `boolean`                         | 是否已在起始边界                           |
+| atEnd      | `boolean`                         | 是否已在末尾边界                           |
+| source     | `'user' \| 'program' \| 'adjust'` | 本次滚动由谁触发，见下表                   |
+
+| `source`  | 含义                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------- |
+| `user`    | 滚轮 / 键盘 / 触摸 / 拖拽滑块，即 `scrollFromUser`                                             |
+| `program` | `scrollToOffset` / `scrollToIndex` / `scrollToTop` / `scrollToBottom`（平滑动画的每一帧也算）   |
+| `adjust`  | 库为了「让用户正在看的内容留在原处」做的内部补偿：头部增删的位移补偿、尺寸测量后的锚点校正、列表变短后的越界回夹、贴底跟随 |
+
+## 延伸阅读
+
+- [分页与无限加载](../guide/load-more) —— `loadMore` / `hasMoreTop` / `hasMoreBottom` /
+  `initialPosition` / `stickyBottom` 的完整用法，以及无限加载、双向分页、聊天室三类场景的写法。
+- [滚动是怎么工作的](../guide/custom-scrollbar) —— 为什么容器是 `overflow: hidden`、
+  已知取舍、`scrollTop` 的替代写法、`scroll` 与 `offsetChange` 怎么选、滚动条样式定制。

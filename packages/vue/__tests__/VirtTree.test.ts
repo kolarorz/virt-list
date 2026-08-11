@@ -64,7 +64,7 @@ function mount(props: Record<string, unknown> = {}, slots?: any) {
             {
               ref: treeRef,
               list: makeTree(),
-              itemPreSize: 32,
+              estimatedSize: 32,
               ...props,
             },
             slots,
@@ -129,7 +129,7 @@ describe('Vue VirtTree', () => {
       defineComponent({
         setup() {
           return () =>
-            h(VirtTree as any, { list: list.value, itemPreSize: 32 });
+            h(VirtTree as any, { list: list.value, estimatedSize: 32 });
         },
       }),
     );
@@ -155,7 +155,7 @@ describe('Vue VirtTree', () => {
           return () =>
             h(VirtTree as any, {
               list: makeTree(),
-              itemPreSize: 32,
+              estimatedSize: 32,
               expandedKeys: expandedKeys.value,
             });
         },
@@ -186,7 +186,7 @@ describe('Vue VirtTree', () => {
             h(VirtTree as any, {
               ref: treeRef,
               list: makeTree(),
-              itemPreSize: 32,
+              estimatedSize: 32,
               selectable: true,
               checkable: true,
               selectedKeys: selectedKeys.value,
@@ -389,12 +389,12 @@ describe('Vue VirtTree', () => {
 
   it('暴露 scrollTo / scrollToTop / scrollToBottom', () => {
     vi.useFakeTimers();
-    const { app, treeRef } = mount({ list: makeTree(40, 0), fixed: true });
+    const { app, treeRef } = mount({ list: makeTree(40, 0), fixedSize: true });
 
     treeRef.value.scrollTo({ offset: 100 });
     expect(treeRef.value!.getOffset()).toBe(100);
 
-    treeRef.value.scrollTo({ key: '20', align: 'top' });
+    treeRef.value.scrollTo({ key: '20', align: 'start' });
     expect(treeRef.value!.getOffset()).toBe(20 * 32);
 
     treeRef.value.scrollToTop();

@@ -26,7 +26,13 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['packages/**/__tests__/**/*.test.ts'],
+    // 文档站主题里也有值得测的行为逻辑（如侧边栏定位），覆盖率统计仍只算 packages。
+    // 示例共用的纯函数（如语义分段）同样要测：它们不进包，但错了会直接体现在 demo 上
+    include: [
+      'packages/**/__tests__/**/*.test.ts',
+      'docs/.vitepress/**/__tests__/**/*.test.ts',
+      'docs/apps/**/__tests__/**/*.test.ts',
+    ],
     benchmark: {
       include: ['packages/**/__bench__/**/*.bench.ts'],
     },

@@ -42,28 +42,28 @@ afterEach(() => {
  * 事件 props 一律不透传，所以这里收到的必须是我们自己的载荷（普通对象），
  * 而不是 React 的 SyntheticEvent。
  */
+async function mount(component: any, props: Record<string, unknown>) {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+
+  const onScroll = vi.fn<(e: VirtScrollEvent) => void>();
+  const instRef = createRef<any>();
+  const root: Root = createRoot(container);
+
+  await act(async () => {
+    root.render(createElement(component, { ref: instRef, onScroll, ...props }));
+  });
+
+  return { root, onScroll, instRef };
+}
+
 describe('React: onScroll', () => {
-  async function mount(component: any, props: Record<string, unknown>) {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-
-    const onScroll = vi.fn<(e: VirtScrollEvent) => void>();
-    const instRef = createRef<any>();
-    const root: Root = createRoot(container);
-
-    await act(async () => {
-      root.render(createElement(component, { ref: instRef, onScroll, ...props }));
-    });
-
-    return { root, onScroll, instRef };
-  }
-
   it('VirtList 触发 onScroll，载荷是普通对象而不是 Event', async () => {
     const { root, onScroll, instRef } = await mount(VirtList<Item>, {
       list: makeList(50),
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _i: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -87,8 +87,8 @@ describe('React: onScroll', () => {
       list: makeList(60),
       gridItems: 3,
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -111,8 +111,8 @@ describe('React: onScroll', () => {
   it('VirtTree 触发 onScroll', async () => {
     const { root, onScroll, instRef } = await mount(VirtTree, {
       list: makeList(50).map((item) => ({ ...item, label: item.text })),
-      itemPreSize: 32,
-      fixed: true,
+      estimatedSize: 32,
+      fixedSize: true,
     });
     onScroll.mockClear();
 
@@ -127,5 +127,28 @@ describe('React: onScroll', () => {
     });
 
     await act(async () => root.unmount());
+  });
+});
+
+/*
+ * clientEl 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。
+ * 它必须是那个 data-id="client" 的 scrollport，不是组件根元素——
+ * 原生 scroll 不冒泡，挂错地方就永远收不到。
+ */
+describe('React: clientEl 逃生舱', () => {
+  it('指向 scrollport 而不是根元素', async () => {
+    const { instRef } = await mount(VirtList, {
+      list: makeList(50),
+      itemKey: 'id',
+      estimatedSize: 40,
+      fixedSize: true,
+      renderItem: (item: Item, _i: number, el: HTMLElement) => {
+        el.textContent = item.text;
+      },
+    });
+
+    const clientEl = instRef.current.clientEl as HTMLElement;
+    expect(clientEl).toBeTruthy();
+    expect(clientEl.dataset.id).toBe('client');
   });
 });

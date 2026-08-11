@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vitepress dev . --host --port 7800",
-    "build": "pnpm run build:micro && vitepress build .",
-    "build:micro": "pnpm -C ./apps/react build && pnpm -C ./apps/vue build && pnpm -C ./apps/vanilla build",
+    "build": "pnpm run gen:llms && pnpm run build:micro && vitepress build .",
+    "build:micro": "pnpm -C ./apps/react build && pnpm -C ./apps/react-legacy build && pnpm -C ./apps/vue build && pnpm -C ./apps/vue2 build && pnpm -C ./apps/vanilla build",
     "preview": "vitepress preview . --host --port 4173",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "gen:llms": "node ../scripts/gen-llms-txt.mjs"
   },
   "dependencies": {
     "qiankun": "^2.10.16",

@@ -51,7 +51,7 @@
           ref="userListRef"
           :list="users"
           item-key="id"
-          :item-pre-size="70"
+          :estimated-size="70"
         >
           <template #default="{ itemData }">
             <div class="demo-ka-card">
@@ -73,7 +73,7 @@
           ref="productListRef"
           :list="products"
           item-key="id"
-          :item-pre-size="70"
+          :estimated-size="70"
         >
           <template #default="{ itemData }">
             <div class="demo-ka-card">

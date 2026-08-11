@@ -13,7 +13,7 @@
         :show-line="showLine"
         default-expand-all
         :item-gap="4"
-        fixed
+        fixedSize
       >
         <template #empty>
           <TreeEmpty />

@@ -5,7 +5,7 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="60"
+        :estimated-size="60"
         :load-more="onLoadMore"
         initial-position="bottom"
         @load-state-change="onLoadStateChange"
@@ -82,7 +82,7 @@ const loadState = ref<LoadState | null>(null);
  * 双向分页取数。
  *
  * 一端加一页、另一端裁一页——即使总长度不变，组件也能识别出头部的结构变化
- * 并补偿滚动位置，不再需要 addedList2Top / deletedList2Top / forceUpdate。
+ * 并补偿滚动位置，不需要手动补偿，也不需要 forceUpdate。
  */
 async function onLoadMore(direction: LoadDirection) {
   if (direction === 'top') {

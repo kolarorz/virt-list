@@ -39,7 +39,7 @@ export default function VirtGrid() {
           list={list}
           gridItems={2}
           itemKey="id"
-          itemPreSize={70}
+          estimatedSize={70}
           onToTop={() => {
             setStatus('已滚动到顶部');
           }}

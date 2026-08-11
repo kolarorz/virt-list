@@ -51,7 +51,7 @@ export default function TreeShowLine() {
           showLine={showLine}
           defaultExpandAll
           itemGap={4}
-          fixed
+          fixedSize
           empty={() => <TreeEmpty />}
         />
       </div>

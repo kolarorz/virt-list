@@ -11,6 +11,9 @@ hero:
       text: 快速开始
       link: /vanilla/guide/started
     - theme: alt
+      text: AI 流式对话
+      link: /vanilla/ai/overview
+    - theme: alt
       text: 现场跑一遍性能
       link: '#benchmark'
     - theme: alt
@@ -18,6 +21,10 @@ hero:
       link: https://github.com/kolarorz/virt-list
 
 features:
+  - title: AI 流式对话就绪
+    details: 逐 token 输出时视口稳定跟随，用户上滑立即脱离、滚回底部自动恢复。万级会话历史双向加载，未读消息自带计数。
+    link: /vanilla/ai/overview
+    linkText: 看在线 demo
   - title: 常数级滚动开销
     details: 稳态滚动从上一帧的位置增量推进，每帧只跨越几项；数据量从一万涨到三十万，单帧成本不变。
   - title: 真正的不定高

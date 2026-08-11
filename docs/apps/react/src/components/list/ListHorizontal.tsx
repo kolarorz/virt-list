@@ -26,7 +26,7 @@ export default function Horizontal() {
         <VirtList<Item>
           list={list}
           itemKey="id"
-          itemPreSize={108}
+          estimatedSize={108}
           horizontal
           onUpdate={(_, state) =>
             setStats(`总数: ${list.length} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)

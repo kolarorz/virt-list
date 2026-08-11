@@ -48,8 +48,8 @@ onMounted(() => {
     {
       list,
       itemKey: 'id',
-      itemPreSize: ROW_HEIGHT,
-      fixed: true,
+      estimatedSize: ROW_HEIGHT,
+      fixedSize: true,
       buffer: 1,
       renderItem: (item, _index, el) => {
         el.className = 'hero-demo-row';

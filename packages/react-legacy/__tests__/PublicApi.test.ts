@@ -8,6 +8,7 @@ describe('@virt-list/react-legacy 公共导出', () => {
       'VirtGrid',
       'VirtList',
       'VirtTree',
+      'createStreamBuffer',
       'useVirtList',
     ]);
   });

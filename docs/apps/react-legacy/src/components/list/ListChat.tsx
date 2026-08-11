@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from 'react';
-import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
+import { useCallback, useRef, useState } from 'react';
+import { VirtList, type LoadDirection, type LoadState } from '@virt-list/react-legacy';
 
 const PAGE_SIZE = 40;
 
@@ -42,42 +42,49 @@ export default function Chat() {
   const pageRef = useRef(5);
   const [list, setList] = useState<Item[]>(() => generatePage(pageRef.current, PAGE_SIZE));
   const [stats, setStats] = useState('');
-  const virtListRef = useRef<VirtListRef<Item>>(null);
-  const loadingRef = useRef(false);
-  const firstResizeRef = useRef(true);
-  const listLenRef = useRef(list.length);
-  listLenRef.current = list.length;
+  const loadStateRef = useRef<LoadState | null>(null);
+  /** 事件回调里要读最新的 list，用 ref 兜住闭包 */
+  const listRef = useRef(list);
+  listRef.current = list;
 
   const updateStats = useCallback((state?: any) => {
-    setStats(
-      `总数: ${listLenRef.current} | Page: ${pageRef.current} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`,
-    );
+    const parts = [
+      `总数: ${listRef.current.length}`,
+      `Page: ${pageRef.current}`,
+      `可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'}`,
+      `渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`,
+    ];
+    if (loadStateRef.current?.loadingTop) parts.push('加载中...');
+    // 用户正在翻历史时收到的新消息数，实际项目里可以拿它渲染「N 条新消息」角标
+    const pending = loadStateRef.current?.pendingNew ?? 0;
+    if (pending > 0) parts.push(`${pending} 条新消息`);
+    setStats(parts.join(' | '));
   }, []);
 
-  const onToTop = useCallback(async () => {
-    const vl = virtListRef.current;
-    if (!vl || loadingRef.current || pageRef.current <= 1) return;
-    loadingRef.current = true;
-    setStats(
-      `总数: ${list.length} | Page: ${pageRef.current} | 加载中...`,
-    );
+  /**
+   * 向上加载更早的消息。
+   *
+   * 只需取数并写入 list，返回是否还有更早的数据。防重入、加载中不重复触发、
+   * 加载后的滚动位置补偿与重新渲染都由组件内部完成。
+   */
+  const onLoadMore = useCallback(async (direction: LoadDirection) => {
+    if (direction !== 'top') return false;
     const prevPage = await asyncGeneratePage(pageRef.current - 1, PAGE_SIZE);
     pageRef.current--;
-    setList((prev) => {
-      const next = prevPage.concat(prev);
-      listLenRef.current = next.length;
-      vl.addedList2Top(prevPage);
-      return next;
-    });
-    loadingRef.current = false;
-    updateStats();
-  }, [list.length, updateStats]);
+    setList((prev) => prevPage.concat(prev));
+    return pageRef.current > 1;
+  }, []);
 
-  const onItemResize = useCallback(() => {
-    if (firstResizeRef.current) {
-      firstResizeRef.current = false;
-      virtListRef.current?.scrollToBottom();
-    }
+  /** 发消息只管往列表里加，stickyBottom 负责「贴底时才跟随」 */
+  const onSend = useCallback(() => {
+    setList((prev) => [
+      ...prev,
+      {
+        id: uid++,
+        index: prev.length,
+        text: CHAT_MSGS[Math.floor(Math.random() * CHAT_MSGS.length)],
+      },
+    ]);
   }, []);
 
   return (
@@ -85,20 +92,21 @@ export default function Chat() {
       <div className="demo-stats">{stats}</div>
       <div className="demo-list-container">
         <VirtList<Item>
-          ref={virtListRef}
           list={list}
           itemKey="id"
-          itemPreSize={60}
-          onToTop={onToTop}
-          onItemResize={onItemResize}
-          onUpdate={(_, state) => {
-            setStats(
-              `总数: ${list.length} | Page: ${pageRef.current} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`,
-            );
+          estimatedSize={60}
+          loadMore={onLoadMore}
+          hasMoreBottom={false}
+          initialPosition="bottom"
+          stickyBottom
+          onLoadStateChange={(s) => {
+            loadStateRef.current = s;
+            updateStats();
           }}
-          renderHeader={() => (
+          onUpdate={(_, state) => updateStats(state)}
+          renderHeader={(loadState) => (
             <div className="demo-loading-bar">
-              {pageRef.current > 1 ? '加载中...' : '没有更早的消息了'}
+              {loadState.loadingTop ? '加载中...' : loadState.hasMoreTop ? '' : '没有更早的消息了'}
             </div>
           )}
         >
@@ -111,6 +119,11 @@ export default function Chat() {
             </div>
           )}
         </VirtList>
+      </div>
+      <div className="demo-chat-toolbar">
+        <button type="button" className="virt-list-btn virt-list-btn-primary" onClick={onSend}>
+          发送随机消息
+        </button>
       </div>
     </div>
   );

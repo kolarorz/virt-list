@@ -1,4 +1,4 @@
-import { createFrameScheduler, type FrameScheduler } from './scheduler';
+import { createFrameScheduler, type FrameScheduler } from './scheduler.js';
 
 /**
  * `deltaMode = DOM_DELTA_LINE` 时一"行"折算多少像素。

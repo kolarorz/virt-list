@@ -13,7 +13,7 @@ function baseOptions(list = makeList(10)) {
   return {
     list,
     itemKey: 'id' as const,
-    itemPreSize: 40,
+    estimatedSize: 40,
   };
 }
 
@@ -29,20 +29,20 @@ describe('VirtListCore', () => {
 
       expect(core.props.list).toBe(list);
       expect(core.props.itemKey).toBe('id');
-      expect(core.props.itemPreSize).toBe(40);
+      expect(core.props.estimatedSize).toBe(40);
       expect(core.props.itemGap).toBe(DEFAULT_OPTIONS.itemGap);
-      expect(core.props.fixed).toBe(DEFAULT_OPTIONS.fixed);
+      expect(core.props.fixedSize).toBe(DEFAULT_OPTIONS.fixedSize);
       expect(core.props.buffer).toBe(DEFAULT_OPTIONS.buffer);
       expect(core.props.bufferTop).toBe(DEFAULT_OPTIONS.bufferTop);
       expect(core.props.bufferBottom).toBe(DEFAULT_OPTIONS.bufferBottom);
       expect(core.props.horizontal).toBe(DEFAULT_OPTIONS.horizontal);
     });
 
-    it('respects custom options (itemGap, fixed, buffer, horizontal)', () => {
+    it('respects custom options (itemGap, fixedSize, buffer, horizontal)', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(5)),
         itemGap: 8,
-        fixed: true,
+        fixedSize: true,
         buffer: 2,
         bufferTop: 1,
         bufferBottom: 3,
@@ -50,7 +50,7 @@ describe('VirtListCore', () => {
       });
 
       expect(core.props.itemGap).toBe(8);
-      expect(core.props.fixed).toBe(true);
+      expect(core.props.fixedSize).toBe(true);
       expect(core.props.buffer).toBe(2);
       expect(core.props.horizontal).toBe(true);
     });
@@ -61,45 +61,45 @@ describe('VirtListCore', () => {
       expect(update).toHaveBeenCalled();
       const [renderList, state] = update.mock.calls[0]!;
       expect(renderList.length).toBeGreaterThan(0);
-      expect(state.listTotalSize).toBeGreaterThan(0);
+      expect(state.itemsTotalSize).toBeGreaterThan(0);
     });
   });
 
-  describe('state initialization (listTotalSize)', () => {
-    it('sets listTotalSize to list.length * (itemPreSize + itemGap) in fixed mode', () => {
+  describe('state initialization (itemsTotalSize)', () => {
+    it('sets itemsTotalSize to list.length * (estimatedSize + itemGap) in fixedSize mode', () => {
       const n = 7;
-      const itemPreSize = 30;
+      const estimatedSize = 30;
       const itemGap = 5;
       const core = new VirtListCore({
         ...baseOptions(makeList(n)),
-        itemPreSize,
+        estimatedSize,
         itemGap,
-        fixed: true,
+        fixedSize: true,
       });
-      expect(core.state.listTotalSize).toBe(n * (itemPreSize + itemGap));
+      expect(core.state.itemsTotalSize).toBe(n * (estimatedSize + itemGap));
     });
 
-    it('sets listTotalSize from estimated sizes when not fixed and nothing measured', () => {
+    it('sets itemsTotalSize from estimated sizes when not fixedSize and nothing measured', () => {
       const n = 4;
-      const itemPreSize = 25;
+      const estimatedSize = 25;
       const itemGap = 3;
       const core = new VirtListCore({
         ...baseOptions(makeList(n)),
-        itemPreSize,
+        estimatedSize,
         itemGap,
-        fixed: false,
+        fixedSize: false,
       });
-      expect(core.state.listTotalSize).toBe(n * (itemPreSize + itemGap));
+      expect(core.state.itemsTotalSize).toBe(n * (estimatedSize + itemGap));
     });
   });
 
   describe('getItemSize', () => {
-    it('in fixed mode always returns itemPreSize + itemGap (ignores sizesMap)', () => {
+    it('in fixedSize mode always returns estimatedSize + itemGap (ignores sizesMap)', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(3)),
-        itemPreSize: 50,
+        estimatedSize: 50,
         itemGap: 2,
-        fixed: true,
+        fixedSize: true,
       });
       core.setItemSize('0', 999);
       expect(core.getItemSize('0')).toBe(52);
@@ -108,20 +108,20 @@ describe('VirtListCore', () => {
     it('in dynamic mode returns measured size from sizesMap when present', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(3)),
-        itemPreSize: 50,
+        estimatedSize: 50,
         itemGap: 2,
-        fixed: false,
+        fixedSize: false,
       });
       core.setItemSize('1', 120);
       expect(core.getItemSize('1')).toBe(120);
     });
 
-    it('in dynamic mode falls back to itemPreSize + itemGap when not measured', () => {
+    it('in dynamic mode falls back to estimatedSize + itemGap when not measured', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(2)),
-        itemPreSize: 40,
+        estimatedSize: 40,
         itemGap: 6,
-        fixed: false,
+        fixedSize: false,
       });
       expect(core.getItemSize('0')).toBe(46);
     });
@@ -129,18 +129,18 @@ describe('VirtListCore', () => {
 
   describe('setItemSize / deleteItemSize', () => {
     it('setItemSize stores size; deleteItemSize removes it', () => {
-      const core = new VirtListCore({ ...baseOptions(), fixed: false });
+      const core = new VirtListCore({ ...baseOptions(), fixedSize: false });
       core.setItemSize('0', 88);
       expect(core.sizesMap.get('0')).toBe(88);
       expect(core.getItemSize('0')).toBe(88);
 
       core.deleteItemSize('0');
       expect(core.sizesMap.has('0')).toBe(false);
-      expect(core.getItemSize('0')).toBe(core.props.itemPreSize + core.props.itemGap);
+      expect(core.getItemSize('0')).toBe(core.props.estimatedSize + core.props.itemGap);
     });
 
     it('coerces itemKey to string for map storage', () => {
-      const core = new VirtListCore({ ...baseOptions(), fixed: false });
+      const core = new VirtListCore({ ...baseOptions(), fixedSize: false });
       core.setItemSize('42', 10);
       expect(core.sizesMap.get('42')).toBe(10);
       core.deleteItemSize('42');
@@ -149,12 +149,12 @@ describe('VirtListCore', () => {
   });
 
   describe('getItemPosByIndex', () => {
-    it('fixed mode: positions are uniform steps', () => {
+    it('fixedSize mode: positions are uniform steps', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(5)),
-        itemPreSize: 20,
+        estimatedSize: 20,
         itemGap: 10,
-        fixed: true,
+        fixedSize: true,
       });
       const unit = 30;
       expect(core.getItemPosByIndex(0)).toEqual({
@@ -172,9 +172,9 @@ describe('VirtListCore', () => {
     it('dynamic mode: sums prior item sizes and includes headerSize', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(4)),
-        itemPreSize: 10,
+        estimatedSize: 10,
         itemGap: 0,
-        fixed: false,
+        fixedSize: false,
       });
       core.slotSize.headerSize = 100;
       core.setItemSize('0', 50);
@@ -189,17 +189,17 @@ describe('VirtListCore', () => {
     it('recomputes totals and render slice when list changes', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(10)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
       });
-      const prevTotal = core.state.listTotalSize;
+      const prevTotal = core.state.itemsTotalSize;
       expect(prevTotal).toBe(10 * 40);
 
       const next = makeList(3);
       core.updateOptions({ list: next });
 
       expect(core.props.list).toBe(next);
-      expect(core.state.listTotalSize).toBe(3 * 40);
+      expect(core.state.itemsTotalSize).toBe(3 * 40);
       expect(core.renderList.every((item) => next.includes(item))).toBe(true);
     });
 
@@ -208,7 +208,7 @@ describe('VirtListCore', () => {
       core.setItemSize('0', 77);
       core.updateOptions({ list: [] });
 
-      expect(core.state.listTotalSize).toBe(0);
+      expect(core.state.itemsTotalSize).toBe(0);
       expect(core.sizesMap.size).toBe(0);
       expect(core.renderList).toEqual([]);
     });
@@ -229,37 +229,37 @@ describe('VirtListCore', () => {
     });
 
     it('reset clears offset, totals, maps, and re-runs render range', () => {
-      const core = new VirtListCore({ ...baseOptions(makeList(4)), fixed: false });
+      const core = new VirtListCore({ ...baseOptions(makeList(4)), fixedSize: false });
       core.setItemSize('0', 50);
-      core.state.listTotalSize = 999;
+      core.state.itemsTotalSize = 999;
 
       core.reset();
 
-      expect(core.state.listTotalSize).toBe(0);
-      expect(core.state.virtualSize).toBe(0);
+      expect(core.state.itemsTotalSize).toBe(0);
+      expect(core.state.leadingSize).toBe(0);
       expect(core.sizesMap.size).toBe(0);
     });
   });
 
-  describe('getSlotSize / getTotalSize', () => {
-    it('getSlotSize sums header, footer, sticky header and sticky footer', () => {
+  describe('getSlotsTotalSize / getTotalSize', () => {
+    it('getSlotsTotalSize sums header, footer, sticky header and sticky footer', () => {
       const core = new VirtListCore(baseOptions());
       core.slotSize.headerSize = 10;
       core.slotSize.footerSize = 20;
       core.slotSize.stickyHeaderSize = 3;
       core.slotSize.stickyFooterSize = 7;
-      expect(core.getSlotSize()).toBe(40);
+      expect(core.getSlotsTotalSize()).toBe(40);
     });
 
-    it('getTotalSize is listTotalSize + getSlotSize()', () => {
+    it('getTotalSize is itemsTotalSize + getSlotsTotalSize()', () => {
       const core = new VirtListCore({
         ...baseOptions(makeList(2)),
-        itemPreSize: 50,
-        fixed: true,
+        estimatedSize: 50,
+        fixedSize: true,
       });
       core.slotSize.headerSize = 15;
       core.slotSize.footerSize = 5;
-      expect(core.state.listTotalSize).toBe(100);
+      expect(core.state.itemsTotalSize).toBe(100);
       expect(core.getTotalSize()).toBe(100 + 20);
     });
   });
@@ -269,7 +269,7 @@ describe('VirtListCore', () => {
       const opts = baseOptions();
       const core = new VirtListCore(opts);
 
-      expect(core.props.scrollDistance).toBe(DEFAULT_OPTIONS.scrollDistance);
+      expect(core.props.edgeThreshold).toBe(DEFAULT_OPTIONS.edgeThreshold);
       expect(core.props.start).toBe(DEFAULT_OPTIONS.start);
       expect(core.props.offset).toBe(DEFAULT_OPTIONS.offset);
       expect(core.props.renderControl).toBe(DEFAULT_OPTIONS.renderControl);
@@ -289,8 +289,8 @@ describe('VirtListCore', () => {
       const core = new VirtListCore({
         list,
         itemKey: 'id',
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
         buffer: 1,
       });
       const { renderBegin, renderEnd } = core.state;
@@ -302,8 +302,8 @@ describe('VirtListCore', () => {
       const core = new VirtListCore({
         list,
         itemKey: 'id',
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
         renderControl: () => ({ begin: 2, end: 5 }),
       });
       expect(core.state.renderBegin).toBe(2);
@@ -363,8 +363,8 @@ describe('VirtListCore', () => {
       });
       const core = new VirtListCore({
         ...baseOptions(makeList(10)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
       });
       core.bindDOM(el);
       core.scrollToIndex(3);
@@ -381,8 +381,8 @@ describe('VirtListCore', () => {
       });
       const core = new VirtListCore({
         ...baseOptions(makeList(3)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
       });
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
@@ -442,14 +442,14 @@ describe('VirtListCore', () => {
         const state = core.getState();
         core.bindDOM(document.createElement('div'));
         core.slotSize.clientSize = 100;
-        state.listTotalSize = 500;
+        state.itemsTotalSize = 500;
 
         core.scrollToBottom();
         expect(core.getOffset()).toBe(400);
 
         // 模拟新项测量回填后 totalSize 变大：上一次的落点已不是底部。
         // 「贴到底」是记在 _pinned 里的目标，每次测量回调都重新求解一次
-        state.listTotalSize = 620;
+        state.itemsTotalSize = 620;
         ro.cb?.([], {} as ResizeObserver);
         expect(core.getOffset()).toBe(520);
 
@@ -474,7 +474,7 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
       core.slotSize.clientSize = 100;
       // clientSize 永远填不满，reached() 恒为 false
-      core.getState().listTotalSize = 500;
+      core.getState().itemsTotalSize = 500;
 
       core.scrollToBottom();
       // 30 帧上限，多推进一些确保循环已退出
@@ -493,7 +493,7 @@ describe('VirtListCore', () => {
       const core = new VirtListCore(baseOptions(makeList(50)));
       core.bindDOM(el);
       core.slotSize.clientSize = 100;
-      core.getState().listTotalSize = 500;
+      core.getState().itemsTotalSize = 500;
 
       core.scrollToBottom();
       core.scrollToOffset(80);
@@ -556,8 +556,8 @@ describe('VirtListCore', () => {
       const el = makeScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(10)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
       });
       core.bindDOM(el);
 
@@ -666,8 +666,8 @@ describe('VirtListCore', () => {
       const el = makeScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(2000)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
       });
       core.bindDOM(el);
       core.slotSize.clientSize = 400; // approach 距离 = 400 * 2 = 800
@@ -687,8 +687,8 @@ describe('VirtListCore', () => {
       const el = makeScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(2000)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
         smoothMaxDistance: Infinity,
       });
       core.bindDOM(el);
@@ -709,8 +709,8 @@ describe('VirtListCore', () => {
       const el = makeScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(2000)),
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
         smoothMaxDistance: 200,
       });
       core.bindDOM(el);
@@ -962,7 +962,7 @@ describe('VirtListCore', () => {
       expect(core.getOffset()).toBe(460);
     });
 
-    it('addedList2Top 后新项实测变高，原内容仍停在原处', () => {
+    it('头部插入的新项实测变高，原内容仍停在原处', () => {
       const list = makeList(50);
       const el = makeScrollEl();
       const core = new VirtListCore(baseOptions(list));
@@ -975,8 +975,7 @@ describe('VirtListCore', () => {
         { id: 'new-0', text: 'new-0' },
         { id: 'new-1', text: 'new-1' },
       ];
-      list.unshift(...added);
-      core.addedList2Top(added);
+      core.updateOptions({ list: [...added, ...list] });
       expect(core.getOffset()).toBe(480);
 
       const anchorIndex = core.getState().inViewBegin;
@@ -1099,7 +1098,7 @@ describe('VirtListCore', () => {
   });
 
   describe('manualRender', () => {
-    it('直接指定渲染区间并重算 virtualSize', () => {
+    it('直接指定渲染区间并重算 leadingSize', () => {
       const update = vi.fn();
       const core = new VirtListCore(baseOptions(makeList(20)), { update });
       update.mockClear();
@@ -1111,22 +1110,22 @@ describe('VirtListCore', () => {
       expect(state.renderEnd).toBe(8);
       expect(core.renderList.map((i) => i.id)).toEqual(['5', '6', '7', '8']);
       // renderBegin 之前 5 项 × 40px
-      expect(state.virtualSize).toBe(200);
+      expect(state.leadingSize).toBe(200);
       expect(update).toHaveBeenCalled();
     });
 
-    it('区间与上一次不连续时 virtualSize 仍然正确（全量重算而非增量）', () => {
+    it('区间与上一次不连续时 leadingSize 仍然正确（全量重算而非增量）', () => {
       const core = new VirtListCore(baseOptions(makeList(20)));
 
       core.manualRender(10, 12);
-      expect(core.getState().virtualSize).toBe(400);
+      expect(core.getState().leadingSize).toBe(400);
 
       core.manualRender(2, 4);
-      expect(core.getState().virtualSize).toBe(80);
+      expect(core.getState().leadingSize).toBe(80);
     });
   });
 
-  describe('deletedList2Top', () => {
+  describe('头部删除的位移补偿', () => {
     it('头部删除后按被删尺寸回退偏移，总尺寸同步缩小', () => {
       const list = makeList(50);
       const el = createScrollEl();
@@ -1134,14 +1133,13 @@ describe('VirtListCore', () => {
       core.bindDOM(el);
       core.slotSize.clientSize = 200;
 
-      // 走一次真实 scroll，让内部 _offset 跟上
+      // 走一次真实的用户滚动，让内部位置状态跟上
       core.scrollFromUser(400);
 
-      const deleted = list.splice(0, 2);
-      core.deletedList2Top(deleted);
+      core.updateOptions({ list: list.slice(2) });
 
       expect(core.getOffset()).toBe(320);
-      expect(core.getState().listTotalSize).toBe(48 * 40);
+      expect(core.getState().itemsTotalSize).toBe(48 * 40);
     });
 
     it('删除项已有实测尺寸时按实测值回退', () => {
@@ -1154,8 +1152,7 @@ describe('VirtListCore', () => {
 
       core.scrollFromUser(400);
 
-      const deleted = list.splice(0, 1);
-      core.deletedList2Top(deleted);
+      core.updateOptions({ list: list.slice(1) });
 
       expect(core.getOffset()).toBe(300);
     });
@@ -1230,22 +1227,22 @@ describe('VirtListCore', () => {
   });
 
   describe('bindDOM 的初始定位', () => {
-    it('start 指定初始索引', () => {
+    it('initialIndex 指定初始索引', () => {
       const el = createScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
-        start: 10,
+        initialIndex: 10,
       });
       core.bindDOM(el);
 
       expect(core.getOffset()).toBe(400);
     });
 
-    it('offset 指定初始偏移', () => {
+    it('initialOffset 指定初始偏移', () => {
       const el = createScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
-        offset: 123,
+        initialOffset: 123,
       });
       core.bindDOM(el);
 
@@ -1256,7 +1253,7 @@ describe('VirtListCore', () => {
       const el = createScrollEl();
       const core = new VirtListCore({
         ...baseOptions(makeList(50)),
-        start: 5,
+        initialIndex: 5,
         offset: 999,
       });
       core.bindDOM(el);

@@ -40,7 +40,7 @@
         ref="virtListRef"
         :list="list"
         item-key="id"
-        :item-pre-size="40"
+        :estimated-size="40"
         @update="onUpdate"
       >
         <template #default="{ itemData }">

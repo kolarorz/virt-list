@@ -3,8 +3,6 @@ import { defineComponent } from 'vue';
 import type { JSX } from 'vue/jsx-runtime';
 import DemoBlock from './components/DemoBlock.vue';
 import type { DemoSource } from '../../_shared/demoSource';
-import Literal from './components/Literal.vue';
-import Widget from './components/Widget.vue';
 
 import ListBasic from './components/list/ListBasic.vue';
 import ListBuffer from './components/list/ListBuffer.vue';
@@ -44,8 +42,14 @@ import TreeDragArea from './components/tree/TreeDragArea.vue';
 
 import GridBasic from './components/grid/GridBasic.vue';
 
+import AiStreaming from './components/ai/AiStreaming.vue';
+import AiCopy from './components/ai/AiCopy.vue';
+import AiSearch from './components/ai/AiSearch.vue';
+import AiTrace from './components/ai/AiTrace.vue';
+import AiOutline from './components/ai/AiOutline.vue';
+
 const highlightedSources = import.meta.glob(
-  ['./components/list/*.vue', './components/tree/*.vue', './components/grid/*.vue'],
+  ['./components/list/*.vue', './components/tree/*.vue', './components/grid/*.vue', './components/ai/*.vue'],
   { query: '?highlight', import: 'default', eager: true },
 ) as Record<string, DemoSource>;
 
@@ -68,11 +72,8 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const renderLiteral = () => <Literal />;
 
     const demoRenderMap: Record<string, () => JSX.Element> = {
-      'list-literal': renderLiteral,
-      'list-widget': () => <Widget />,
       'list-basic': () => <DemoBlock source={src('./components/list/ListBasic.vue')}><ListBasic /></DemoBlock>,
       'list-buffer': () => <DemoBlock source={src('./components/list/ListBuffer.vue')}><ListBuffer /></DemoBlock>,
       'list-huge-data': () => <DemoBlock source={src('./components/list/ListHugeData.vue')}><ListHugeData /></DemoBlock>,
@@ -108,10 +109,16 @@ export default defineComponent({
       'tree-default': () => <DemoBlock source={src('./components/tree/TreeDefault.vue')}><TreeDefault /></DemoBlock>,
       'tree-dragarea': () => <DemoBlock source={src('./components/tree/TreeDragArea.vue')}><TreeDragArea /></DemoBlock>,
       'grid-basic': () => <DemoBlock source={src('./components/grid/GridBasic.vue')}><GridBasic /></DemoBlock>,
+
+      'ai-streaming': () => <DemoBlock source={src('./components/ai/AiStreaming.vue')}><AiStreaming /></DemoBlock>,
+      'ai-copy': () => <DemoBlock source={src('./components/ai/AiCopy.vue')}><AiCopy /></DemoBlock>,
+      'ai-search': () => <DemoBlock source={src('./components/ai/AiSearch.vue')}><AiSearch /></DemoBlock>,
+      'ai-trace': () => <DemoBlock source={src('./components/ai/AiTrace.vue')}><AiTrace /></DemoBlock>,
+      'ai-outline': () => <DemoBlock source={src('./components/ai/AiOutline.vue')}><AiOutline /></DemoBlock>,
     };
 
     const renderCurrentDemo = () => {
-      const renderer = demoRenderMap[props.exampleId] ?? renderLiteral;
+      const renderer = demoRenderMap[props.exampleId] ?? demoRenderMap['list-basic']!;
       return renderer();
     };
 

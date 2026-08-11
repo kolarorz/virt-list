@@ -8,6 +8,7 @@ describe('@virt-list/vue2 公共导出', () => {
       'VirtGrid',
       'VirtList',
       'VirtTree',
+      'createStreamBuffer',
       'useVirtList',
     ]);
   });

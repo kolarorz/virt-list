@@ -42,17 +42,31 @@
 | searchedIndex    | `number \| undefined`        | 筛选匹配下标（**-1** 表示未匹配）           |
 | data             | `T`                          | 原始数据对象 **`TreeNodeData`**              |
 
-### IScrollParams
+### VirtTreeScrollTarget
 
-**`scrollTo`** 方法的参数：
+**`scrollTo`** 方法的参数。它在 `VirtScrollOptions` 的基础上加了 `key` / `offset`，并把 `align` 扩出一个 `nearest`：
 
 | 字段    | 类型                                  | 说明                                       |
 | ------- | ------------------------------------- | ------------------------------------------ |
-| key     | `TreeNodeKey \| undefined`            | 目标节点 key                               |
-| align   | `'view' \| 'top' \| undefined`       | 对齐方式                                   |
-| offset  | `number \| undefined`                | 偏移量（**≥ 0** 时优先使用）              |
+| key     | `TreeNodeKey \| undefined`            | 目标节点 key。节点被折叠时会先展开它的祖先 |
+| align   | `'start' \| 'end' \| 'nearest'`        | 对齐方式，默认 `'nearest'`：已完整可见就不动，否则滚到最近的那条边。`'start' `顶部对齐视口顶部，`'end'` 底部对齐视口底部 |
+| offset  | `number \| undefined`                | 偏移量（**≥ 0** 时优先于 `key`）           |
 | behavior | `'auto' \| 'smooth' \| undefined`   | 滚动方式，`'smooth'` 为平滑动画            |
 | duration | `number \| undefined`               | 平滑动画时长（ms），缺省取 `scrollDuration` |
+| maxDistance | `number \| undefined`            | 本次逐帧穿越的最大距离（px），超出部分先瞬跳 |
+| onDone  | `((canceled: boolean) => void) \| undefined` | 动画结束回调，`canceled` 表示被中断 |
+
+::: tip 通常用直接方法更好读
+`scrollTo` 把三种意图收在一个入口里，拼参数往往不如直接调用清楚：
+
+| 想做的事 | 直接方法 |
+| --- | --- |
+| 滚到某个偏移量 | `scrollToOffset(offset, options?)` |
+| 定位到某个节点（无论当前是否可见） | `scrollToKey(key, options?)` |
+| 节点不可见才滚进来 | `scrollKeyIntoView(key, options?)` |
+
+三者的 `options` 都是标准的 `VirtScrollOptions`，`align` 只有 `start` / `end`。
+:::
 
 ## 属性
 
@@ -64,8 +78,8 @@
 | iconSize             | 图标大小（px）                                                       | `Number`                                                             | `16`      | -                            |
 | itemGap              | 元素之间的间距                                                       | `Number`                                                             | `0`       | -                            |
 | buffer               | 虚拟列表 buffer 行数                                                 | `Number`                                                             | `2`       | -                            |
-| itemPreSize          | 预估行高                                                             | `Number`                                                             | `32`      | -                            |
-| fixed                | 是否固定高度                                                         | `Boolean`                                                            | `false`   | -                            |
+| estimatedSize          | 预估行高                                                             | `Number`                                                             | `32`      | -                            |
+| fixedSize                | 是否固定高度                                                         | `Boolean`                                                            | `false`   | -                            |
 | scrollDuration       | 平滑滚动的默认动画时长（ms）                                         | `Number`                                                              | `300`     | -                            |
 | showLine             | 是否显示层级线                                                       | `Boolean`                                                            | `false`   | -                            |
 | itemClass            | 节点类名                                                             | `String`                                                             | `undefined` | -                            |
@@ -163,10 +177,16 @@
 | getHalfCheckedKeys | 获取半选节点的 key       | **`() => TreeNodeKey[]`** |
 | setFocusedKeys     | 设置聚焦节点             | **`(keys: TreeNodeKey[]) => void`** |
 | filter             | 按查询字符串筛选节点     | **`(query: string) => void`** |
-| scrollTo           | 滚动到指定位置           | **`(params: IScrollParams) => void`** |
+| scrollTo           | 滚动到指定位置           | **`(params: VirtTreeScrollTarget) => void`** |
+| scrollToKey           | 定位到指定节点（折叠时先展开祖先），无论当前是否可见           | **`(key: TreeNodeKey, options?: VirtScrollOptions) => void`** |
+| scrollKeyIntoView           | 把节点滚进可视区域，已完整可见则不动           | **`(key: TreeNodeKey, options?: VirtScrollOptions) => void`** |
+| scrollToOffset           | 滚动到指定偏移量           | **`(offset: number, options?: VirtScrollOptions) => void`** |
 | scrollToTop        | 滚动到顶部               | **`(options?: VirtScrollOptions) => void`** |
 | scrollToBottom     | 滚动到底部               | **`(options?: VirtScrollOptions) => void`** |
 | cancelScroll       | 取消进行中的平滑滚动动画 | **`() => void`** |
+| resume       | 重挂 DOM 后把内容摆回当前偏移量 | **`() => void`** |
+| getMaxOffset       | 当前允许的最大偏移量 | **`() => number`** |
+| getTotalSize       | 内容总尺寸（节点 + 各插槽） | **`() => number`** |
 | setList            | 设置新的树数据           | **`(list: TreeData) => void`** |
 | forceUpdate        | 强制更新                 | **`() => void`** |
 | getTreeNode        | 根据 key 获取节点        | **`(key: TreeNodeKey) => TreeNode \| undefined`** |

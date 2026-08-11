@@ -124,7 +124,7 @@ export default function Reactive() {
           ref={virtListRef}
           list={list}
           itemKey="id"
-          itemPreSize={44}
+          estimatedSize={44}
         >
           {({ itemData }) => (
             <div className="demo-row-item">

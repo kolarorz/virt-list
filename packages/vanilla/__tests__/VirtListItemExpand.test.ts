@@ -120,7 +120,7 @@ function setup(
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
+    estimatedSize: PRE_SIZE,
     initialPosition: opts?.initialPosition,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
@@ -490,7 +490,7 @@ describe('折叠消息：项高度原地突变', () => {
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
     const relTopBefore = relOffsetOf(vl, clientEl, topKey);
-    const totalBefore = vl.core.getState().listTotalSize;
+    const totalBefore = vl.core.getState().itemsTotalSize;
 
     // 展开视口中间那一项（视口顶部之下）
     const expandIndex = vl.core.getState().inViewBegin + 2;
@@ -500,7 +500,7 @@ describe('折叠消息：项高度原地突变', () => {
 
     // 视口顶部那一项不能动——展开只应该把它下方的内容推下去
     expect(relOffsetOf(vl, clientEl, topKey)).toBe(relTopBefore);
-    expect(vl.core.getState().listTotalSize).toBe(
+    expect(vl.core.getState().itemsTotalSize).toBe(
       totalBefore + (EXPANDED - COLLAPSED),
     );
     expect(vl.core.getItemSize(expandKey)).toBe(EXPANDED);
@@ -531,7 +531,7 @@ describe('折叠消息：项高度原地突变', () => {
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
     const relBefore = relOffsetOf(vl, clientEl, topKey);
-    const totalBefore = vl.core.getState().listTotalSize;
+    const totalBefore = vl.core.getState().itemsTotalSize;
 
     const expandKey = vl.core.props.list[vl.core.getState().inViewBegin + 1]!.id;
     sizes.set(expandKey, EXPANDED);
@@ -539,7 +539,7 @@ describe('折叠消息：项高度原地突变', () => {
     sizes.set(expandKey, COLLAPSED);
     measure();
 
-    expect(vl.core.getState().listTotalSize).toBe(totalBefore);
+    expect(vl.core.getState().itemsTotalSize).toBe(totalBefore);
     expect(relOffsetOf(vl, clientEl, topKey)).toBe(relBefore);
   });
 
@@ -552,7 +552,7 @@ describe('折叠消息：项高度原地突变', () => {
 
     const topKey = vl.core.props.list[vl.core.getState().inViewBegin]!.id;
     const relBefore = relOffsetOf(vl, clientEl, topKey);
-    const totalBefore = vl.core.getState().listTotalSize;
+    const totalBefore = vl.core.getState().itemsTotalSize;
     const expandKey = vl.core.props.list[vl.core.getState().inViewBegin + 2]!.id;
 
     for (let i = 0; i < 5; i += 1) {
@@ -562,7 +562,7 @@ describe('折叠消息：项高度原地突变', () => {
       measure();
     }
 
-    expect(vl.core.getState().listTotalSize).toBe(totalBefore);
+    expect(vl.core.getState().itemsTotalSize).toBe(totalBefore);
     expect(relOffsetOf(vl, clientEl, topKey)).toBe(relBefore);
   });
 

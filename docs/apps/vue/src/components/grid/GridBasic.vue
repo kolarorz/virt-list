@@ -15,7 +15,7 @@
         :list="gridList"
         :grid-items="gridItems"
         item-key="id"
-        :item-pre-size="70"
+        :estimated-size="70"
         @to-top="onToTop"
       >
         <template #default="{ itemData, rowIndex, listIndex }">

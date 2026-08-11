@@ -35,7 +35,7 @@ export default function FlatRender() {
         <VirtList<Item>
           list={list}
           itemKey="id"
-          itemPreSize={40}
+          estimatedSize={40}
           buffer={2}
           stickyHeaderClass="demo-band demo-band--sticky-header"
           renderStickyHeader={() => (

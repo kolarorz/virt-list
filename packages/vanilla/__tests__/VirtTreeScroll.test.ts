@@ -57,8 +57,8 @@ function mount(options: Partial<VirtTreeDOMOptions> = {}) {
 
   const tree = new VirtTree(container, {
     list: makeTree(),
-    itemPreSize: 32,
-    fixed: true,
+    estimatedSize: 32,
+    fixedSize: true,
     buffer: 0,
     indent: 16,
     iconSize: 16,
@@ -94,37 +94,37 @@ describe('VirtTree scrollTo', () => {
   it('offset 为负时忽略，转而按 key 处理', () => {
     const { tree } = mount();
 
-    tree.scrollTo({ offset: -1, key: '10', align: 'top' });
+    tree.scrollTo({ offset: -1, key: '10', align: 'start' });
 
     expect(tree.getOffset()).toBe(320);
   });
 
-  it('align:"top" 把目标节点顶到视口顶部', () => {
+  it('align:"start" 把目标节点顶到视口顶部', () => {
     const { tree } = mount();
 
-    tree.scrollTo({ key: '8', align: 'top' });
+    tree.scrollTo({ key: '8', align: 'start' });
 
     // 全部折叠时可见列表就是 20 个根节点，第 8 个 → 8 * 32
     expect(tree.getOffset()).toBe(256);
   });
 
-  it('align:"view" 对已可见的节点不滚动', () => {
+  it('align:"nearest" 对已可见的节点不滚动', () => {
     const { tree } = mount();
 
-    tree.scrollTo({ key: '1', align: 'view' });
+    tree.scrollTo({ key: '1', align: 'nearest' });
 
     expect(tree.getOffset()).toBe(0);
   });
 
-  it('align:"view" 把视口外的节点带进视口', () => {
+  it('align:"nearest" 把视口外的节点带进视口', () => {
     const { tree } = mount();
 
-    tree.scrollTo({ key: '15', align: 'view' });
+    tree.scrollTo({ key: '15', align: 'nearest' });
 
     expect(tree.getOffset()).toBeGreaterThan(0);
   });
 
-  it('缺省 align 时按 view 处理', () => {
+  it('缺省 align 时按 nearest 处理', () => {
     const { tree } = mount();
 
     tree.scrollTo({ key: '15' });
@@ -136,7 +136,7 @@ describe('VirtTree scrollTo', () => {
     const { container, tree } = mount();
     expect(visibleKeys(container)).not.toContain('3-1');
 
-    tree.scrollTo({ key: '3-1', align: 'top' });
+    tree.scrollTo({ key: '3-1', align: 'start' });
 
     // 第 3 个根节点被展开，3-1 是可见列表里的第 5 项（0,1,2,3,3-0,3-1）
     expect(tree.getOffset()).toBe(5 * 32);
@@ -146,7 +146,7 @@ describe('VirtTree scrollTo', () => {
   it('key 不存在时静默返回', () => {
     const { tree } = mount();
 
-    expect(() => tree.scrollTo({ key: 'nope', align: 'top' })).not.toThrow();
+    expect(() => tree.scrollTo({ key: 'nope', align: 'start' })).not.toThrow();
     expect(tree.getOffset()).toBe(0);
   });
 
@@ -162,7 +162,7 @@ describe('VirtTree scrollTo', () => {
     vi.useFakeTimers();
     const { tree } = mount();
 
-    tree.scrollTo({ key: '15', align: 'top', behavior: 'smooth', duration: 100 });
+    tree.scrollTo({ key: '15', align: 'start', behavior: 'smooth', duration: 100 });
     expect(tree.getOffset()).toBe(0);
 
     vi.advanceTimersByTime(200);
@@ -174,7 +174,7 @@ describe('VirtTree scrollTo', () => {
     vi.useFakeTimers();
     const { tree } = mount();
 
-    tree.scrollTo({ key: '19', align: 'top', behavior: 'smooth', duration: 200 });
+    tree.scrollTo({ key: '19', align: 'start', behavior: 'smooth', duration: 200 });
     vi.advanceTimersByTime(32);
     tree.cancelScroll();
     const stopped = tree.getOffset();
@@ -182,6 +182,67 @@ describe('VirtTree scrollTo', () => {
     vi.advanceTimersByTime(400);
 
     expect(tree.getOffset()).toBe(stopped);
+  });
+});
+
+describe('VirtTree scrollToKey / scrollKeyIntoView', () => {
+  it('scrollToKey 无论是否可见都定位到节点顶部', () => {
+    const { tree } = mount();
+
+    // 第 1 个节点本来就完整可见，scrollKeyIntoView 会按兵不动，这个不会
+    tree.scrollToKey('1');
+
+    expect(tree.getOffset()).toBe(32);
+  });
+
+  it('scrollToKey 接受 align:"end"，把节点底部对齐视口底部', () => {
+    const { tree } = mount();
+
+    tree.scrollToKey('10', { align: 'end' });
+    const end = tree.getOffset();
+
+    tree.scrollToKey('10', { align: 'start' });
+    // 底部对齐比顶部对齐更靠前（少滚一屏多一点）
+    expect(end).toBeLessThan(tree.getOffset());
+  });
+
+  it('scrollKeyIntoView 对已完整可见的节点不动', () => {
+    const { tree } = mount();
+
+    tree.scrollKeyIntoView('1');
+
+    expect(tree.getOffset()).toBe(0);
+  });
+
+  it('scrollKeyIntoView 把视口外的节点带进来', () => {
+    const { tree } = mount();
+
+    tree.scrollKeyIntoView('15');
+
+    expect(tree.getOffset()).toBeGreaterThan(0);
+  });
+
+  it('两者都会先展开折叠节点的祖先', () => {
+    const { tree } = mount();
+
+    tree.scrollToKey('3-1');
+    expect(tree.hasExpanded(tree.getTreeNode('3')!)).toBe(true);
+  });
+
+  it('key 不存在时静默返回', () => {
+    const { tree } = mount();
+
+    expect(() => tree.scrollToKey('nope')).not.toThrow();
+    expect(() => tree.scrollKeyIntoView('nope')).not.toThrow();
+    expect(tree.getOffset()).toBe(0);
+  });
+
+  it('scrollToOffset 直接落到给定偏移', () => {
+    const { tree } = mount();
+
+    tree.scrollToOffset(96);
+
+    expect(tree.getOffset()).toBe(96);
   });
 });
 

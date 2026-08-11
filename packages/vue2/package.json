@@ -10,14 +10,15 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./style.css": "./dist/style.css"
   },
   "files": [
     "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/build-styles.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -42,8 +43,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nicepkg/virt-list",
+    "url": "https://github.com/kolarorz/virt-list",
     "directory": "packages/vue2"
   },
-  "sideEffects": false
+  "sideEffects": [
+    "**/*.css"
+  ]
 }

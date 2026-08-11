@@ -27,9 +27,8 @@ export function bootstrapFixed(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
-      buffer: 2,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item';

@@ -44,7 +44,7 @@ function setup(measured = true) {
   const core = new VirtListCore({
     list: Array.from({ length: N }, (_, i) => ({ id: String(i) })),
     itemKey: 'id',
-    itemPreSize: 20,
+    estimatedSize: 20,
   });
   core.bindDOM(el);
   core.slotSize.clientSize = 300;
@@ -60,9 +60,9 @@ function scrollTo(core: VirtListCore<any>, offset: number) {
 }
 
 describe('分块索引：总尺寸与前缀和', () => {
-  it('listTotalSize 等于手工累加的总和', () => {
+  it('itemsTotalSize 等于手工累加的总和', () => {
     const { core } = setup();
-    expect(core.state.listTotalSize).toBe(TOTAL);
+    expect(core.state.itemsTotalSize).toBe(TOTAL);
   });
 
   it('getItemPosByIndex 在所有下标上与手工前缀和一致', () => {
@@ -144,7 +144,7 @@ describe('分块索引：定位', () => {
 
     expect(b.core.state.inViewBegin).toBe(a.core.state.inViewBegin);
     expect(b.core.state.inViewEnd).toBe(a.core.state.inViewEnd);
-    expect(b.core.state.virtualSize).toBe(a.core.state.virtualSize);
+    expect(b.core.state.leadingSize).toBe(a.core.state.leadingSize);
   });
 
   it('偏移量超出总尺寸时夹到上限，末项完整可见', () => {
@@ -162,7 +162,7 @@ describe('分块索引：定位', () => {
     // 每项 20px，跳到第 250 项
     scrollTo(core, 2500 * 20);
     expect(core.state.inViewBegin).toBe(2500);
-    expect(core.state.listTotalSize).toBe(N * 20);
+    expect(core.state.itemsTotalSize).toBe(N * 20);
   });
 });
 
@@ -211,7 +211,7 @@ describe('分块索引：增量更新', () => {
     expect(core.getItemPosByIndex(target + 1).top).toBe(TOPS[target + 1]! + 90);
     expect(core.getItemPosByIndex(2048).top).toBe(TOPS[2048]! + 90);
     expect(core.getItemPosByIndex(N - 1).top).toBe(TOPS[N - 1]! + 90);
-    expect(core.state.listTotalSize).toBe(TOTAL + 90);
+    expect(core.state.itemsTotalSize).toBe(TOTAL + 90);
   });
 
   it('多项连续上报后前缀和依然与手工累加一致', () => {
@@ -273,7 +273,7 @@ describe('分块索引：增量更新', () => {
       return sum;
     };
     expect(core.getItemPosByIndex(2500).top).toBe(topOf(2500));
-    expect(core.state.listTotalSize).toBe(TOTAL + 200);
+    expect(core.state.itemsTotalSize).toBe(TOTAL + 200);
   });
 
   /**
@@ -289,7 +289,7 @@ describe('分块索引：增量更新', () => {
     const core = new VirtListCore({
       list: Array.from({ length: BIG }, (_, i) => ({ id: String(i) })),
       itemKey: 'id',
-      itemPreSize: 20,
+      estimatedSize: 20,
     });
     core.bindDOM(el);
     core.slotSize.clientSize = 300;
@@ -324,13 +324,13 @@ describe('分块索引：增量更新', () => {
 
   it('列表替换后索引按新数据重建', () => {
     const { core } = setup();
-    expect(core.state.listTotalSize).toBe(TOTAL);
+    expect(core.state.itemsTotalSize).toBe(TOTAL);
 
     core.updateOptions({
       list: Array.from({ length: 10 }, (_, i) => ({ id: `n-${i}` })),
     });
     // 新 key 都没有实测尺寸，回落到预估的 20px
-    expect(core.state.listTotalSize).toBe(10 * 20);
+    expect(core.state.itemsTotalSize).toBe(10 * 20);
     expect(core.getItemPosByIndex(5).top).toBe(5 * 20);
   });
 });

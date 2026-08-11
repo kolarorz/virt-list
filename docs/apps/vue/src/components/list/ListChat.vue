@@ -5,7 +5,7 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="60"
+        :estimated-size="60"
         :load-more="onLoadMore"
         :has-more-bottom="false"
         initial-position="bottom"

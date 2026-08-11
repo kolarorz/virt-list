@@ -61,7 +61,7 @@ export function bootstrapBuffer(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
       buffer: 5,
       renderItem: (item) => {
         const row = document.createElement('div');

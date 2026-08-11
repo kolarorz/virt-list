@@ -49,8 +49,7 @@ export function bootstrapSlots(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
-      buffer: 2,
+      estimatedSize: 40,
       renderStickyHeader: () =>
         createBand(
           'sticky-header',

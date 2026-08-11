@@ -20,7 +20,7 @@
         ref="virtListRef"
         :list="list"
         item-key="id"
-        :item-pre-size="40"
+        :estimated-size="40"
         :buffer="5"
         @update="onUpdate"
       >

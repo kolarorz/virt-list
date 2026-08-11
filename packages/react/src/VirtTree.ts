@@ -20,15 +20,14 @@ import type {
   TreeData,
   TreeFieldNames,
   TreeNodeData,
-  IScrollParams,
+  VirtTreeScrollTarget,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/vanilla';
-import '@virt-list/vanilla/src/tree/tree.css';
 
-export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams };
+export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, VirtTreeScrollTarget };
 
 export interface VirtTreeProps {
   list: TreeData;
@@ -37,12 +36,14 @@ export interface VirtTreeProps {
   iconSize?: number;
   itemGap?: number;
   buffer?: number;
-  itemPreSize?: number;
-  fixed?: boolean;
+  estimatedSize?: number;
+  fixedSize?: boolean;
   scrollDuration?: number;
   smoothMaxDistance?: number;
-  scrollbarAutoHide?: number;
+  scrollbarAutoHideDelay?: number;
   scrollbarMinThumbSize?: number;
+  /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+  keyboard?: boolean;
   showLine?: boolean;
   itemClass?: string;
   listClass?: string;
@@ -122,6 +123,13 @@ export interface VirtTreeProps {
 }
 
 export interface VirtTreeRef {
+  /**
+   * 滚动容器（唯一的 scrollport）。
+   *
+   * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
+   * `onScroll`——挂在这上面的原生 `scroll` 监听收不到有用信息。
+   */
+  clientEl: HTMLElement;
   expandAll: (expanded: boolean) => void;
   expandNode: (key: TreeNodeKey | TreeNodeKey[], expanded: boolean) => void;
   toggleExpand: (node: TreeNode) => void;
@@ -136,14 +144,25 @@ export interface VirtTreeRef {
   getHalfCheckedKeys: () => TreeNodeKey[];
   setFocusedKeys: (keys: TreeNodeKey[]) => void;
   filter: (query: string) => void;
-  scrollTo: (params: IScrollParams) => void;
+  scrollTo: (params: VirtTreeScrollTarget) => void;
+  /** 定位到指定节点（折叠时先展开祖先），无论是否可见都滚动 */
+  scrollToKey: (key: TreeNodeKey, options?: VirtScrollOptions) => void;
+  /** 把节点滚进可视区域，已完整可见则不动 */
+  scrollKeyIntoView: (key: TreeNodeKey, options?: VirtScrollOptions) => void;
+  scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
   scrollToTop: (options?: VirtScrollOptions) => void;
   scrollToBottom: (options?: VirtScrollOptions) => void;
   /** 当前滚动偏移量。容器的 scrollTop 恒为 0（内容靠 transform 移动），必须走这里读 */
   getOffset: () => number;
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset: () => number;
+  /** 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize: () => number;
   /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
   scrollFromUser: (offset: number) => void;
   cancelScroll: () => void;
+  /** 容器被隐藏/重新挂载后（keep-alive）把内容重新摆到当前偏移量上 */
+  resume: () => void;
   setList: (list: TreeData) => void;
   forceUpdate: () => void;
   getTreeNode: (key: TreeNodeKey) => TreeNode | undefined;
@@ -205,12 +224,13 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       iconSize: props.iconSize,
       itemGap: props.itemGap,
       buffer: props.buffer,
-      itemPreSize: props.itemPreSize,
-      fixed: props.fixed,
+      estimatedSize: props.estimatedSize,
+      fixedSize: props.fixedSize,
       scrollDuration: props.scrollDuration,
       smoothMaxDistance: props.smoothMaxDistance,
-      scrollbarAutoHide: props.scrollbarAutoHide,
+      scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
       scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+      keyboard: props.keyboard,
       showLine: props.showLine,
       itemClass: props.itemClass,
       listClass: props.listClass,
@@ -354,6 +374,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
   ]);
 
   useImperativeHandle(ref, () => ({
+    get clientEl() { return treeRef.current!.clientEl; },
     expandAll: (expanded) => treeRef.current?.expandAll(expanded),
     expandNode: (key, expanded) => treeRef.current?.expandNode(key, expanded),
     toggleExpand: (node) => treeRef.current?.toggleExpand(node),
@@ -369,11 +390,17 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
     setFocusedKeys: (keys) => treeRef.current?.setFocusedKeys(keys),
     filter: (query) => treeRef.current?.filter(query),
     scrollTo: (params) => treeRef.current?.scrollTo(params),
+    scrollToKey: (key, opts) => treeRef.current?.scrollToKey(key, opts),
+    scrollKeyIntoView: (key, opts) => treeRef.current?.scrollKeyIntoView(key, opts),
+    scrollToOffset: (o, opts) => treeRef.current?.scrollToOffset(o, opts),
     scrollToTop: (opts) => treeRef.current?.scrollToTop(opts),
     scrollToBottom: (opts) => treeRef.current?.scrollToBottom(opts),
     getOffset: () => treeRef.current?.getOffset() ?? 0,
+    getMaxOffset: () => treeRef.current?.getMaxOffset() ?? 0,
+    getTotalSize: () => treeRef.current?.getTotalSize() ?? 0,
     scrollFromUser: (o) => treeRef.current?.scrollFromUser(o),
     cancelScroll: () => treeRef.current?.cancelScroll(),
+    resume: () => treeRef.current?.resume(),
     setList: (list) => treeRef.current?.setList(list),
     forceUpdate: () => treeRef.current?.forceUpdate(),
     getTreeNode: (key) => treeRef.current?.getTreeNode(key),

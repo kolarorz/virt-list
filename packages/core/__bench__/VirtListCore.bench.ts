@@ -7,7 +7,7 @@ import { VirtListCore } from '../src/VirtListCore';
  * 这里量的三处都在源码注释里被点名为性能敏感点：
  * - getItemSize：全 core 最热的函数，配置读取走 Proxy，靠字段快照优化
  * - _calcRange（经 scroll 事件触发）：稳态滚动应当是增量搜索，与列表长度无关
- * - _getTopByIndex（经 scrollToIndex 触发）：窗口内走 virtualSize 快路径，
+ * - _getTopByIndex（经 scrollToIndex 触发）：窗口内走 leadingSize 快路径，
  *   而非从 0 累加到 index
  *
  * 只做记录、不设门禁：基准数字受机器状态影响，跑红了不代表代码退化。
@@ -35,7 +35,7 @@ function setup(options: Record<string, unknown> = {}) {
   const core = new VirtListCore({
     list: bigList,
     itemKey: 'id',
-    itemPreSize: 40,
+    estimatedSize: 40,
     ...options,
   });
   const el = makeScrollEl();
@@ -46,7 +46,7 @@ function setup(options: Record<string, unknown> = {}) {
 
 describe('getItemSize 全量遍历（30w 项）', () => {
   const { core } = setup();
-  const fixedCore = setup({ fixed: true }).core;
+  const fixedCore = setup({ fixedSize: true }).core;
 
   bench('不定高（查 sizesMap）', () => {
     let total = 0;
@@ -78,7 +78,7 @@ describe('滚动定位到指定索引', () => {
   el.scrollTop = 100_000 * 40;
   const nearby = core.getState().inViewBegin + 5;
 
-  bench('窗口内（virtualSize 快路径）', () => {
+  bench('窗口内（leadingSize 快路径）', () => {
     core.scrollToIndex(nearby);
   });
 

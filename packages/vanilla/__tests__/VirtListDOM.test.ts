@@ -73,7 +73,7 @@ function mount(
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: 40,
+    estimatedSize: 40,
     renderItem: renderItem as any,
     ...options,
   } as VirtListDOMOptions<Item>);
@@ -256,10 +256,10 @@ describe('VirtList 尺寸样式', () => {
    * 滚动空间不需要实体高度来撑开，所有位移都用 transform 表达——这也正是
    * 浏览器元素高度上限（Chrome 实测 33,554,428px）不再是长列表天花板的原因。
    */
-  it('listEl 高度恒为 0，不随 listTotalSize 增长', () => {
+  it('listEl 高度恒为 0，不随 itemsTotalSize 增长', () => {
     const { vl } = mount();
 
-    expect(vl.state.listTotalSize).toBe(2000);
+    expect(vl.state.itemsTotalSize).toBe(2000);
     expect(vl.listEl.getAttribute('style')).toContain('height: 0');
     expect(vl.listEl.getAttribute('style')).not.toContain('min-height');
   });
@@ -272,8 +272,8 @@ describe('VirtList 尺寸样式', () => {
     scrollTo(vl, 400);
 
     // 渲染块正好从第 10 项起（400/40），所以残差为 0——
-    // 关键是它**不再**是 virtualSize（400）那个会随列表长度无限增长的值
-    expect(vl.state.virtualSize).toBe(400);
+    // 关键是它**不再**是 leadingSize（400）那个会随列表长度无限增长的值
+    expect(vl.state.leadingSize).toBe(400);
     expect(vl.itemsEl.style.transform).toBe('translate3d(0, 0px, 0)');
   });
 
@@ -289,7 +289,7 @@ describe('VirtList 尺寸样式', () => {
 
     flushResize([sizeEntry('0', 100)]);
 
-    expect(vl.state.listTotalSize).toBe(2060);
+    expect(vl.state.itemsTotalSize).toBe(2060);
     expect(vl.listEl.getAttribute('style')).toContain('height: 0');
   });
 });
@@ -516,7 +516,7 @@ describe('VirtList 数据与缓存池维护', () => {
     vl.setList([{ id: 'x', text: 'only' }]);
 
     expect(renderedKeys(vl)).toEqual(['x']);
-    expect(vl.state.listTotalSize).toBe(40);
+    expect(vl.state.itemsTotalSize).toBe(40);
   });
 
   it('clearItemPool 移除所有已渲染项并取消观察', () => {
@@ -558,21 +558,18 @@ describe('VirtList 数据与缓存池维护', () => {
     vl.reset();
 
     expect(vl.state.inViewBegin).toBe(0);
-    expect(vl.state.virtualSize).toBe(0);
+    expect(vl.state.leadingSize).toBe(0);
   });
 
-  it('addedList2Top / deletedList2Top 透传到 core 并修正偏移', () => {
+  it('setList 后头部增删的位移由 core 自动补偿', () => {
     const list = makeList(50);
     const { vl } = mount({}, list);
     scrollTo(vl, 400);
 
-    const added = [{ id: 'new-0', text: 'new-0' }];
-    list.unshift(...added);
-    vl.addedList2Top(added);
+    vl.setList([{ id: 'new-0', text: 'new-0' }, ...list]);
     expect(vl.core.getOffset()).toBe(440);
 
-    const deleted = list.splice(0, 1);
-    vl.deletedList2Top(deleted);
+    vl.setList([...list]);
     expect(vl.core.getOffset()).toBe(400);
   });
 });
@@ -626,7 +623,7 @@ describe('VirtList 滚动 API 与事件透传', () => {
       {
         list,
         itemKey: 'id',
-        itemPreSize: 40,
+        estimatedSize: 40,
         renderItem: (item, _i, el) => {
           el.textContent = item.text;
         },

@@ -58,8 +58,8 @@ describe('Vue2: @scroll', () => {
     const { onScroll, api } = mount(VirtList, {
       list: makeList(50),
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _i: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -79,8 +79,8 @@ describe('Vue2: @scroll', () => {
       list: makeList(60),
       gridItems: 3,
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -99,8 +99,8 @@ describe('Vue2: @scroll', () => {
   it('VirtTree 触发 scroll', () => {
     const { onScroll, api } = mount(VirtTree, {
       list: makeList(50).map((item) => ({ ...item, label: item.text })),
-      itemPreSize: 32,
-      fixed: true,
+      estimatedSize: 32,
+      fixedSize: true,
     });
     onScroll.mockClear();
 
@@ -111,5 +111,28 @@ describe('Vue2: @scroll', () => {
       offset: 320,
       source: 'user',
     });
+  });
+});
+
+/*
+ * clientEl 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。
+ * 它必须是那个 data-id="client" 的 scrollport，不是组件根元素——
+ * 原生 scroll 不冒泡，挂错地方就永远收不到。
+ */
+describe('Vue2: clientEl 逃生舱', () => {
+  it('指向 scrollport 而不是根元素', () => {
+    const { api } = mount(VirtList, {
+      list: makeList(50),
+      itemKey: 'id',
+      estimatedSize: 40,
+      fixedSize: true,
+      renderItem: (item: Item, _i: number, el: HTMLElement) => {
+        el.textContent = item.text;
+      },
+    });
+
+    const clientEl = api().clientEl as HTMLElement;
+    expect(clientEl).toBeTruthy();
+    expect(clientEl.dataset.id).toBe('client');
   });
 });

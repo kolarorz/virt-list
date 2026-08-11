@@ -5,8 +5,12 @@ import { nextTick, onBeforeUnmount, watch } from 'vue';
 import FrameworkSwitch from './components/FrameworkSwitch.vue';
 import PerfMetrics from './components/PerfMetrics.vue';
 import HeroDemo from './components/HeroDemo.vue';
+import { useSidebarAutoScroll } from './composables/useSidebarAutoScroll';
 
 const route = useRoute();
+
+// 侧边栏一屏装不下，刷新后要把高亮那行滚进视野
+useSidebarAutoScroll();
 
 const VP_DOC_MARKER_ATTR = 'data-vp-doc-target';
 

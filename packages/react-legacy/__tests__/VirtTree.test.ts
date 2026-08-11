@@ -63,7 +63,7 @@ function mount(props: Record<string, unknown> = {}) {
       createElement(VirtTree as any, {
         ref: treeRef,
         list: makeTree(),
-        itemPreSize: 32,
+        estimatedSize: 32,
         ...props,
       }),
       container,
@@ -195,7 +195,7 @@ describe('React-legacy VirtTree', () => {
           createElement(VirtTree as any, {
             ref: treeRef,
             list,
-            itemPreSize: 32,
+            estimatedSize: 32,
             selectable: true,
             checkable: true,
             ...keys,
@@ -243,7 +243,7 @@ describe('React-legacy VirtTree', () => {
         ReactDOM.render(
           createElement(VirtTree as any, {
             list,
-            itemPreSize: 32,
+            estimatedSize: 32,
             expandedKeys,
             onUpdate,
           }),
@@ -313,14 +313,14 @@ describe('React-legacy VirtTree', () => {
     vi.useFakeTimers();
     const { container, treeRef } = mount({
       list: makeTree(40, 0),
-      fixed: true,
+      fixedSize: true,
     });
     const api = treeRef.current!;
 
     api.scrollTo({ offset: 100 });
     expect(treeRef.current!.getOffset()).toBe(100);
 
-    api.scrollTo({ key: '20', align: 'top' });
+    api.scrollTo({ key: '20', align: 'start' });
     expect(treeRef.current!.getOffset()).toBe(20 * 32);
 
     api.scrollToTop();
@@ -339,7 +339,7 @@ describe('React-legacy VirtTree', () => {
       ReactDOM.render(
         createElement(VirtTree as any, {
           list: makeTree(),
-          itemPreSize: 32,
+          estimatedSize: 32,
           content: ({ node }: any) => createElement('span', null, `c-${node.key}`),
         }),
         container,

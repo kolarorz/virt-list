@@ -12,7 +12,7 @@ function baseOptions(list = makeList(50)) {
   return {
     list,
     itemKey: 'id' as const,
-    itemPreSize: 40,
+    estimatedSize: 40,
   };
 }
 
@@ -191,10 +191,10 @@ describe('滚动事件与区间推进', () => {
       expect(events.toBottom).toHaveBeenCalledTimes(1);
     });
 
-    it('scrollDistance 放宽触发距离', () => {
-      const { el, events, core } = setup(makeList(50), { scrollDistance: 200 });
+    it('edgeThreshold 放宽触发距离', () => {
+      const { el, events, core } = setup(makeList(50), { edgeThreshold: 200 });
 
-      // 距底 200，默认阈值不会触发，scrollDistance=200 则触发
+      // 距底 200，默认阈值不会触发，edgeThreshold=200 则触发
       scrollTo(core, 1600);
 
       expect(events.toBottom).toHaveBeenCalledTimes(1);
@@ -249,7 +249,7 @@ describe('滚动事件与区间推进', () => {
       const { el, core } = setup([]);
 
       expect(() => scrollTo(core, 100)).not.toThrow();
-      expect(core.getState().listTotalSize).toBe(0);
+      expect(core.getState().itemsTotalSize).toBe(0);
       expect(core.renderList).toEqual([]);
     });
 
@@ -270,7 +270,7 @@ describe('滚动事件与区间推进', () => {
 
       const state = core.getState();
       expect(state.inViewBegin).toBe(0);
-      expect(state.listTotalSize).toBe(0);
+      expect(state.itemsTotalSize).toBe(0);
       expect(core.sizesMap.size).toBe(0);
     });
   });
@@ -300,36 +300,33 @@ describe('滚动事件与区间推进', () => {
 /**
  * 头部增删对偏移量的补偿。
  *
- * 这两个方法「读当前偏移 → 加减尺寸 → 写回」，所以每一次写入之后内部的位置状态
- * 必须立刻跟着走。靠原生滚动时不需要操心：写 scrollTop 会让浏览器异步派发一次
- * scroll 事件，顺手把内部状态对齐了。偏移量归 JS 之后没有这一步，漏了同步就会
- * 让下一次调用从旧值上再算一遍——add 再 delete 应当回到原处，却会少掉一截。
+ * `_onListChange` 的补偿是「读当前偏移 → 加减位移量 → 写回」，所以每一次写入之后
+ * 内部的位置状态必须立刻跟着走。靠原生滚动时不需要操心：写 scrollTop 会让浏览器
+ * 异步派发一次 scroll 事件，顺手把内部状态对齐了。偏移量归 JS 之后没有这一步，
+ * 漏了同步就会让下一次变更从旧值上再算一遍——加一项再删掉应当回到原处，却会少掉一截。
  */
-describe('addedList2Top / deletedList2Top 的偏移补偿', () => {
+describe('头部增删的偏移补偿', () => {
   it('头部加一项再删掉，偏移量回到原处', () => {
     const list = makeList(50);
     const { core } = setup(list);
     scrollTo(core, 400);
 
-    const added = [{ id: 'new-0', text: 'new-0' }];
-    list.unshift(...added);
-    core.addedList2Top(added);
+    core.updateOptions({ list: [{ id: 'new-0', text: 'new-0' }, ...list] });
     expect(core.getOffset()).toBe(440);
 
-    const deleted = list.splice(0, 1);
-    core.deletedList2Top(deleted);
+    core.updateOptions({ list: [...list] });
     expect(core.getOffset()).toBe(400);
   });
 
   it('连续两次头部插入逐次累加，不会漏掉前一次', () => {
-    const list = makeList(50);
-    const { core } = setup(list);
+    const base = makeList(50);
+    const { core } = setup(base);
     scrollTo(core, 400);
 
+    let cur = base;
     for (const id of ['a', 'b']) {
-      const added = [{ id, text: id }];
-      list.unshift(...added);
-      core.addedList2Top(added);
+      cur = [{ id, text: id }, ...cur];
+      core.updateOptions({ list: cur });
     }
 
     expect(core.getOffset()).toBe(480);

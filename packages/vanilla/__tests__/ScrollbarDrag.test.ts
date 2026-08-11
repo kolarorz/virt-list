@@ -74,9 +74,9 @@ function mount(count = 1000, options: Partial<VirtListDOMOptions<Item>> = {}) {
   const vl = new VirtList<Item>(container, {
     list: makeList(count),
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
-    fixed: true,
-    scrollbarAutoHide: 0,
+    estimatedSize: PRE_SIZE,
+    fixedSize: true,
+    scrollbarAutoHideDelay: 0,
     renderItem: ((item: Item, _i: number, el: HTMLElement) => {
       el.textContent = item.text;
     }) as any,
@@ -121,15 +121,15 @@ describe('自绘滚动条与列表联动', () => {
     expect(parseFloat(thumb.style.height)).toBe(20);
   });
 
-  it('scrollbarAutoHide 为 0 时常驻显示', () => {
+  it('scrollbarAutoHideDelay 为 0 时常驻显示', () => {
     // 光靠 notifyActivity 是不行的：它在 delay <= 0 时直接 return，
     // 而 CSS 只在 hover / 滚动中 / 拖拽时显形——"常驻"必须由一个类表达
-    const { track } = mount(1000, { scrollbarAutoHide: 0 });
+    const { track } = mount(1000, { scrollbarAutoHideDelay: 0 });
     expect(track.classList.contains('is-persistent')).toBe(true);
   });
 
-  it('scrollbarAutoHide 为正数时按活动状态显形', () => {
-    const { vl, track } = mount(1000, { scrollbarAutoHide: 1200 });
+  it('scrollbarAutoHideDelay 为正数时按活动状态显形', () => {
+    const { vl, track } = mount(1000, { scrollbarAutoHideDelay: 1200 });
     expect(track.classList.contains('is-persistent')).toBe(false);
     expect(track.classList.contains('is-active')).toBe(false);
 

@@ -41,9 +41,9 @@ function makeTree(rootCount = 5, childCount = 3) {
 
 const baseOptions = (): Pick<
   VirtTreeDOMOptions,
-  'itemPreSize' | 'buffer' | 'indent' | 'iconSize' | 'itemGap'
+  'estimatedSize' | 'buffer' | 'indent' | 'iconSize' | 'itemGap'
 > => ({
-  itemPreSize: 32,
+  estimatedSize: 32,
   buffer: 2,
   indent: 16,
   iconSize: 16,

@@ -69,7 +69,7 @@ function mount(
         props: {
           list: makeList(50),
           itemKey: 'id',
-          itemPreSize: 40,
+          estimatedSize: 40,
           buffer: 0,
           ...props,
         },
@@ -126,7 +126,7 @@ describe('Vue2 VirtList', () => {
           props: {
             list: makeList(50),
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
             buffer: 0,
           },
           scopedSlots: {
@@ -154,7 +154,7 @@ describe('Vue2 VirtList', () => {
     const vm = new Vue({
       render(h: any) {
         return h(VirtList as any, {
-          props: { list: [], itemKey: 'id', itemPreSize: 40 },
+          props: { list: [], itemKey: 'id', estimatedSize: 40 },
           scopedSlots: {
             default: () => h('div', 'x'),
             header: () => h('div', 'H'),
@@ -241,7 +241,7 @@ describe('Vue2 VirtList', () => {
     expect(api().getState().inViewBegin).toBe(0);
 
     api().setList(makeList(2));
-    expect(api().getState().listTotalSize).toBe(80);
+    expect(api().getState().itemsTotalSize).toBe(80);
 
     expect(() => api().forceUpdate()).not.toThrow();
 
@@ -288,7 +288,7 @@ describe('Vue2 VirtList', () => {
           props: {
             list: (this as any).list,
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
           },
           scopedSlots: {
             default: ({ itemData }: any) => h('div', itemData.text),
@@ -302,7 +302,7 @@ describe('Vue2 VirtList', () => {
     (vm as any).list = makeList(3);
     await Vue.nextTick();
 
-    expect((vm.$refs.list as any).getState().listTotalSize).toBe(120);
+    expect((vm.$refs.list as any).getState().itemsTotalSize).toBe(120);
     expect(renderedIds(container)).toEqual(['0', '1', '2']);
 
     vm.$destroy();

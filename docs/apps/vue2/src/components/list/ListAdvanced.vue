@@ -8,8 +8,8 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="40"
-        sticky-header-style="background:var(--demo-c-fill-2);"
+        :estimated-size="40"
+        :sticky-header-style="{ background: 'var(--demo-c-fill-2)' }"
         @update="onUpdate"
       >
         <template #stickyHeader>
@@ -30,8 +30,8 @@
               <div
                 class="demo-adv-cell"
                 :style="{
-                  width: `${COLUMNS[0].width + COLUMNS[1].width}px`,
-                  minWidth: `${COLUMNS[0].width + COLUMNS[1].width}px`,
+                  width: MERGED_WIDTH,
+                  minWidth: MERGED_WIDTH,
                   background: 'var(--demo-c-warning-soft)',
                   fontWeight: 'bold',
                 }"
@@ -51,8 +51,8 @@
               <div
                 class="demo-adv-cell"
                 :style="{
-                  width: `${COLUMNS[0].width + COLUMNS[1].width}px`,
-                  minWidth: `${COLUMNS[0].width + COLUMNS[1].width}px`,
+                  width: MERGED_WIDTH,
+                  minWidth: MERGED_WIDTH,
                   background: 'var(--demo-c-warning-soft)',
                 }"
               >
@@ -97,6 +97,14 @@ const COLUMNS = [
   { key: 'desc2' as const, title: '描述2', width: 300 },
   { key: 'desc3' as const, title: '描述3', width: 300 },
 ];
+
+/**
+ * 前两列合并后的宽度。
+ *
+ * 提到 script 里而不是写在模板表达式里：Vue 2.7 的模板编译器按纯 JS 解析表达式，
+ * 里面的 TS 非空断言（`COLUMNS[0]!.width`）会直接报语法错误。
+ */
+const MERGED_WIDTH = `${COLUMNS[0]!.width + COLUMNS[1]!.width}px`;
 
 function generateList(count: number) {
   const addresses = ['北京市朝阳区', '上海市浦东新区', '广州市天河区', '深圳市南山区', '杭州市西湖区'];

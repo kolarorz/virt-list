@@ -18,7 +18,8 @@ const props = defineProps<{
   node: TreeNode;
 }>();
 
+// 用调用签名而不是 `focus: [key]` 元组写法：后者是 Vue 3.3+ 才有的，Vue 2.7 认不出
 const emit = defineEmits<{
-  focus: [key: TreeNodeKey];
+  (e: 'focus', key: TreeNodeKey): void;
 }>();
 </script>

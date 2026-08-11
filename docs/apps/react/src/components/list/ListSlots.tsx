@@ -53,7 +53,7 @@ export default function Slots() {
         <VirtList<Item>
           list={list}
           itemKey="id"
-          itemPreSize={40}
+          estimatedSize={40}
           renderStickyHeader={() => (
             <Band
               variant="sticky-header"

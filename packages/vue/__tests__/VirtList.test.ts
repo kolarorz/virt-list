@@ -64,8 +64,8 @@ function mountVirtList() {
               ref: listRef,
               list,
               itemKey: 'id',
-              itemPreSize: 20,
-              fixed: true,
+              estimatedSize: 20,
+              fixedSize: true,
               buffer: 3,
             },
             {
@@ -173,7 +173,7 @@ describe('Vue VirtList 渲染与 API', () => {
                 ref: listRef,
                 list: makeList(50),
                 itemKey: 'id',
-                itemPreSize: 40,
+                estimatedSize: 40,
                 buffer: 0,
                 ...props,
               },
@@ -294,7 +294,7 @@ describe('Vue VirtList 渲染与 API', () => {
                 ref: listRef,
                 list: list.value,
                 itemKey: 'id',
-                itemPreSize: 40,
+                estimatedSize: 40,
               },
               { default: ({ itemData }: any) => h('div', null, itemData.text) },
             );
@@ -307,7 +307,7 @@ describe('Vue VirtList 渲染与 API', () => {
     list.value = makeList(3);
     await nextTick();
 
-    expect(listRef.value.getState().listTotalSize).toBe(120);
+    expect(listRef.value.getState().itemsTotalSize).toBe(120);
     expect(getRenderedItemIds(container)).toEqual(['0', '1', '2']);
 
     app.unmount();
@@ -318,7 +318,7 @@ describe('Vue VirtList 渲染与 API', () => {
 
     expect(listRef.value.getState().renderEnd).toBe(6);
     expect(listRef.value.getOffset()).toBe(0);
-    expect(listRef.value.getSlotSize()).toBe(0);
+    expect(listRef.value.getSlotsTotalSize()).toBe(0);
     expect(listRef.value.getItemSize('0')).toBe(40);
     expect(listRef.value.getItemPosByIndex(2)).toEqual({
       top: 80,
@@ -390,17 +390,14 @@ describe('Vue VirtList 渲染与 API', () => {
 
     listRef.value!.scrollFromUser(400);
 
-    const added = [{ id: 'new-0', text: 'new-0' }];
-    list.unshift(...added);
-    listRef.value.addedList2Top(added);
+    listRef.value.setList([{ id: 'new-0', text: 'new-0' }, ...list]);
     expect(listRef.value!.getOffset()).toBe(440);
 
-    const deleted = list.splice(0, 1);
-    listRef.value.deletedList2Top(deleted);
+    listRef.value.setList([...list]);
     expect(listRef.value!.getOffset()).toBe(400);
 
     listRef.value.setList(makeList(2));
-    expect(listRef.value.getState().listTotalSize).toBe(80);
+    expect(listRef.value.getState().itemsTotalSize).toBe(80);
 
     app.unmount();
   });

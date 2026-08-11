@@ -42,15 +42,21 @@ export interface EmitFunction<T> {
 
 export interface UseVirtListReturn<T extends Record<string, any>> {
   containerRef: React.RefObject<HTMLElement | null>;
-  reactiveData: ListState;
+  state: ListState;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
   getState: () => ListState;
   getOffset: () => number;
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset: () => number;
+  /** 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize: () => number;
+  /** 给定偏移量落在第几项，是 `getItemPosByIndex(index).top` 的逆运算 */
+  getIndexByOffset: (offset: number) => number;
   /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
   scrollFromUser: (offset: number) => void;
-  getSlotSize: () => number;
+  getSlotsTotalSize: () => number;
   reset: () => void;
   scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
   scrollIntoView: (index: number, options?: VirtScrollOptions) => void;
@@ -58,11 +64,11 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   scrollToBottom: (options?: VirtScrollOptions) => void;
   scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
   cancelScroll: () => void;
+  /** 容器被隐藏/重新挂载后（keep-alive）把内容重新摆到当前偏移量上 */
+  resume: () => void;
   manualRender: (begin: number, end: number) => void;
   getItemSize: (itemKey: string) => number;
   deleteItemSize: (itemKey: string) => void;
-  deletedList2Top: (list: T[]) => void;
-  addedList2Top: (list: T[]) => void;
   getItemPosByIndex: (
     index: number,
   ) => { top: number; current: number; bottom: number };
@@ -109,14 +115,17 @@ export function useVirtList<T extends Record<string, any>>(
 
   return {
     containerRef,
-    get reactiveData() { return getVL().state; },
+    get state() { return getVL().state; },
     get slotSize() { return getVL().core.slotSize; },
     get sizesMap() { return getVL().core.sizesMap; },
     get resizeObserver() { return getVL().core.resizeObserver; },
     getState: () => getVL().state,
     getOffset: () => getVL().core.getOffset(),
+    getMaxOffset: () => getVL().core.getMaxOffset(),
+    getTotalSize: () => getVL().core.getTotalSize(),
+    getIndexByOffset: (offset: number) => getVL().core.getIndexByOffset(offset),
     scrollFromUser: (o: number) => getVL().core.scrollFromUser(o),
-    getSlotSize: () => getVL().core.getSlotSize(),
+    getSlotsTotalSize: () => getVL().core.getSlotsTotalSize(),
     reset: () => vlRef.current?.reset(),
     scrollToIndex: (i, opts) => vlRef.current?.scrollToIndex(i, opts),
     scrollIntoView: (i, opts) => vlRef.current?.scrollIntoView(i, opts),
@@ -124,11 +133,10 @@ export function useVirtList<T extends Record<string, any>>(
     scrollToBottom: (opts) => vlRef.current?.scrollToBottom(opts),
     scrollToOffset: (o, opts) => vlRef.current?.scrollToOffset(o, opts),
     cancelScroll: () => vlRef.current?.cancelScroll(),
+    resume: () => vlRef.current?.resume(),
     manualRender: (b, e) => vlRef.current?.core.manualRender(b, e),
     getItemSize: (k) => getVL().core.getItemSize(k),
     deleteItemSize: (k) => getVL().core.deleteItemSize(k),
-    deletedList2Top: (l) => vlRef.current?.deletedList2Top(l),
-    addedList2Top: (l) => vlRef.current?.addedList2Top(l),
     getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
     forceUpdate: () => vlRef.current?.forceUpdate(),
     setList: (l) => vlRef.current?.setList(l),
@@ -141,22 +149,29 @@ export function useVirtList<T extends Record<string, any>>(
 export interface VirtListProps<T extends Record<string, any> = Record<string, any>> {
   list: T[];
   itemKey: string | number;
-  itemPreSize?: number;
+  estimatedSize?: number;
   itemGap?: number;
   renderControl?: (
     begin: number,
     end: number,
   ) => { begin: number; end: number };
-  fixed?: boolean;
+  /**
+   * 每项对应的纯文本，给出即开启跨虚拟化的选区复制。
+   * 用户拖选跨越未渲染区域时，中间那些没有 DOM 的项从数据补齐。
+   */
+  copyText?: (item: T, index: number) => string;
+  /** 复制时各项之间的分隔符，默认换行 */
+  copySeparator?: string;
+  fixedSize?: boolean;
   buffer?: number;
   bufferTop?: number;
   bufferBottom?: number;
-  scrollDistance?: number;
+  edgeThreshold?: number;
   scrollDuration?: number;
   smoothMaxDistance?: number;
   horizontal?: boolean;
-  start?: number;
-  offset?: number;
+  initialIndex?: number;
+  initialOffset?: number;
   loadMore?: (
     direction: LoadDirection,
   ) => boolean | void | Promise<boolean | void>;
@@ -165,8 +180,10 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
   initialPosition?: 'top' | 'bottom';
   stickyBottom?: boolean;
   stickyThreshold?: number;
-  scrollbarAutoHide?: number;
+  scrollbarAutoHideDelay?: number;
   scrollbarMinThumbSize?: number;
+  /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+  keyboard?: boolean;
   listStyle?: StyleValue;
   listClass?: ClassValue;
   itemStyle?: StyleValue | ((item: T, index: number) => StyleValue);
@@ -209,15 +226,28 @@ export interface VirtListProps<T extends Record<string, any> = Record<string, an
 }
 
 export interface VirtListRef<T extends Record<string, any> = Record<string, any>> {
-  reactiveData: ListState;
+  /**
+   * 滚动容器（唯一的 scrollport）。
+   *
+   * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
+   * `onScroll`——挂在这上面的原生 `scroll` 监听收不到有用信息。
+   */
+  clientEl: HTMLElement;
+  state: ListState;
   slotSize: SlotSize;
   sizesMap: Map<string, number>;
   resizeObserver: ResizeObserver | undefined;
   getState: () => ListState;
   getOffset: () => number;
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset: () => number;
+  /** 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize: () => number;
+  /** 给定偏移量落在第几项，是 `getItemPosByIndex(index).top` 的逆运算 */
+  getIndexByOffset: (offset: number) => number;
   /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
   scrollFromUser: (offset: number) => void;
-  getSlotSize: () => number;
+  getSlotsTotalSize: () => number;
   reset: () => void;
   scrollToIndex: (index: number, options?: VirtScrollOptions) => void;
   scrollIntoView: (index: number, options?: VirtScrollOptions) => void;
@@ -225,11 +255,11 @@ export interface VirtListRef<T extends Record<string, any> = Record<string, any>
   scrollToBottom: (options?: VirtScrollOptions) => void;
   scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
   cancelScroll: () => void;
+  /** 容器被隐藏/重新挂载后（keep-alive）把内容重新摆到当前偏移量上 */
+  resume: () => void;
   manualRender: (begin: number, end: number) => void;
   getItemSize: (itemKey: string) => number;
   deleteItemSize: (itemKey: string) => void;
-  deletedList2Top: (list: T[]) => void;
-  addedList2Top: (list: T[]) => void;
   getItemPosByIndex: (
     index: number,
   ) => { top: number; current: number; bottom: number };
@@ -274,18 +304,18 @@ function VirtListInner(
     const options: VirtListDOMOptions<any> = {
       list: props.list,
       itemKey: String(props.itemKey),
-      itemPreSize: props.itemPreSize!,
+      estimatedSize: props.estimatedSize!,
       itemGap: props.itemGap,
-      fixed: props.fixed,
+      fixedSize: props.fixedSize,
       buffer: props.buffer,
       bufferTop: props.bufferTop,
       bufferBottom: props.bufferBottom,
-      scrollDistance: props.scrollDistance,
+      edgeThreshold: props.edgeThreshold,
       scrollDuration: props.scrollDuration,
       smoothMaxDistance: props.smoothMaxDistance,
       horizontal: props.horizontal,
-      start: props.start,
-      offset: props.offset,
+      initialIndex: props.initialIndex,
+      initialOffset: props.initialOffset,
       // 通过 ref 读，使用方每次渲染传新的箭头函数也能拿到最新的那个
       loadMore: props.loadMore
         ? (dir) => eventsRef.current.loadMore!(dir)
@@ -295,9 +325,12 @@ function VirtListInner(
       initialPosition: props.initialPosition,
       stickyBottom: props.stickyBottom,
       stickyThreshold: props.stickyThreshold,
-      scrollbarAutoHide: props.scrollbarAutoHide,
+      scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
       scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+      keyboard: props.keyboard,
       renderControl: props.renderControl,
+      copyText: props.copyText,
+      copySeparator: props.copySeparator,
       listStyle: props.listStyle,
       listClass: props.listClass,
       itemStyle: props.itemStyle,
@@ -403,14 +436,18 @@ function VirtListInner(
   }
 
   useImperativeHandle(ref, () => ({
-    get reactiveData() { return vlRef.current!.state; },
+    get clientEl() { return vlRef.current!.clientEl; },
+    get state() { return vlRef.current!.state; },
     get slotSize() { return vlRef.current!.core.slotSize; },
     get sizesMap() { return vlRef.current!.core.sizesMap; },
     get resizeObserver() { return vlRef.current!.core.resizeObserver; },
     getState: () => vlRef.current!.state,
     getOffset: () => vlRef.current!.core.getOffset(),
+    getMaxOffset: () => vlRef.current!.core.getMaxOffset(),
+    getTotalSize: () => vlRef.current!.core.getTotalSize(),
+    getIndexByOffset: (offset: number) => vlRef.current!.core.getIndexByOffset(offset),
     scrollFromUser: (o: number) => vlRef.current!.core.scrollFromUser(o),
-    getSlotSize: () => vlRef.current!.core.getSlotSize(),
+    getSlotsTotalSize: () => vlRef.current!.core.getSlotsTotalSize(),
     reset: () => vlRef.current?.reset(),
     scrollToIndex: (i, opts) => vlRef.current?.scrollToIndex(i, opts),
     scrollIntoView: (i, opts) => vlRef.current?.scrollIntoView(i, opts),
@@ -418,17 +455,10 @@ function VirtListInner(
     scrollToBottom: (opts) => vlRef.current?.scrollToBottom(opts),
     scrollToOffset: (o, opts) => vlRef.current?.scrollToOffset(o, opts),
     cancelScroll: () => vlRef.current?.cancelScroll(),
+    resume: () => vlRef.current?.resume(),
     manualRender: (b, e) => vlRef.current?.core.manualRender(b, e),
     getItemSize: (k) => vlRef.current!.core.getItemSize(k),
     deleteItemSize: (k) => vlRef.current!.core.deleteItemSize(k),
-    deletedList2Top: (l) => {
-      vlRef.current?.setList(eventsRef.current.list);
-      vlRef.current?.deletedList2Top(l);
-    },
-    addedList2Top: (l) => {
-      vlRef.current?.setList(eventsRef.current.list);
-      vlRef.current?.addedList2Top(l);
-    },
     getItemPosByIndex: (i) => vlRef.current!.core.getItemPosByIndex(i),
     forceUpdate: () => {
       vlRef.current?.forceUpdate();

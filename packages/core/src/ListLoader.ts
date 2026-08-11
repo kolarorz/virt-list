@@ -1,4 +1,4 @@
-import type { LoadDirection, LoadState } from './types';
+import type { LoadDirection, LoadState } from './types.js';
 
 /**
  * 一次自动续拉链最多发起的请求数。

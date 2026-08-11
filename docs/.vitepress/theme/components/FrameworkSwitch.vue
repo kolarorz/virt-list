@@ -4,19 +4,31 @@ import { useRouter } from 'vitepress';
 import {
   useFramework,
   getFrameworkLink,
+  hasModule,
   FRAMEWORK_LABELS,
   FRAMEWORK_ICONS,
   type Framework,
 } from '../composables/useFramework';
 
 const router = useRouter();
-const { currentFramework, relativePath } = useFramework();
+const { currentFramework, currentModule, relativePath } = useFramework();
 
 const open = ref(false);
 
 const frameworks: Framework[] = ['vanilla', 'vue', 'vue2', 'react', 'react-legacy'];
 
+/**
+ * 当前模块在该框架下是否可切换。
+ *
+ * 正在逐个框架铺开的模块（`ai`）在未覆盖的框架下没有对应页面。置灰比静默跳到
+ * 别的页面清楚：用户能看出「这个框架的这部分还没有」，而不是以为自己点错了。
+ */
+function available(fw: Framework) {
+  return hasModule(fw, currentModule.value);
+}
+
 function select(fw: Framework) {
+  if (!available(fw)) return;
   open.value = false;
   if (fw === currentFramework.value) return;
   router.go(getFrameworkLink(fw, relativePath.value));
@@ -54,11 +66,18 @@ function select(fw: Framework) {
         >
           <button
             class="link"
-            :class="{ active: fw === currentFramework }"
+            :class="{ active: fw === currentFramework, disabled: !available(fw) }"
+            :disabled="!available(fw)"
+            :title="
+              available(fw)
+                ? undefined
+                : `${FRAMEWORK_LABELS[fw]} 版本的这部分文档还在准备中`
+            "
             @click="select(fw)"
           >
             <span class="fw-icon" v-html="FRAMEWORK_ICONS[fw]"></span>
             <span>{{ FRAMEWORK_LABELS[fw] }}</span>
+            <span v-if="!available(fw)" class="soon">待补</span>
           </button>
         </div>
       </div>
@@ -166,5 +185,22 @@ function select(fw: Framework) {
 
 .link.active {
   color: var(--vp-c-brand-1);
+}
+
+.link.disabled {
+  color: var(--vp-c-text-3);
+  cursor: not-allowed;
+}
+
+.link.disabled:hover {
+  color: var(--vp-c-text-3);
+  background-color: transparent;
+}
+
+.soon {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
+  color: var(--vp-c-text-3);
 }
 </style>

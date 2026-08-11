@@ -82,11 +82,11 @@ export default function TreeOperate() {
             onClick={() => {
               const n = Number(scrollOffset);
               if (!Number.isNaN(n) && n >= 0) {
-                treeRef.current?.scrollTo({ offset: n });
+                treeRef.current?.scrollToOffset(n);
               }
             }}
           >
-            scrollTo offset
+            scrollToOffset
           </button>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -101,16 +101,16 @@ export default function TreeOperate() {
           <button
             type="button"
             className="virt-list-btn virt-list-btn-success"
-            onClick={() => treeRef.current?.scrollTo({ key: scrollKey, align: 'top' })}
+            onClick={() => treeRef.current?.scrollToKey(scrollKey)}
           >
-            scrollTo key (top)
+            scrollToKey
           </button>
           <button
             type="button"
             className="virt-list-btn virt-list-btn-secondary"
-            onClick={() => treeRef.current?.scrollTo({ key: scrollKey, align: 'view' })}
+            onClick={() => treeRef.current?.scrollKeyIntoView(scrollKey)}
           >
-            scrollTo key (view)
+            scrollKeyIntoView
           </button>
         </div>
       </div>

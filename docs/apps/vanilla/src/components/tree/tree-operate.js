@@ -79,16 +79,16 @@ export function bootstrapTreeOperate(root) {
   on('btnScrollOffset', () => {
     const v = Number(offsetInput.value);
     if (Number.isFinite(v) && v >= 0) {
-      tree.scrollTo({ offset: v });
+      tree.scrollToOffset(v);
     }
   });
   on('btnScrollTop', () => {
     const key = keyInput.value.trim();
-    if (key) tree.scrollTo({ key, align: 'top' });
+    if (key) tree.scrollToKey(key);
   });
   on('btnScrollView', () => {
     const key = keyInput.value.trim();
-    if (key) tree.scrollTo({ key, align: 'view' });
+    if (key) tree.scrollKeyIntoView(key);
   });
 
   return () => {

@@ -1,6 +1,5 @@
 <template>
   <div class="demo-block">
-    <!-- scrollbar 只在绑定 DOM 时读一次，所以切换靠 key 变化整体重挂载 demo -->
     <div>
       <slot />
     </div>

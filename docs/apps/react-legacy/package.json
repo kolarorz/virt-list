@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host --port 7805 --strictPort",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "@faker-js/faker": "^10.3.0",

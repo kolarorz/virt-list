@@ -17,20 +17,22 @@ import type {
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
-import { createReactMounter } from './compat';
+import { createReactMounter } from './compat.js';
 
 export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
   list: T[];
   gridItems: number;
   itemKey: string;
-  itemPreSize?: number;
+  estimatedSize?: number;
   itemGap?: number;
-  fixed?: boolean;
+  fixedSize?: boolean;
   buffer?: number;
   scrollDuration?: number;
   smoothMaxDistance?: number;
-  scrollbarAutoHide?: number;
+  scrollbarAutoHideDelay?: number;
   scrollbarMinThumbSize?: number;
+  /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+  keyboard?: boolean;
   itemStyle?: StyleValue;
   children?: (props: { itemData: T; rowIndex: number; listIndex: number }) => ReactNode;
   renderItem?: (item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void;
@@ -60,6 +62,13 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
 }
 
 export interface VirtGridRef {
+  /**
+   * 滚动容器（唯一的 scrollport）。
+   *
+   * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
+   * `onScroll`——挂在这上面的原生 `scroll` 监听收不到有用信息。
+   */
+  clientEl: HTMLElement;
   setList: (list: Record<string, any>[]) => void;
   setGridItems: (n: number) => void;
   scrollToIndex: (i: number, options?: VirtScrollOptions) => void;
@@ -69,9 +78,15 @@ export interface VirtGridRef {
   scrollToOffset: (o: number, options?: VirtScrollOptions) => void;
   /** 当前滚动偏移量。容器的 scrollTop 恒为 0（内容靠 transform 移动），必须走这里读 */
   getOffset: () => number;
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset: () => number;
+  /** 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize: () => number;
   /** 上报一次用户发起的滚动（会触发 toTop / toBottom 与自动续拉） */
   scrollFromUser: (offset: number) => void;
   cancelScroll: () => void;
+  /** 容器被隐藏/重新挂载后（keep-alive）把内容重新摆到当前偏移量上 */
+  resume: () => void;
   forceUpdate: () => void;
 }
 
@@ -97,14 +112,15 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         list: props.list,
         gridItems: props.gridItems,
         itemKey: props.itemKey,
-        itemPreSize: props.itemPreSize ?? 50,
+        estimatedSize: props.estimatedSize ?? 50,
         itemGap: props.itemGap,
-        fixed: props.fixed,
+        fixedSize: props.fixedSize,
         buffer: props.buffer ?? 2,
         scrollDuration: props.scrollDuration,
         smoothMaxDistance: props.smoothMaxDistance,
-        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+        keyboard: props.keyboard,
         itemStyle: props.itemStyle,
         renderItem: props.renderItem ?? ((item: any, rowIndex: number, listIndex: number, el: HTMLElement) => {
           if (eventsRef.current.children) {
@@ -153,6 +169,7 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   }
 
   useImperativeHandle(ref, () => ({
+    get clientEl() { return gridRef.current!.clientEl; },
     setList: (list) => gridRef.current?.setList(list),
     setGridItems: (n) => gridRef.current?.setGridItems(n),
     scrollToIndex: (i, opts) => gridRef.current?.scrollToIndex(i, opts),
@@ -161,8 +178,11 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
     scrollToBottom: (opts) => gridRef.current?.scrollToBottom(opts),
     scrollToOffset: (o, opts) => gridRef.current?.scrollToOffset(o, opts),
     getOffset: () => gridRef.current?.getOffset() ?? 0,
+    getMaxOffset: () => gridRef.current?.getMaxOffset() ?? 0,
+    getTotalSize: () => gridRef.current?.getTotalSize() ?? 0,
     scrollFromUser: (o) => gridRef.current?.scrollFromUser(o),
     cancelScroll: () => gridRef.current?.cancelScroll(),
+    resume: () => gridRef.current?.resume(),
     forceUpdate: () => gridRef.current?.forceUpdate(),
   }));
 

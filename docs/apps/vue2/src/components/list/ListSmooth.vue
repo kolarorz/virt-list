@@ -52,7 +52,7 @@
         ref="virtListRef"
         :list="list"
         item-key="id"
-        :item-pre-size="40"
+        :estimated-size="40"
         :buffer="2"
         :scroll-duration="duration"
         @update="onUpdate"

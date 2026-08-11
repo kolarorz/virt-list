@@ -58,7 +58,7 @@ export default function Table() {
         <VirtList<Row>
           list={list}
           itemKey="id"
-          itemPreSize={40}
+          estimatedSize={40}
           stickyHeaderStyle={{ background: 'var(--demo-c-fill-2)' }}
           renderStickyHeader={() => (
             <div className="demo-table-row demo-table-header">

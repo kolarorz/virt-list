@@ -55,10 +55,12 @@ packages/
 
 DOM 操作层。负责：
 
-- 滚动容器结构（header → sticky-header → list-wrapper → sticky-footer → footer）
+- 滚动容器结构（`clientEl` 视口 → 参与滚动的 header / 渲染块 / footer，各带 transform
+  残差；吸顶 / 吸底与自绘滚动条相对视口绝对定位）
 - 项目池管理与增量 DOM 更新
 - ResizeObserver 挂载
-- 将滚动/尺寸变化事件传递给 core
+- 自绘滚动条与输入接管（滚轮 / 键盘 / 触摸 / 惯性）
+- 把偏移量变化落到 DOM（`offsetChange` → 重写各段 transform），把尺寸变化传给 core
 - `VirtList`、`VirtGrid`、`VirtTree` 的 DOM 实现
 ### @virt-list/vue（Vue >=3.2）
 
@@ -153,8 +155,8 @@ _resolvePinned()                  // 每次 ResizeObserver 回调重新求解一
 
 ### 已知取舍与风险
 
-- **移动端触摸惯性尚未经真机验证**。衰减系数 0.95/帧、停止阈值 0.02px/ms 按常见
-  实现取值，逻辑有测试覆盖但手感未验。这是当前最大的未知项。
+- **移动端触摸惯性已经过真机验证**。衰减系数 0.95/帧、停止阈值 0.02px/ms 按常见实现取值，
+  逻辑有测试覆盖，手感也在真机上过了一遍。
 - **拖选文本到容器边缘不再自动滚动**——原生滚动免费提供的能力，拿不回来。
 - **读写 `el.scrollTop` 的代码全部失效**。容器的 `scrollTop` 恒为 0，
   改用 `getOffset()` / `scrollToOffset()` / `scrollFromUser()`。
@@ -257,31 +259,67 @@ pnpm dev
 # 同时启动 VitePress 文档站 + 所有 5 个 demo 子应用
 ```
 
-各 demo 子应用端口：
+各 demo 子应用端口（与上面「Demo 应用架构」一节的列表一致，实际值由各应用
+`package.json` 的 `dev` 脚本以 `--strictPort` 固定）：
 
 | 应用 | 端口 |
 |------|------|
-| React 18+ | 7801 |
-| Vue 3 | 7802 |
-| Vanilla | 7803 |
-| React 16-17 | 7804 |
-| Vue 2 | 7805 |
 | VitePress 文档站 | 7800 |
+| Vanilla | 7801 |
+| Vue 3 | 7802 |
+| React 18+ | 7803 |
+| Vue 2 | 7804 |
+| React 16-17 | 7805 |
 
 ### TypeScript 配置
 
-- 所有包目标 **ES2022**，模块 **ESNext**
+- 所有包目标 **ES2022**，模块 **ESNext**，`moduleResolution: Bundler`
 - 每个包有独立的 `tsconfig.build.json`
 - React 包额外设置 `"jsx": "react-jsx"`
 - 根目录 `tsconfig.base.json` 提供本地开发路径别名
+- **源码里的相对 import 必须写全 `.js` 后缀**（指向目录时写到 `/index.js`）。
+  tsc 从不重写 import 路径，而发布物是 `"type": "module"`，Node 的 ESM 解析
+  不补扩展名、也不做目录解析。打包器会替你补全，所以漏了只在 SSR / 纯 Node 下暴露
+  —— `pnpm check:esm` 就是为了拦住这类回归。
+
+### 样式如何交付
+
+样式的唯一副本在 `packages/vanilla/src/`（`scrollbar/scrollbar.css` 与 `tree/tree.css`）。
+构建时由 `scripts/build-styles.mjs` 汇总复制成各包自己的 `dist/style.css`，经 exports
+的 `./style.css` 子路径对外：
+
+```ts
+import '@virt-list/vue/style.css';
+```
+
+两条约束决定了这个形态：
+
+1. **npm 包的 exports 只能映射自己目录下的文件**，框架包没法直接指向 vanilla 的 css；
+   让使用方去引 `@virt-list/vanilla/...` 则是引间接依赖，pnpm 严格模式下解析不到。
+2. **主入口的 JS 里不能 `import 'xxx.css'`**。曾经的做法是让 `VirtTree` 自己引
+   `tree.css`，代价是纯 Node 环境下 `import('@virt-list/vue')` 直接抛
+   `ERR_UNKNOWN_FILE_EXTENSION` —— Node 不认 `.css`，整个包都 import 不了。
+
+各框架包的 `sideEffects` 因此是 `["**/*.css"]` 而不是 `false`：JS 部分确实无副作用，
+但写成 `false` 会让打包器有理由把使用方显式引入的 css 也摇掉。
 
 ### 测试
 
 测试位于 `packages/*/__tests__/`，通过 Vitest 运行，使用 `jsdom` 环境。根目录 `vitest.config.ts` 配置了指向包源码的路径别名。
 
+各绑定层实际跑在这些版本上（由各包 `devDependencies` 决定）：React 19.2 / React 17.0.2、
+Vue 3.5 / Vue 2.7.16。**Vue 2.6 与 React 18 在 peer 范围内但没有自动化覆盖**
+——2.6 需要 `@vue/composition-api`，这条路径目前只有 `compat.ts` 的单测保证。
+
 ---
 
 ## 安装指南
+
+装完框架包，还要引一次样式（不引也能滚，但看不到滚动条、树也没有默认外观）：
+
+```ts
+import '@virt-list/<你装的那个包>/style.css';
+```
 
 ### Vue 3（推荐）
 
@@ -315,7 +353,10 @@ npm install @virt-list/react
 npm install @virt-list/react-legacy
 ```
 
-**Peer 依赖**：`react >= 16.8.0 < 19.0.0`、`react-dom >= 16.8.0 < 19.0.0`
+**Peer 依赖**：`react >= 16.8 < 18`、`react-dom >= 16.8 < 18`
+
+上限是 18 而非 19：React 18+ 请用 `@virt-list/react`（这个包走的是 `ReactDOM.render`，
+在 18 下会触发 legacy-root 警告，且拿不到并发特性）。下限是 16.8 而非 16.0 —— 绑定层用了 Hook。
 
 ---
 
@@ -335,7 +376,7 @@ npm install @virt-list/react-legacy
 ```
 scrollToIndex(index) / scrollIntoView(index) / scrollToTop() / scrollToBottom()
 scrollToOffset(offset) / forceUpdate() / reset() / setList(list)
-getState() / getOffset() / getSlotSize() / getItemSize(key)
+getState() / getOffset() / getSlotsTotalSize() / getItemSize(key)
 ```
 
 Tree 专有方法：`expandAll() / expandNode() / toggleExpand() / checkAll() / filter() / ...`

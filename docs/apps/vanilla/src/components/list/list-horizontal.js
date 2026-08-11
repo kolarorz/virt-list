@@ -28,9 +28,8 @@ export function bootstrapHorizontal(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 108,
+      estimatedSize: 108,
       horizontal: true,
-      buffer: 2,
       renderItem: (item) => {
         const col = document.createElement('div');
         col.className = 'demo-col-item';

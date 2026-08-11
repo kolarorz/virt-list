@@ -76,7 +76,7 @@ function mount(
     container,
     {
       list: makeTree(),
-      itemPreSize: 32,
+      estimatedSize: 32,
       indent: 16,
       iconSize: 16,
       buffer: 2,
@@ -162,8 +162,8 @@ describe('VirtTree 节点 DOM 结构', () => {
     expect(item(container, '0').className).toContain('my-item');
   });
 
-  it('节点高度取 itemPreSize；fixed 时锁定高度', () => {
-    const { container } = mount({ itemPreSize: 48, fixed: true });
+  it('节点高度取 estimatedSize；fixedSize 时锁定高度', () => {
+    const { container } = mount({ estimatedSize: 48, fixedSize: true });
     const wrapper = node(container, '0');
 
     expect(wrapper.style.minHeight).toBe('48px');
@@ -175,8 +175,8 @@ describe('VirtTree 节点 DOM 结构', () => {
     ).toBe(true);
   });
 
-  it('非 fixed 时只给最小高度', () => {
-    const { container } = mount({ itemPreSize: 48 });
+  it('非 fixedSize 时只给最小高度', () => {
+    const { container } = mount({ estimatedSize: 48 });
     const wrapper = node(container, '0');
 
     expect(wrapper.style.minHeight).toBe('48px');
@@ -892,7 +892,7 @@ describe('VirtTree 其余公开 API', () => {
       update: vi.fn(),
     };
     const { tree } = mount(
-      { list: makeTree(40, 0), itemPreSize: 32, buffer: 0 },
+      { list: makeTree(40, 0), estimatedSize: 32, buffer: 0 },
       events,
     );
     // 视口 400、40 行 × 32 = 1280

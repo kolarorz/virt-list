@@ -77,7 +77,7 @@ function mount(
       list,
       gridItems: 3,
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
       renderItem: renderItem as any,
       ...options,
     } as VirtGridOptions<Item>,

@@ -5,7 +5,6 @@ import {
   generateChatPage,
 } from '../../../../_shared/chatData';
 import { formatChatStats } from '../../../../_shared/demoStats';
-import { createBlankScreenDiagnostics } from '../../../../_shared/blankScreenDiagnostics';
 
 const PAGE_SIZE = 30;
 /** 超过这个字数才需要折叠 */
@@ -18,7 +17,6 @@ const CLAMP_STYLE = `display: -webkit-box; -webkit-box-orient: vertical; -webkit
 const template = `
   <div class="demo-panel">
     <div id="stats" class="demo-stats"></div>
-    <div id="diag" class="demo-stats"></div>
     <div class="demo-list-container" id="listContainer"></div>
     <div class="demo-chat-toolbar">
       <button type="button" class="virt-list-btn virt-list-btn-primary" id="sendBtn">发送随机消息</button>
@@ -33,7 +31,6 @@ export function bootstrapChatCollapse(root) {
 
   const container = root.querySelector('#listContainer');
   const statsEl = root.querySelector('#stats');
-  const diagEl = root.querySelector('#diag');
 
   let page = 4;
   let list = generateChatPage(page, PAGE_SIZE);
@@ -48,7 +45,6 @@ export function bootstrapChatCollapse(root) {
    * 提前声明后构造期间读到的是 undefined，配合可选链就安全了。
    */
   let virtList;
-  let diagnostics;
 
   /** 展开状态记录在列表数据之外，供项被重建时恢复 */
   const expandedIds = new Set();
@@ -106,7 +102,7 @@ export function bootstrapChatCollapse(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 76,
+      estimatedSize: 76,
       loadMore: async (direction) => {
         if (direction !== 'top') return false;
         const prevPage = await fetchChatPage(page - 1, PAGE_SIZE);
@@ -152,27 +148,7 @@ export function bootstrapChatCollapse(root) {
         loadState = state;
         updateStats(virtList?.core.getState());
       },
-      update: (_, state) => {
-        updateStats(state);
-        // 首屏这次 update 发生在构造期间，那时 diagnostics 还没建好
-        diagnostics?.schedule(state);
-      },
-      scroll: () => diagnostics?.schedule(virtList?.core.getState()),
-    },
-  );
-
-  /** 白屏自检（临时诊断，定位完会删掉）*/
-  diagnostics = createBlankScreenDiagnostics(
-    {
-      root: () => container,
-      listLength: () => list.length,
-      slotSize: () => virtList.core.slotSize,
-      itemSize: (key) => virtList.core.getItemSize(key),
-    },
-    (text) => {
-      diagEl.textContent = `自检：${text || '正常'}`;
-      diagEl.style.color = text ? '#c00' : '';
-      diagEl.style.fontWeight = text ? 'bold' : '';
+      update: (_, state) => updateStats(state),
     },
   );
 
@@ -205,7 +181,6 @@ export function bootstrapChatCollapse(root) {
   });
 
   return () => {
-    diagnostics.dispose();
     virtList.destroy();
     root.innerHTML = '';
   };

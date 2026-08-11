@@ -13,6 +13,8 @@ describe('@virt-list/core 公共导出', () => {
       'DEFAULT_OPTIONS',
       'ListLoader',
       'VirtListCore',
+      'buildCopyText',
+      'createStreamBuffer',
     ]);
   });
 
@@ -20,10 +22,10 @@ describe('@virt-list/core 公共导出', () => {
     const core = new pkg.VirtListCore({
       list: [{ id: '0' }],
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
     });
 
-    expect(core.getState().listTotalSize).toBe(40);
+    expect(core.getState().itemsTotalSize).toBe(40);
   });
 
   it('DEFAULT_OPTIONS 覆盖全部可选配置项', () => {
@@ -31,19 +33,21 @@ describe('@virt-list/core 公共导出', () => {
       'buffer',
       'bufferBottom',
       'bufferTop',
-      'fixed',
+      'copySeparator',
+      'copyText',
+      'edgeThreshold',
+      'fixedSize',
       'hasMoreBottom',
       'hasMoreTop',
       'horizontal',
+      'initialIndex',
+      'initialOffset',
       'initialPosition',
       'itemGap',
       'loadMore',
-      'offset',
       'renderControl',
-      'scrollDistance',
       'scrollDuration',
       'smoothMaxDistance',
-      'start',
       'stickyBottom',
       'stickyThreshold',
     ]);

@@ -139,7 +139,7 @@ function mount(list: Item[]) {
               ref: listRef,
               list,
               itemKey: 'id',
-              itemPreSize: COLLAPSED,
+              estimatedSize: COLLAPSED,
             },
             {
               default: ({ itemData }: { itemData: Item }) =>
@@ -159,7 +159,7 @@ function mount(list: Item[]) {
     configurable: true,
     get: () => scrollValue,
     set: (v: number) => {
-      const max = Math.max(0, listRef.value.getState().listTotalSize - CLIENT_SIZE);
+      const max = Math.max(0, listRef.value.getState().itemsTotalSize - CLIENT_SIZE);
       scrollValue = Math.min(Math.max(v, 0), max);
     },
   });

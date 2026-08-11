@@ -52,3 +52,38 @@ export function formatChatStats({
 
   return parts.join(' | ');
 }
+
+export interface AiStatsInput {
+  total: number;
+  /** 是否正在流式生成 */
+  streaming: boolean;
+  /** 视口是否贴底（即是否处于跟随态） */
+  atBottom: boolean;
+  state?: ListStateLike;
+  loadState?: LoadStateLike | null;
+}
+
+/**
+ * AI 对话示例的状态行。
+ *
+ * 比 formatChatStats 多两个字段：流式输出与贴底跟随是这类场景里最容易出错的
+ * 两件事，把它们直接显示出来，读者滚动几下就能看清跟随是怎么建立和解除的。
+ */
+export function formatAiStats({
+  total,
+  streaming,
+  atBottom,
+  state,
+  loadState,
+}: AiStatsInput): string {
+  const parts = [
+    `消息数: ${total}`,
+    streaming ? '生成中' : '空闲',
+    atBottom ? '跟随中' : '已脱离跟随',
+    `可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'}`,
+  ];
+
+  if (loadState?.loadingTop) parts.push('加载历史中...');
+
+  return parts.join(' | ');
+}

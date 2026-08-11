@@ -34,7 +34,7 @@ function makeList(n: number): Item[] {
   }));
 }
 
-/** 真实高度不均匀，且都不等于 itemPreSize —— 与 demo 的行为一致 */
+/** 真实高度不均匀，且都不等于 estimatedSize —— 与 demo 的行为一致 */
 function realSizeOf(index: number): number {
   return [40, 62, 84, 106][index % 4]!;
 }
@@ -110,7 +110,7 @@ function setup(list: Item[]) {
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
+    estimatedSize: PRE_SIZE,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
     },
@@ -275,7 +275,7 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
   /**
    * 滚动途中浏览器自己收回 scrollTop，轮询不能就此罢手。
    *
-   * 这是"滚到底"独有的麻烦：项测出来比 itemPreSize 矮时内容总高会缩水，原先写进
+   * 这是"滚到底"独有的麻烦：项测出来比 estimatedSize 矮时内容总高会缩水，原先写进
    * 去的 scrollTop 超出了新上限，浏览器于是主动把它收回来——不派 scroll 事件，
    * 看上去和用户滚动一模一样。
    *
@@ -290,7 +290,7 @@ describe('scrollToBottom（不定高 + 按需测量）', () => {
     const vl = new VirtList<Item>(container, {
       list,
       itemKey: 'id',
-      itemPreSize: PRE_SIZE,
+      estimatedSize: PRE_SIZE,
       renderItem: (item, _index, el) => {
         el.textContent = item.text;
       },

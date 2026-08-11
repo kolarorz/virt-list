@@ -46,7 +46,7 @@ export function bootstrapReactive(root) {
   const virtList = new VirtList(container, {
     list,
     itemKey: 'id',
-    itemPreSize: 44,
+    estimatedSize: 44,
     renderItem: (item) => {
       const row = document.createElement('div');
       row.className = 'demo-row-item';

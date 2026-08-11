@@ -69,7 +69,7 @@ async function mount(props: Record<string, unknown> = {}) {
         ref: listRef,
         list: makeList(50),
         itemKey: 'id',
-        itemPreSize: 40,
+        estimatedSize: 40,
         buffer: 0,
         renderItem: (item: Item, _index: number, el: HTMLElement) => {
           el.textContent = item.text;
@@ -127,7 +127,7 @@ describe('React VirtList 渲染', () => {
         createElement(VirtList as any, {
           list: makeList(50),
           itemKey: 'id',
-          itemPreSize: 40,
+          estimatedSize: 40,
           buffer: 0,
           children: ({ itemData, index }: any) =>
             createElement('span', null, `react-${index}-${itemData.id}`),
@@ -154,7 +154,7 @@ describe('React VirtList 渲染', () => {
         createElement(VirtList as any, {
           list: [],
           itemKey: 'id',
-          itemPreSize: 40,
+          estimatedSize: 40,
           renderHeader: () => createElement('div', null, 'H'),
           renderFooter: () => createElement('div', null, 'F'),
           renderStickyHeader: () => createElement('div', null, 'SH'),
@@ -205,7 +205,7 @@ describe('React VirtList 渲染', () => {
             ref: listRef,
             list,
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
             renderItem: (item: Item, _i: number, el: HTMLElement) => {
               el.textContent = item.text;
             },
@@ -219,7 +219,7 @@ describe('React VirtList 渲染', () => {
 
     await render(makeList(3));
 
-    expect(listRef.current!.getState().listTotalSize).toBe(120);
+    expect(listRef.current!.getState().itemsTotalSize).toBe(120);
     expect(renderedIds(container)).toEqual(['0', '1', '2']);
 
     await unmount(root);
@@ -232,12 +232,12 @@ describe('React VirtList ref API', () => {
     const api = listRef.current!;
 
     expect(api.getState().renderEnd).toBe(6);
-    expect(api.reactiveData.listTotalSize).toBe(2000);
+    expect(api.state.itemsTotalSize).toBe(2000);
     expect(api.slotSize.clientSize).toBe(200);
     expect(api.sizesMap).toBeInstanceOf(Map);
     expect(api.resizeObserver).toBeDefined();
     expect(api.getOffset()).toBe(0);
-    expect(api.getSlotSize()).toBe(0);
+    expect(api.getSlotsTotalSize()).toBe(0);
     expect(api.getItemSize('0')).toBe(40);
     expect(api.getItemPosByIndex(2)).toEqual({
       top: 80,
@@ -306,7 +306,7 @@ describe('React VirtList ref API', () => {
     expect(api.getItemSize('0')).toBe(40);
 
     api.setList(makeList(2));
-    expect(api.getState().listTotalSize).toBe(80);
+    expect(api.getState().itemsTotalSize).toBe(80);
 
     expect(() => api.forceUpdate()).not.toThrow();
 
@@ -320,13 +320,10 @@ describe('React VirtList ref API', () => {
 
     listRef.current!.scrollFromUser(400);
 
-    const added = [{ id: 'new-0', text: 'new-0' }];
-    list.unshift(...added);
-    api.addedList2Top(added);
+    api.setList([{ id: 'new-0', text: 'new-0' }, ...list]);
     expect(listRef.current!.getOffset()).toBe(440);
 
-    const deleted = list.splice(0, 1);
-    api.deletedList2Top(deleted);
+    api.setList([...list]);
     expect(listRef.current!.getOffset()).toBe(400);
 
     await unmount(root);

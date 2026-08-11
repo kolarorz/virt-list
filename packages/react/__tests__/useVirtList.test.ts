@@ -72,7 +72,7 @@ async function setup(
       {
         list: makeList(50),
         itemKey: 'id',
-        itemPreSize: 40,
+        estimatedSize: 40,
         buffer: 0,
         renderItem: (item: Item, _index: number, el: HTMLElement) => {
           el.textContent = item.text;
@@ -120,12 +120,12 @@ describe('React useVirtList', () => {
     const { root, getApi } = await setup();
     const api = getApi();
 
-    expect(api.reactiveData.renderEnd).toBe(6);
-    expect(api.getState().listTotalSize).toBe(2000);
+    expect(api.state.renderEnd).toBe(6);
+    expect(api.getState().itemsTotalSize).toBe(2000);
     expect(api.slotSize.clientSize).toBe(200);
     expect(api.sizesMap).toBeInstanceOf(Map);
     expect(api.resizeObserver).toBeDefined();
-    expect(api.getSlotSize()).toBe(0);
+    expect(api.getSlotsTotalSize()).toBe(0);
     expect(api.getItemSize('0')).toBe(40);
     expect(api.getItemPosByIndex(3)).toEqual({
       top: 120,
@@ -195,7 +195,7 @@ describe('React useVirtList', () => {
     expect(api.getItemSize('0')).toBe(40);
 
     api.setList(makeList(2));
-    expect(api.getState().listTotalSize).toBe(80);
+    expect(api.getState().itemsTotalSize).toBe(80);
 
     expect(() => api.forceUpdate()).not.toThrow();
 
@@ -209,15 +209,10 @@ describe('React useVirtList', () => {
 
     getApi().scrollFromUser(400);
 
-    const added = [{ id: 'new-0', text: 'new-0' }];
-    list.unshift(...added);
-    api.setList(list);
-    api.addedList2Top(added);
+    api.setList([{ id: 'new-0', text: 'new-0' }, ...list]);
     expect(api.getOffset()).toBe(440);
 
-    const deleted = list.splice(0, 1);
-    api.setList(list);
-    api.deletedList2Top(deleted);
+    api.setList([...list]);
     expect(api.getOffset()).toBe(400);
 
     await unmount(root);

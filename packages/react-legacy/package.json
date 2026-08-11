@@ -10,14 +10,15 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./style.css": "./dist/style.css"
   },
   "files": [
     "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/build-styles.mjs",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
@@ -29,15 +30,24 @@
     "@virt-list/vanilla": "workspace:*"
   },
   "peerDependencies": {
-    "react": ">=16 <18",
-    "react-dom": ">=16 <18"
+    "react": ">=16.8 <18",
+    "react-dom": ">=16.8 <18"
   },
-  "keywords": ["react", "react16", "react17", "virtual-list", "virtual-tree", "virtual-grid"],
+  "keywords": [
+    "react",
+    "react16",
+    "react17",
+    "virtual-list",
+    "virtual-tree",
+    "virtual-grid"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nicepkg/virt-list",
+    "url": "https://github.com/kolarorz/virt-list",
     "directory": "packages/react-legacy"
   },
-  "sideEffects": false
+  "sideEffects": [
+    "**/*.css"
+  ]
 }

@@ -70,7 +70,7 @@ async function mount(props: Record<string, unknown> = {}) {
         list: makeList(30),
         gridItems: 3,
         itemKey: 'id',
-        itemPreSize: 40,
+        estimatedSize: 40,
         buffer: 0,
         renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
           el.textContent = item.text;
@@ -127,7 +127,7 @@ describe('React VirtGrid', () => {
           list: makeList(30),
           gridItems: 3,
           itemKey: 'id',
-          itemPreSize: 40,
+          estimatedSize: 40,
           children: ({ rowIndex, listIndex }: any) =>
             createElement('span', null, `${rowIndex}/${listIndex} `),
         }),
@@ -161,7 +161,7 @@ describe('React VirtGrid', () => {
             list,
             gridItems: 3,
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
             renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
               el.textContent = item.text;
             },
@@ -192,7 +192,7 @@ describe('React VirtGrid', () => {
             list: makeList(12),
             gridItems,
             itemKey: 'id',
-            itemPreSize: 40,
+            estimatedSize: 40,
             renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
               el.textContent = item.text;
             },

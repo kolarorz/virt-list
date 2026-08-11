@@ -36,62 +36,68 @@ export function bootstrapInfinity(root) {
   const statsEl = root.querySelector('#stats');
 
   let list = [];
-  let loading = false;
-  let virtList = null;
+  let loadState = null;
+
+  /**
+   * 提前声明：loadMore 会在构造期间就被调用（列表初始为空，内容填不满视口时
+   * 组件会自动续拉），那时 `new VirtList(...)` 还没返回。用 const 会撞上 TDZ 错误。
+   */
+  let virtList;
 
   function updateStats(state) {
-    statsEl.textContent = `总数: ${list.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${loading ? ' | 加载中...' : ''}`;
+    statsEl.textContent = `总数: ${list.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
+      loadState?.loadingBottom ? ' | 加载中...' : ''
+    }`;
   }
 
-  async function loadMore() {
-    if (loading) return;
-    loading = true;
-    updateStats();
-    const newItems = await generateList(200, list.length, 1000);
-    list = list.concat(newItems);
-    loading = false;
+  virtList = new VirtList(
+    container,
+    {
+      list,
+      itemKey: 'id',
+      estimatedSize: 40,
+      /**
+       * 触底取数。
+       *
+       * 列表初始为空，首屏这一次加载也由组件自动发起——内容填不满视口时会继续要
+       * 下一页，不需要在外面手动拉第一页。
+       */
+      loadMore: async (direction) => {
+        if (direction !== 'bottom') return false;
+        const newItems = await generateList(200, list.length, 1000);
+        list = list.concat(newItems);
+        virtList.setList(list);
+        return true;
+      },
+      hasMoreTop: false,
+      renderFooter: (el, state) => {
+        el.className = 'demo-loading-bar';
+        el.id = 'loadingBar';
+        el.textContent = state.loadingBottom ? '加载中...' : ' ';
+      },
+      renderItem: (item) => {
+        const row = document.createElement('div');
+        row.className = 'demo-row-item';
+        row.innerHTML = `
+          <span class="demo-row-index">#${item.index}</span>
+          <span class="demo-row-text">${item.text}</span>
+        `;
+        return row;
+      },
+    },
+    {
+      loadStateChange: (state) => {
+        loadState = state;
+        updateStats(virtList?.core.getState());
+      },
+      update: (_, state) => updateStats(state),
+    },
+  );
 
-    if (!virtList) {
-      virtList = new VirtList(
-        container,
-        {
-          list,
-          itemKey: 'id',
-          itemPreSize: 40,
-          buffer: 2,
-          renderFooter: () => {
-            const el = document.createElement('div');
-            el.className = 'demo-loading-bar';
-            el.id = 'loadingBar';
-            el.textContent = '加载中...';
-            return el;
-          },
-          renderItem: (item) => {
-            const row = document.createElement('div');
-            row.className = 'demo-row-item';
-            row.innerHTML = `
-              <span class="demo-row-index">#${item.index}</span>
-              <span class="demo-row-text">${item.text}</span>
-            `;
-            return row;
-          },
-        },
-        {
-          toBottom: () => loadMore(),
-          update: (_, state) => updateStats(state),
-        },
-      );
-    } else {
-      virtList.setList(list);
-      virtList.forceUpdate();
-    }
-    updateStats();
-  }
-
-  loadMore();
+  updateStats();
 
   return () => {
-    if (virtList) virtList.destroy();
+    virtList.destroy();
     root.innerHTML = '';
   };
 }

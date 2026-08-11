@@ -93,7 +93,7 @@ export default function HugeData() {
             ref={virtListRef}
             list={list}
             itemKey="id"
-            itemPreSize={40}
+            estimatedSize={40}
             onUpdate={(_, state) =>
               setStats(`总数: ${list.length.toLocaleString()} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`)
             }

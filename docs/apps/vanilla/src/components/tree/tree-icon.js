@@ -22,13 +22,26 @@ const template = `
   </div>
 `;
 
-function createChevronIcon() {
+/** 叶子节点没有展开图标，占一个同尺寸的空位把标题对齐 */
+function createIconSlot(node, isExpanded) {
+  const box = document.createElement('div');
+  box.style.width = '16px';
+  box.style.height = '16px';
+  if (node.isLeaf) return box;
+
+  box.style.display = 'flex';
+  box.style.alignItems = 'center';
+  box.style.justifyContent = 'center';
+  box.style.color = 'var(--demo-c-text-1)';
+  box.style.transition = 'transform 0.15s ease';
+  box.style.transform = isExpanded ? 'rotate(-90deg)' : 'rotate(0deg)';
+
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 48 48');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  svg.style.width = '100%';
-  svg.style.height = '100%';
+  svg.setAttribute('width', '14');
+  svg.setAttribute('height', '14');
   svg.setAttribute('stroke', 'currentColor');
   svg.setAttribute('stroke-width', '4');
   svg.setAttribute('stroke-linecap', 'butt');
@@ -36,7 +49,8 @@ function createChevronIcon() {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', 'M39.6 17.443 24.043 33 8.487 17.443');
   svg.appendChild(path);
-  return svg;
+  box.appendChild(svg);
+  return box;
 }
 
 export function bootstrapTreeIcon(root) {
@@ -48,8 +62,7 @@ export function bootstrapTreeIcon(root) {
     list: generateTreeData(),
     fieldNames: { key: 'id' },
     indent: 20,
-    expandOnClickNode: true,
-    renderIcon: () => createChevronIcon(),
+    renderIcon: (node, isExpanded) => createIconSlot(node, isExpanded),
     renderEmpty: () => {
       const el = document.createElement('div');
       el.style.padding = '16px';

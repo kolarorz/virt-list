@@ -44,7 +44,7 @@
         ref="virtListRef"
         :list="list"
         item-key="id"
-        :item-pre-size="44"
+        :estimated-size="44"
       >
         <template #default="{ itemData }">
           <div class="demo-row-item">
@@ -91,6 +91,12 @@ const running = ref(false);
 const list = shallowRef<Row[]>(createRows(1000));
 let timer: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * 只改已有项的字段、不动数组长度。
+ *
+ * 这种改法组件感知不到（引用没变、长度没变），必须显式 forceUpdate() 才会重绘。
+ * 换成 push 一项或整体替换 list 都会被自动识别，不需要这一步。
+ */
 function doTick() {
   const time = nowText();
   list.value.forEach((row) => {

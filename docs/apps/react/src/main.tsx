@@ -3,8 +3,12 @@ import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helpe
 import App from './App';
 import './style.css';
 import { syncStandaloneTheme } from '../../_shared/theme';
-// 自绘滚动条的样式：所有 demo 都用它，脚手架层常驻引入
+// 滚动条与树的样式：所有 demo 都用它，脚手架层常驻引入。
+// 框架包的主入口不再 import css（那会让纯 Node 环境 import 不了整个包），
+// 发布后的使用方引 '@virt-list/<fw>/style.css' 即可；这里走 alias 直连源码，
+// 所以分别引 vanilla 的两份原始样式。
 import '@virt-list/vanilla/src/scrollbar/scrollbar.css';
+import '@virt-list/vanilla/src/tree/tree.css';
 
 type FrameworkKind = 'react' | 'vue';
 

@@ -79,7 +79,7 @@ function setup(list: Item[]) {
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: COLLAPSED,
+    estimatedSize: COLLAPSED,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
     },
@@ -453,7 +453,7 @@ describe('展开超过一屏的项，收起后的落点', () => {
         {
           list,
           itemKey: 'id',
-          itemPreSize: COLLAPSED,
+          estimatedSize: COLLAPSED,
           renderItem: (item, _index, el) => {
             el.textContent = item.text;
           },

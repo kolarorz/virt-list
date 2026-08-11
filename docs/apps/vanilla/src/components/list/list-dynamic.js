@@ -35,8 +35,7 @@ export function bootstrapDynamic(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 20,
-      buffer: 5,
+      estimatedSize: 20,
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item demo-dynamic-row';

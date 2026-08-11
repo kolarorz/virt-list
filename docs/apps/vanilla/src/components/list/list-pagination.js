@@ -10,7 +10,7 @@ const PAGE_MSGS = [
   '这是一条普通长度的分页消息，展示双向分页加载的效果。',
   '向上滚动会加载更早的数据，向下滚动会加载更新的数据。同时，离开可视区域较远的数据会被移除，以控制内存中的数据量。',
   '分页已加载。',
-  '双向分页模式适用于消息列表、日志浏览等场景。用户可以在时间线上自由导航，而不需要一次性加载所有数据。这种模式通过 addedList2Top 和 deletedList2Top 两个 API 来实现数据的动态增删，同时保持滚动位置的稳定。',
+  '双向分页模式适用于消息列表、日志浏览等场景。用户可以在时间线上自由导航，而不需要一次性加载所有数据。数据的增删只需要照常改 list，滚动位置由组件自动补偿。',
   '翻到顶部或底部都可以触发新一页的加载。',
 ];
 
@@ -47,28 +47,66 @@ export function bootstrapPagination(root) {
 
   let page = PAGE_MAX;
   let list = [...generatePage(page - 1), ...generatePage(page)];
-  let loadingTop = false;
-  let loadingBottom = false;
-  let firstResize = true;
+  let loadState = null;
 
-  const virtList = new VirtList(
+  /**
+   * 提前声明：loadMore 有可能在构造期间就被调用，那时 `new VirtList(...)`
+   * 还没返回。用 const 声明就会撞上 TDZ 错误。
+   */
+  let virtList;
+
+  function updateStats(state) {
+    const loading = loadState?.loadingTop || loadState?.loadingBottom;
+    statsEl.textContent = `总数: ${list.length} | Page: ${page} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${
+      loading ? ' | 加载中...' : ''
+    }`;
+  }
+
+  virtList = new VirtList(
     container,
     {
       list,
       itemKey: 'id',
-      itemPreSize: 60,
-      buffer: 2,
-      renderHeader: () => {
-        const el = document.createElement('div');
-        el.className = 'demo-loading-bar';
-        el.textContent = page > 2 ? '上拉加载...' : '没有更早的数据了';
-        return el;
+      estimatedSize: 60,
+      initialPosition: 'bottom',
+      /**
+       * 双向分页取数。
+       *
+       * 一端加一页、另一端裁一页——即使总长度不变，组件也能识别出头部的结构变化
+       * 并补偿滚动位置，不需要手动补偿，也不需要 forceUpdate。
+       */
+      loadMore: async (direction) => {
+        if (direction === 'top') {
+          if (page <= 2) return false;
+          const prevPage = await asyncGeneratePage(page - 2);
+          page--;
+          list = prevPage.concat(list.slice(0, list.length - PAGE_SIZE));
+          virtList.setList(list);
+          return page > 2;
+        }
+
+        if (page >= PAGE_MAX) return false;
+        const nextPage = await asyncGeneratePage(page + 1);
+        page++;
+        list = list.slice(PAGE_SIZE).concat(nextPage);
+        virtList.setList(list);
+        return page < PAGE_MAX;
       },
-      renderFooter: () => {
-        const el = document.createElement('div');
+      renderHeader: (el, state) => {
         el.className = 'demo-loading-bar';
-        el.textContent = page < PAGE_MAX ? '下拉加载...' : '没有更新的数据了';
-        return el;
+        el.textContent = state.loadingTop
+          ? '加载中...'
+          : state.hasMoreTop
+            ? '上拉加载...'
+            : '没有更早的数据了';
+      },
+      renderFooter: (el, state) => {
+        el.className = 'demo-loading-bar';
+        el.textContent = state.loadingBottom
+          ? '加载中...'
+          : state.hasMoreBottom
+            ? '下拉加载...'
+            : '没有更新的数据了';
       },
       renderItem: (item) => {
         const row = document.createElement('div');
@@ -83,54 +121,13 @@ export function bootstrapPagination(root) {
       },
     },
     {
-      toTop: async () => {
-        if (loadingTop || page <= 2) return;
-        loadingTop = true;
-        updateStats();
-
-        const prevPageData = await asyncGeneratePage(page - 2);
-        page--;
-
-        list.splice(list.length - PAGE_SIZE, PAGE_SIZE);
-        list = prevPageData.concat(list);
-        virtList.setList(list);
-        virtList.addedList2Top(prevPageData);
-        virtList.forceUpdate();
-
-        loadingTop = false;
-        updateStats();
-      },
-      toBottom: async () => {
-        if (loadingBottom || page >= PAGE_MAX) return;
-        loadingBottom = true;
-        updateStats();
-
-        const nextPageData = await asyncGeneratePage(page + 1);
-        page++;
-
-        const removed = list.splice(0, PAGE_SIZE);
-        list = list.concat(nextPageData);
-        virtList.setList(list);
-        virtList.deletedList2Top(removed);
-        virtList.forceUpdate();
-
-        loadingBottom = false;
-        updateStats();
-      },
-      itemResize: () => {
-        if (firstResize) {
-          firstResize = false;
-          virtList.scrollToBottom();
-        }
+      loadStateChange: (state) => {
+        loadState = state;
+        updateStats(virtList?.core.getState());
       },
       update: (_, state) => updateStats(state),
     },
   );
-
-  function updateStats(state) {
-    const extra = loadingTop || loadingBottom ? ' | 加载中...' : '';
-    statsEl.textContent = `总数: ${list.length} | Page: ${page} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${extra}`;
-  }
 
   updateStats();
 

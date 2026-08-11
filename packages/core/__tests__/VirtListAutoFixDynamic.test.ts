@@ -4,7 +4,7 @@ import { VirtListCore } from '../src/VirtListCore';
 /**
  * 不定高模式下的头部增删。
  *
- * 与 VirtListAutoFixScroll 的区别只有一个：那边跑的是 fixed，_calcRange 会用
+ * 与 VirtListAutoFixScroll 的区别只有一个：那边跑的是 fixedSize，_calcRange 会用
  * 一次除法无条件重算区间；这边不定高，走的是增量搜索路径——聊天室与双向分页
  * 都是不定高，白屏正是出在这条路径上。
  */
@@ -42,7 +42,7 @@ function makeScrollEl(totalSize: () => number, clientSize: number) {
 function setup(list: Item[], opts?: { headerSize?: number }) {
   const events = { update: vi.fn() };
   const core = new VirtListCore<Item>(
-    { list, itemKey: 'id', itemPreSize: PRE_SIZE },
+    { list, itemKey: 'id', estimatedSize: PRE_SIZE },
     events,
   );
   const el = makeScrollEl(() => core.getTotalSize(), CLIENT_SIZE);
@@ -217,7 +217,7 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
       scrollTo(core, 0);
       const relBefore = relOffsetOf(core, el, 'a-0');
 
-      // 插入项按 itemPreSize(40) 估算，真实高度 120——补偿只能按估算值算，
+      // 插入项按 estimatedSize(40) 估算，真实高度 120——补偿只能按估算值算，
       // 差额要靠锚点在测量后补回来
       const inserted = makeList(20, 'older');
       core.updateOptions({ list: [...inserted, ...list] });
@@ -265,7 +265,7 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
       scrollTo(core, 1000);
       scrollTo(core, 0);
 
-      // 插入项按 itemPreSize(40) 估算，真实高度是 120——聊天室里长短消息混排
+      // 插入项按 estimatedSize(40) 估算，真实高度是 120——聊天室里长短消息混排
       // 就是这个情形，估算与实测差得远
       const inserted = makeList(20, 'older');
       core.updateOptions({ list: [...inserted, ...list] });
@@ -304,7 +304,7 @@ describe('不定高模式下的头部增删（白屏回归）', () => {
     scrollTo(core, 1000);
     scrollTo(core, 0);
 
-    // 不预设尺寸，插入项按 itemPreSize 估算
+    // 不预设尺寸，插入项按 estimatedSize 估算
     const inserted = makeList(20, 'older');
     core.updateOptions({ list: [...inserted, ...list] });
 

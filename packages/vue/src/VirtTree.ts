@@ -19,14 +19,13 @@ import type {
   TreeData,
   TreeFieldNames,
   TreeNodeData,
-  IScrollParams,
+  VirtTreeScrollTarget,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
   VirtScrollOptions,
 } from '@virt-list/vanilla';
-import '@virt-list/vanilla/src/tree/tree.css';
 
-export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, IScrollParams, VirtTreeDOMEvents };
+export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, VirtTreeScrollTarget, VirtTreeDOMEvents };
 
 /**
  * 取 DOM 层某个事件的参数元组。
@@ -69,8 +68,7 @@ export const VirtTree = defineComponent({
     'update:checkedKeys': (_keys: TreeNodeKey[]) => true,
     dragstart: (..._args: TreeEventArgs<'dragstart'>) => true,
     dragend: (..._args: TreeEventArgs<'dragend'>) => true,
-    // 与 VirtList 同理：根元素 overflow:hidden 不会原生滚动，
-    // 原生 scroll 又不冒泡，所以叫 scroll 不会拦掉任何东西
+    // 叫 scroll 不会拦掉任何东西，三条论据见 VirtList 的 emits.scroll 注释
     scroll: (..._args: TreeEventArgs<'scroll'>) => true,
     offsetChange: (_offset: number) => true,
     toTop: (..._args: TreeEventArgs<'toTop'>) => true,
@@ -85,18 +83,15 @@ export const VirtTree = defineComponent({
     iconSize: { type: Number, default: 16 },
     itemGap: { type: Number, default: 0 },
     buffer: { type: Number, default: 2 },
-    itemPreSize: { type: Number, default: 32 },
-    fixed: { type: Boolean, default: false },
+    estimatedSize: { type: Number, default: 32 },
+    fixedSize: { type: Boolean, default: false },
     scrollDuration: { type: Number, default: 300 },
     smoothMaxDistance: { type: Number, default: 0 },
-    /**
-     * 滚动条实现方式，见 @virt-list/core 的 VirtListOptions.scrollbar。
-     *
-     * 缺省值刻意留空而非写 'native'：写死会让本组件永远显式传值，
-     * 从而盖掉 DEFAULT_OPTIONS 里的默认值。留空则交由下层统一兜底（结果同样是 native）。
-     */
-    scrollbarAutoHide: { type: Number, default: undefined },
+    /** 滚动条淡出延迟（ms），`0` 常驻。留空交由 DEFAULT_DOM_OPTIONS 兜底 */
+    scrollbarAutoHideDelay: { type: Number, default: undefined },
     scrollbarMinThumbSize: { type: Number, default: undefined },
+    /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+    keyboard: { type: Boolean, default: true },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -158,12 +153,13 @@ export const VirtTree = defineComponent({
         iconSize: props.iconSize,
         itemGap: props.itemGap,
         buffer: props.buffer,
-        itemPreSize: props.itemPreSize,
-        fixed: props.fixed,
+        estimatedSize: props.estimatedSize,
+        fixedSize: props.fixedSize,
         scrollDuration: props.scrollDuration,
         smoothMaxDistance: props.smoothMaxDistance,
-        scrollbarAutoHide: props.scrollbarAutoHide,
+        scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+        keyboard: props.keyboard,
         showLine: props.showLine,
         itemClass: props.itemClass,
         listClass: props.listClass,
@@ -300,17 +296,34 @@ export const VirtTree = defineComponent({
       getHalfCheckedKeys: () => tree?.getHalfCheckedKeys() ?? [],
       setFocusedKeys: (keys: TreeNodeKey[]) => tree?.setFocusedKeys(keys),
       filter: (query: string) => tree?.filter(query),
-      scrollTo: (params: IScrollParams) => tree?.scrollTo(params),
+      scrollTo: (params: VirtTreeScrollTarget) => tree?.scrollTo(params),
+      scrollToKey: (key: TreeNodeKey, options?: VirtScrollOptions) => tree?.scrollToKey(key, options),
+      scrollKeyIntoView: (key: TreeNodeKey, options?: VirtScrollOptions) => tree?.scrollKeyIntoView(key, options),
+      scrollToOffset: (offset: number, options?: VirtScrollOptions) => tree?.scrollToOffset(offset, options),
       scrollToTop: (options?: VirtScrollOptions) => tree?.scrollToTop(options),
       scrollToBottom: (options?: VirtScrollOptions) =>
         tree?.scrollToBottom(options),
       getOffset: () => tree?.getOffset() ?? 0,
+      getMaxOffset: () => tree?.getMaxOffset() ?? 0,
+      getTotalSize: () => tree?.getTotalSize() ?? 0,
       scrollFromUser: (o: number) => tree?.scrollFromUser(o),
       cancelScroll: () => tree?.cancelScroll(),
+      resume: () => tree?.resume(),
       setList: (list: TreeData) => tree?.setList(list),
       forceUpdate: () => tree?.forceUpdate(),
       getTreeNode: (key: TreeNodeKey) => tree?.getTreeNode(key),
     };
+
+    /**
+     * 滚动容器（唯一的 scrollport）。
+     *
+     * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
+     * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
+     */
+    Object.defineProperty(api, 'clientEl', {
+      get: () => tree?.clientEl,
+      enumerable: true,
+    });
 
     expose(api);
 

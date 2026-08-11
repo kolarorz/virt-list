@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { VirtList } from './VirtList';
-import { normalizeStyle } from './utils';
+import { VirtList } from './VirtList.js';
+import { normalizeStyle } from './utils.js';
 import type {
   ListState,
   StyleValue,
@@ -20,11 +20,11 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   /** 每项的唯一 key 字段名 */
   itemKey: string;
   /** 每行的预估高度（px） */
-  itemPreSize: number;
+  estimatedSize: number;
   /** 行间距（px） */
   itemGap?: number;
   /** 是否固定行高 */
-  fixed?: boolean;
+  fixedSize?: boolean;
   /** 渲染缓冲行数 */
   buffer?: number;
   /** smooth 滚动的默认动画时长（ms），默认 300 */
@@ -32,9 +32,11 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   /** 平滑滚动允许逐帧穿越的最大距离（px），默认两倍视口 */
   smoothMaxDistance?: number;
   /** 滚动条淡出延迟（ms），`0` 常驻 */
-  scrollbarAutoHide?: number;
+  scrollbarAutoHideDelay?: number;
   /** 滑块的最小长度（px） */
   scrollbarMinThumbSize?: number;
+  /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
+  keyboard?: boolean;
   /** 行的自定义 style */
   itemStyle?: StyleValue;
   /** 单元格渲染函数（可返回 HTMLElement，或直接渲染到传入 el） */
@@ -111,14 +113,15 @@ export class VirtGrid<T extends Record<string, any>> {
       {
         list: this._gridList,
         itemKey: '_id',
-        itemPreSize: options.itemPreSize,
+        estimatedSize: options.estimatedSize,
         itemGap: options.itemGap,
-        fixed: options.fixed,
+        fixedSize: options.fixedSize,
         buffer: options.buffer,
         scrollDuration: options.scrollDuration,
         smoothMaxDistance: options.smoothMaxDistance,
-        scrollbarAutoHide: options.scrollbarAutoHide,
+        scrollbarAutoHideDelay: options.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: options.scrollbarMinThumbSize,
+        keyboard: options.keyboard,
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {
@@ -214,6 +217,11 @@ export class VirtGrid<T extends Record<string, any>> {
     this._virtListDOM.scrollToOffset(offset, options);
   }
 
+  /** 滚动容器（唯一的 scrollport），与 `VirtList.clientEl` 一致 */
+  get clientEl(): HTMLElement {
+    return this._virtListDOM.clientEl;
+  }
+
   /** 底层虚拟列表的计算内核（与 VirtList.core 一致，供进阶用法与测试使用） */
   get core() {
     return this._virtListDOM.core;
@@ -240,9 +248,27 @@ export class VirtGrid<T extends Record<string, any>> {
     return this._virtListDOM.core.getOffset();
   }
 
+  /** 当前允许的最大偏移量，即 `getTotalSize() - clientSize`（不为负） */
+  getMaxOffset(): number {
+    return this._virtListDOM.getMaxOffset();
+  }
+
+  /** 内容总尺寸（所有行 + 各插槽），对应原生语境的 `scrollHeight` */
+  getTotalSize(): number {
+    return this._virtListDOM.getTotalSize();
+  }
+
   /** 取消进行中的平滑滚动动画 */
   cancelScroll(): void {
     this._virtListDOM.cancelScroll();
+  }
+
+  /**
+   * 把内容重新摆到当前偏移量上（keep-alive / `display:none` 切回来时用）。
+   * 详见 `VirtList.resume`。
+   */
+  resume(): void {
+    this._virtListDOM.resume();
   }
 
   /** 强制刷新（重建行数据并更新列表） */

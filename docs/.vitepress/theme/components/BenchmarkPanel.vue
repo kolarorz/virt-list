@@ -131,8 +131,8 @@ async function run(): Promise<void> {
       {
         list: data,
         itemKey: 'id',
-        itemPreSize: ROW_HEIGHT,
-        fixed: isFixed,
+        estimatedSize: ROW_HEIGHT,
+        fixedSize: isFixed,
         buffer: 2,
         renderItem: (item, index, el) => {
           el.className = 'bench-row';

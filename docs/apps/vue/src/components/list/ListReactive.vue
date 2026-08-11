@@ -44,7 +44,7 @@
         ref="virtListRef"
         :list="list"
         item-key="id"
-        :item-pre-size="44"
+        :estimated-size="44"
       >
         <template #default="{ itemData }">
           <div class="demo-row-item">
@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, type ComponentPublicInstance } from 'vue';
+import { ref, shallowRef, onUnmounted } from 'vue';
 import { VirtList } from '@virt-list/vue';
 
 interface Row {
@@ -83,40 +83,28 @@ function createRows(count: number): Row[] {
   }));
 }
 
-type VirtListExpose = {
-  forceUpdate: () => void;
-};
-
-const virtListRef = ref<(ComponentPublicInstance & VirtListExpose) | null>(null);
+const virtListRef = ref<typeof VirtList | null>(null);
 const interval = ref(1000);
 const rowCount = ref(1000);
 const tick = ref(0);
 const running = ref(false);
-const list = ref<Row[]>(createRows(1000));
-  // const list = shallowRef<Row[]>(createRows(1000));
+const list = shallowRef<Row[]>(createRows(1000));
 let timer: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * 只改已有项的字段、不动数组长度。
+ *
+ * 这种改法组件感知不到（引用没变、长度没变），必须显式 forceUpdate() 才会重绘。
+ * 换成 push 一项或整体替换 list 都会被自动识别，不需要这一步。
+ */
 function doTick() {
-  // 第一种 length 变化 => 可以触发更新
-  // list.value.push({
-  //   id: list.value.length,
-  //   index: list.value.length,
-  //   value: Math.floor(Math.random() * 1000),
-  //   updatedAt: nowText(),
-  // });
-
-  // 第二种 length 变化 => 可以触发更新
-  // list.value = createRows(list.value.length + 1);
-
-  // 第三种 修改已有项 => 不可以触发更新，必须使用 forceUpdate() 触发更新
   const time = nowText();
   list.value.forEach((row) => {
     row.value = Math.floor(Math.random() * 1000);
     row.updatedAt = time;
   });
-  virtListRef.value?.forceUpdate();
-
   tick.value += 1;
+  virtListRef.value?.forceUpdate();
 }
 
 function start() {

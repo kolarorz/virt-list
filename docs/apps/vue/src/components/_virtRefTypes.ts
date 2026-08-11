@@ -1,9 +1,20 @@
-import type { IScrollParams, TreeData, TreeNodeKey } from '@virt-list/vue';
+import type {
+  VirtTreeScrollTarget,
+  VirtScrollOptions,
+  TreeData,
+  TreeNode,
+  TreeNodeKey,
+} from '@virt-list/vue';
 
 export type VirtTreeRef = {
+  getTreeNode: (key: TreeNodeKey) => TreeNode | undefined;
+  toggleSelect: (node: TreeNode) => void;
   expandAll: (expanded: boolean) => void;
   expandNode: (key: TreeNodeKey | TreeNodeKey[], expanded: boolean) => void;
-  scrollTo: (params: IScrollParams) => void;
+  scrollTo: (params: VirtTreeScrollTarget) => void;
+  scrollToKey: (key: TreeNodeKey, options?: VirtScrollOptions) => void;
+  scrollKeyIntoView: (key: TreeNodeKey, options?: VirtScrollOptions) => void;
+  scrollToOffset: (offset: number, options?: VirtScrollOptions) => void;
   checkAll: (checked: boolean) => void;
   getCheckedKeys: (leafOnly?: boolean) => TreeNodeKey[];
   selectAll: (selected: boolean) => void;

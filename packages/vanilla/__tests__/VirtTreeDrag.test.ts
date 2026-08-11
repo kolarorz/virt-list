@@ -73,8 +73,8 @@ function mount(
     container,
     {
       list: makeTree(),
-      itemPreSize: ROW,
-      fixed: true,
+      estimatedSize: ROW,
+      fixedSize: true,
       buffer: 0,
       draggable: true,
       ...options,

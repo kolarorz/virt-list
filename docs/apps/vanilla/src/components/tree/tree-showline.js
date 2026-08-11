@@ -47,7 +47,7 @@ export function bootstrapTreeShowLine(root) {
       showLine: line,
       defaultExpandAll: true,
       itemGap: 4,
-      fixed: true,
+      fixedSize: true,
       renderEmpty: () => {
         const div = document.createElement('div');
         div.style.padding = '16px';

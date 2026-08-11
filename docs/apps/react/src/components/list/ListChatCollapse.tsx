@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { VirtList, type VirtListRef, type LoadDirection, type LoadState } from '@virt-list/react';
 import {
   createChatMessage,
@@ -7,7 +7,6 @@ import {
   type ChatMessage,
 } from '../../../../_shared/chatData';
 import { formatChatStats } from '../../../../_shared/demoStats';
-import { createBlankScreenDiagnostics } from '../../../../_shared/blankScreenDiagnostics';
 
 const PAGE_SIZE = 30;
 /** 超过这个字数才需要折叠 */
@@ -88,9 +87,7 @@ export default function ChatCollapse() {
     generateChatPage(pageRef.current, PAGE_SIZE),
   );
   const [stats, setStats] = useState('');
-  const [diagText, setDiagText] = useState('');
   const virtListRef = useRef<VirtListRef<ChatMessage>>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const loadStateRef = useRef<LoadState | null>(null);
 
   /** 展开状态记录在列表数据之外，供项被重建时恢复 */
@@ -112,22 +109,6 @@ export default function ChatCollapse() {
     },
     [expandedIds],
   );
-
-  /** 白屏自检（临时诊断，定位完会删掉）*/
-  const diagnostics = useMemo(
-    () =>
-      createBlankScreenDiagnostics(
-        {
-          root: () => containerRef.current,
-          listLength: () => listRef.current.length,
-          slotSize: () => virtListRef.current?.slotSize,
-          itemSize: (key) => virtListRef.current?.getItemSize(key) ?? -1,
-        },
-        setDiagText,
-      ),
-    [],
-  );
-  useEffect(() => () => diagnostics.dispose(), [diagnostics]);
 
   /**
    * 展开 / 收起单条消息。滚动只有一条规则，展开和收起共用：
@@ -189,18 +170,12 @@ export default function ChatCollapse() {
   return (
     <div className="demo-panel">
       <div className="demo-stats">{stats}</div>
-      <div
-        className="demo-stats"
-        style={diagText ? { color: '#c00', fontWeight: 'bold' } : undefined}
-      >
-        自检：{diagText || '正常'}
-      </div>
-      <div ref={containerRef} className="demo-list-container">
+      <div className="demo-list-container">
         <VirtList<ChatMessage>
           ref={virtListRef}
           list={list}
           itemKey="id"
-          itemPreSize={76}
+          estimatedSize={76}
           loadMore={onLoadMore}
           hasMoreBottom={false}
           initialPosition="bottom"
@@ -209,11 +184,7 @@ export default function ChatCollapse() {
             loadStateRef.current = s;
             updateStats();
           }}
-          onUpdate={(_, state) => {
-            updateStats(state);
-            diagnostics.schedule(state);
-          }}
-          onOffsetChange={() => diagnostics.schedule(virtListRef.current?.getState())}
+          onUpdate={(_, state) => updateStats(state)}
           renderHeader={(loadState) => (
             <div className="demo-loading-bar">
               {loadState.loadingTop

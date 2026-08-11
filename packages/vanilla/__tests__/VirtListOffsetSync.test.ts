@@ -86,7 +86,7 @@ function setup(list: Item[]) {
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
+    estimatedSize: PRE_SIZE,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
     },
@@ -158,7 +158,7 @@ describe('构造期间不回调加载状态', () => {
       {
         list: makeList(30),
         itemKey: 'id',
-        itemPreSize: PRE_SIZE,
+        estimatedSize: PRE_SIZE,
         hasMoreBottom: false,
         renderItem: (item, _i, el) => {
           el.textContent = item.text;
@@ -181,7 +181,7 @@ describe('构造期间不回调加载状态', () => {
         {
           list: makeList(30),
           itemKey: 'id',
-          itemPreSize: PRE_SIZE,
+          estimatedSize: PRE_SIZE,
           hasMoreTop: false,
           hasMoreBottom: false,
           renderItem: (item, _i, el) => {

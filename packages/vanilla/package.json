@@ -12,24 +12,30 @@
       "import": "./dist/index.js"
     },
     "./src/tree/tree.css": "./src/tree/tree.css",
-    "./scrollbar.css": "./src/scrollbar/scrollbar.css"
+    "./scrollbar.css": "./src/scrollbar/scrollbar.css",
+    "./style.css": "./dist/style.css"
   },
   "files": [
     "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/build-styles.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@virt-list/core": "workspace:*"
   },
-  "keywords": ["virtual-list", "virtual-tree", "virtual-grid", "vanilla"],
+  "keywords": [
+    "virtual-list",
+    "virtual-tree",
+    "virtual-grid",
+    "vanilla"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nicepkg/virt-list",
+    "url": "https://github.com/kolarorz/virt-list",
     "directory": "packages/vanilla"
   },
   "sideEffects": [

@@ -86,8 +86,10 @@ export function bootstrapSmooth(root) {
     {
       list,
       itemKey: 'id',
-      itemPreSize: 40,
+      estimatedSize: 40,
       buffer: 2,
+      // 动画时长的默认值；每次调用传的 duration 会覆盖它
+      scrollDuration: 300,
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = 'demo-row-item';

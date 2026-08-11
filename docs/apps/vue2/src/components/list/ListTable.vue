@@ -5,7 +5,7 @@
       <VirtList
         :list="list"
         item-key="id"
-        :item-pre-size="40"
+        :estimated-size="40"
         sticky-header-style="background:var(--demo-c-fill-2);"
         @update="onUpdate"
       >

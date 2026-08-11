@@ -2,16 +2,28 @@
 import type {
   ListState,
   LoadState,
+  SlotId,
   SlotSize,
   VirtListOptions,
   VirtListEvents,
   VirtScrollOptions,
   VirtScrollSource,
   RequiredOptions,
-} from './types';
-import { DEFAULT_OPTIONS } from './types';
-import { ChunkedSizeIndex } from './ChunkedSizeIndex';
-import { ListLoader } from './ListLoader';
+} from './types.js';
+import { DEFAULT_OPTIONS } from './types.js';
+import { ChunkedSizeIndex } from './ChunkedSizeIndex.js';
+import { ListLoader } from './ListLoader.js';
+import { buildCopyText, type SelectionCopyHost } from './SelectionCopy.js';
+
+/** `dataset.id` 是否指向一个插槽（`client` 不算，它另有一条处理路径） */
+function isSlotId(id: string): id is SlotId {
+  return (
+    id === 'header' ||
+    id === 'footer' ||
+    id === 'stickyHeader' ||
+    id === 'stickyFooter'
+  );
+}
 
 /** 平滑滚动动画的运行时状态 */
 interface AnimState {
@@ -55,7 +67,15 @@ type PinnedTarget =
   | {
       /** 贴到底：目标是 `totalSize - clientSize`，随测量推进而变 */
       kind: 'end';
-      explicit: true;
+      /**
+       * 是否为显式定位（scrollToBottom）。
+       *
+       * 贴底目标有两种来源：`scrollToBottom()` 是显式的；而「用户自己滚到底」
+       * 建立的跟随不是——它只是对当前位置的一次记账，语义上更接近自动锚定。
+       * 两者在 `_syncFromScrollPosition` 里的归宿相同（向上滚都会让位给
+       * `_pinIndex`），区分开只是为了不把用户行为记成程序意图。
+       */
+      explicit: boolean;
     }
   | {
       /** 锚定某一项：目标是该项的位置加上项内偏移 */
@@ -86,13 +106,36 @@ type PinnedTarget =
 const MAX_INCREMENTAL_STEPS = 64;
 
 /**
- * 头部结构变化的最大扫描项数。
+ * 头部结构变化的最大识别范围。
  *
- * 分页加载一次进出的量级是几十到几百项，2048 足够覆盖；超出这个范围的头部改动
- * 更可能是整体换数据源，那种情况本就不该维持视口位置，按普通更新处理即可。
+ * 头部增删是唯一会整体推移后续内容的结构变化，识别它需要「变化前的头部长什么样」。
+ * 这个上界同时约束两件事：正向扫描新列表找旧首项的步数（识别插入），以及头部 key
+ * 快照的长度（识别删除）。超出范围的头部改动识别不出来，视口不再维持——
+ * 那种量级更可能是整体换数据源，本就不该维持位置。
+ *
+ * 取 65536 而不是更小的值，是因为成本实测足够低（300k 列表，Node 22）：
+ * 快照 0.295ms / 次列表变更，扫描扑空 0.170ms / 次换数据源。都是亚毫秒、且只在
+ * 列表变更时付一次，不在滚动热路径上。
+ *
  * 上界的意义是保证 _diffHead 与列表长度无关，不会在 30w 列表上退化成 O(n)。
  */
-const HEAD_SCAN_LIMIT = 2048;
+const HEAD_SCAN_LIMIT = 65536;
+
+/**
+ * 尺寸诊断：收集到这么多实测值之后与 `estimatedSize` 比对一次。
+ *
+ * 取 32 而不是更小的值，是为了让样本覆盖首屏之外的几项——头几项常常不典型
+ * （聊天室的第一条、日志的启动行），过早比对容易误报。
+ */
+const SIZE_SAMPLE_TARGET = 32;
+
+/**
+ * 实测中位数与 `estimatedSize` 的比值超出这个倍数才提示。
+ *
+ * 不定高列表本来就参差不齐，差个百分之几十是常态、也无害；差到一倍以上时
+ * 首屏渲染的项数就会明显偏离，那才值得说一句。
+ */
+const SIZE_MISMATCH_RATIO = 2;
 
 /** easeOutCubic：起步快、收尾慢，贴近原生 smooth 的手感 */
 function easeOutCubic(t: number): number {
@@ -115,11 +158,21 @@ export class VirtListCore<T extends Record<string, any>> {
   readonly state: ListState;
   /** 各插槽区域的尺寸 */
   readonly slotSize: SlotSize;
-  /** 列表项 key → 实测尺寸 的映射，未测量项回退到 itemPreSize + itemGap */
+  /** 列表项 key → 实测尺寸 的映射，未测量项回退到 estimatedSize + itemGap */
   readonly sizesMap: Map<string, number> = new Map();
 
-  /** 当前滚动偏移量（内部状态，不驱动 UI 渲染） */
-  private _offset = 0;
+  /**
+   * 内部状态（方向、渲染区间）已经同步到的偏移量。
+   *
+   * **不是**权威值——权威值是 `_scrollOffset`，`getOffset()` 读的是那个。
+   * 这里存的是「上一次 `_calcRange` 是按哪个位置算的」，两者的差值就是
+   * 「已经写进账本、但区间还没跟上」的那一段，`_syncAfterWrite` 负责抹平它。
+   *
+   * 两个字段必须一起变更。曾经它叫 `_offset`，看起来才像那个权威值，
+   * 结果 `reset()` 只归零了它、漏掉 `_scrollOffset`，留下「账本说 0、
+   * 内容停在旧位置」的不自洽状态。
+   */
+  private _syncedOffset = 0;
   /** 向上方向的缓冲项数 */
   private _bufferTop = 0;
   /** 向下方向的缓冲项数 */
@@ -135,17 +188,17 @@ export class VirtListCore<T extends Record<string, any>> {
   private _renderKeys: Map<string, number> = new Map();
   /**
    * 分块尺寸索引，把「前缀和」与「按偏移定位」从 O(n) 降到 O(√n)。
-   * fixed 模式与「尚无任何实测尺寸」时都走乘除法，不经过它。
+   * fixedSize 模式与「尚无任何实测尺寸」时都走乘除法，不经过它。
    */
   private _sizeIndex: ChunkedSizeIndex;
   /**
-   * 增量维护的 virtualSize 是否已失效。
+   * 增量维护的 leadingSize 是否已失效。
    *
-   * virtualSize 只统计 renderBegin 之前的项，正常情况下被观察的项都在渲染窗口内，
-   * 它们的尺寸变化不影响 virtualSize。但窗口之外的项若上报了尺寸（例如
-   * addedList2Top 插入的项还没进入窗口就完成测量），这个增量值就不再可信。
+   * leadingSize 只统计 renderBegin 之前的项，正常情况下被观察的项都在渲染窗口内，
+   * 它们的尺寸变化不影响 leadingSize。但窗口之外的项若上报了尺寸（例如
+   * 头部插入的项还没进入窗口就完成测量），这个增量值就不再可信。
    */
-  private _virtualSizeDirty = false;
+  private _leadingSizeDirty = false;
   /** 经 Proxy 封装的配置项，访问时自动回退到 DEFAULT_OPTIONS */
   private _props: RequiredOptions<T>;
 
@@ -154,14 +207,14 @@ export class VirtListCore<T extends Record<string, any>> {
    *
    * _props 是 Proxy，每次属性读取都要走 get 陷阱（两次 Reflect.get）。
    * getItemSize 是全 core 最热的函数——一次全量遍历 30w 列表就要调 30w 次，
-   * 而它原本每次调用都要读 fixed / itemPreSize / itemGap 三个属性。实测
+   * 而它原本每次调用都要读 fixedSize / estimatedSize / itemGap 三个属性。实测
    * 30w 遍历从 13.0ms 降到 2.6ms，差 5 倍。
    *
    * 快照由 _syncHotOptions() 统一刷新，updateOptions 是配置变更的唯一入口。
    */
-  /** itemPreSize + itemGap，即未测量项的占位尺寸 */
+  /** estimatedSize + itemGap，即未测量项的占位尺寸 */
   private _unitSize = 0;
-  private _fixed = false;
+  private _fixedSize = false;
   /** 事件回调集合 */
   private _events: VirtListEvents<T>;
   /**
@@ -191,10 +244,6 @@ export class VirtListCore<T extends Record<string, any>> {
   private _prevLen = 0;
   /** 是否已有可比对的列表快照（首次装载时无从比对） */
   private _hasListSnapshot = false;
-  /** 列表变更计数，作为"同一次变更"的标识 */
-  private _listVersion = 0;
-  /** 已由 _onListChange 自动补偿过位移的列表版本号 */
-  private _autoFixedVersion = -1;
   /** 最近一次列表变更是否为尾部追加（头部未动且变长） */
   private _lastChangeWasAppend = false;
   /**
@@ -220,6 +269,18 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 是否已绑定容器。未绑定时不接受滚动写入 */
   private _bound = false;
   private _resizeObserver: ResizeObserver | undefined;
+  /**
+   * copy 事件的监听器，仅在配了 `copyText` 时创建。
+   *
+   * 存下引用是为了 destroy 时能精确摘掉——容器可能由使用方复用，
+   * 留一个野监听会在下一次挂载后继续改写剪贴板。
+   */
+  private _onCopy: ((e: ClipboardEvent) => void) | null = null;
+  /**
+   * 尺寸诊断的样本，比对完置为 null——之后这条路径彻底不再执行，
+   * 也不会一直往数组里堆数字。
+   */
+  private _sizeSamples: number[] | null = [];
 
   get renderList(): T[] {
     return this._renderList;
@@ -257,8 +318,8 @@ export class VirtListCore<T extends Record<string, any>> {
     };
 
     this.state = {
-      listTotalSize: 0,
-      virtualSize: 0,
+      itemsTotalSize: 0,
+      leadingSize: 0,
       inViewBegin: 0,
       inViewEnd: 0,
       renderBegin: 0,
@@ -297,7 +358,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 判定触达顶部 / 底部的容差，与 toTop / toBottom 的触发边界一致 */
   private _edgeThreshold(): number {
-    return Math.max(this._props.scrollDistance, 2);
+    return Math.max(this._props.edgeThreshold, 2);
   }
 
   /**
@@ -308,7 +369,7 @@ export class VirtListCore<T extends Record<string, any>> {
    */
   private _stickyThresholdPx(): number {
     return Math.max(
-      this._props.stickyThreshold || this._props.scrollDistance,
+      this._props.stickyThreshold || this._props.edgeThreshold,
       2,
     );
   }
@@ -320,7 +381,7 @@ export class VirtListCore<T extends Record<string, any>> {
    */
   private _prefixSize(index: number): number {
     if (index <= 0) return 0;
-    if (this._fixed || this.sizesMap.size === 0) {
+    if (this._fixedSize || this.sizesMap.size === 0) {
       return index * this._unitSize;
     }
     return this._sizeIndex.prefix(index);
@@ -330,7 +391,7 @@ export class VirtListCore<T extends Record<string, any>> {
   private _locateIndex(offset: number): number {
     const last = Math.max(0, this._props.list.length - 1);
     if (offset <= 0) return 0;
-    if (this._fixed || this.sizesMap.size === 0) {
+    if (this._fixedSize || this.sizesMap.size === 0) {
       return Math.min(Math.floor(offset / this._unitSize), last);
     }
     return Math.min(this._sizeIndex.locate(offset).index, last);
@@ -338,8 +399,8 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 刷新高频配置的快照，见字段处说明 */
   private _syncHotOptions(): void {
-    this._unitSize = this._props.itemPreSize + this._props.itemGap;
-    this._fixed = this._props.fixed;
+    this._unitSize = this._props.estimatedSize + this._props.itemGap;
+    this._fixedSize = this._props.fixedSize;
   }
 
   // ==================== 公共 API ====================
@@ -350,7 +411,7 @@ export class VirtListCore<T extends Record<string, any>> {
   }
 
   /** 获取所有插槽（header + footer + sticky）的尺寸总和 */
-  getSlotSize(): number {
+  getSlotsTotalSize(): number {
     return (
       this.slotSize.headerSize +
       this.slotSize.footerSize +
@@ -361,12 +422,12 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 获取列表总尺寸（列表项 + 插槽） */
   getTotalSize(): number {
-    return this.state.listTotalSize + this.getSlotSize();
+    return this.state.itemsTotalSize + this.getSlotsTotalSize();
   }
 
-  /** 获取指定 key 对应项的尺寸，未测量则返回 itemPreSize + itemGap */
+  /** 获取指定 key 对应项的尺寸，未测量则返回 estimatedSize + itemGap */
   getItemSize(itemKey: string): number {
-    if (this._fixed) return this._unitSize;
+    if (this._fixedSize) return this._unitSize;
     return this.sizesMap.get(String(itemKey)) ?? this._unitSize;
   }
 
@@ -387,7 +448,7 @@ export class VirtListCore<T extends Record<string, any>> {
     current: number;
     bottom: number;
   } {
-    if (this._fixed) {
+    if (this._fixedSize) {
       const unitSize = this._unitSize;
       return {
         top: unitSize * index,
@@ -408,11 +469,11 @@ export class VirtListCore<T extends Record<string, any>> {
    * 自绘滚动条的「滑块位置 ↔ 列表项」映射两个方向都要用到，必须严格互逆，
    * 否则拖到某处松手时滑块会跳。
    *
-   * 注意 fixed 模式下 `getItemPosByIndex` 不计 headerSize（既有行为），
+   * 注意 fixedSize 模式下 `getItemPosByIndex` 不计 headerSize（既有行为），
    * 这里的基准要跟着它走，不能统一减掉 header。
    */
   getIndexByOffset(offset: number): number {
-    const base = this._fixed ? offset : offset - this.slotSize.headerSize;
+    const base = this._fixedSize ? offset : offset - this.slotSize.headerSize;
     return base <= 0 ? 0 : this._locateIndex(base);
   }
 
@@ -476,7 +537,7 @@ export class VirtListCore<T extends Record<string, any>> {
     }
 
     this.scrollToOffset(this._getIndexScrollTarget(index, align));
-    // 目标项此刻多半还在渲染窗口之外、尺寸只能按 itemPreSize 估。
+    // 目标项此刻多半还在渲染窗口之外、尺寸只能按 estimatedSize 估。
     // 记下「要锚在这一项」，之后每次测量都重新求解一次，直到落准
     this._pinIndex(index, align, true);
     options?.onDone?.(false);
@@ -573,20 +634,29 @@ export class VirtListCore<T extends Record<string, any>> {
     this.state.renderBegin = newRenderBegin;
     this.state.renderEnd = newRenderEnd;
 
-    // 区间由外部任意指定，与上一次没有连续性，直接全量重算 virtualSize
+    // 区间由外部任意指定，与上一次没有连续性，直接全量重算 leadingSize
     this._setRenderList();
-    this._updateTotalVirtualSize();
+    this._updateLeadingSize();
     this._notify();
   }
 
   /** 重置所有状态（列表清空时调用） */
   reset(): void {
-    this._pinned = null;
-    this._offset = 0;
+    // 动画和待维持目标都指着旧内容里的位置，留着会在下一帧把偏移量重新写回去
+    this._clearScrollTasks();
     this._direction = 'backward';
-    this._virtualSizeDirty = false;
-    this.state.listTotalSize = 0;
-    this.state.virtualSize = 0;
+    this._leadingSizeDirty = false;
+
+    // 偏移量的两个字段必须一起归零。权威值是 _scrollOffset（getOffset() 读它、
+    // DOM 层按它摆放内容），_syncedOffset 只是「区间算到哪了」的镜像。
+    // 只归零镜像的话，列表清空后 getOffset() 仍是旧值，重新灌入数据时视口
+    // 停在旧偏移量、而渲染区间从头开始——白屏，且因为偏移量没变不会自愈
+    const hadOffset = this._scrollOffset !== 0;
+    this._scrollOffset = 0;
+    this._syncedOffset = 0;
+
+    this.state.itemsTotalSize = 0;
+    this.state.leadingSize = 0;
     this.state.inViewBegin = 0;
     this.state.inViewEnd = 0;
     this.state.renderBegin = 0;
@@ -597,64 +667,17 @@ export class VirtListCore<T extends Record<string, any>> {
     this._hasListSnapshot = false;
     this._prevHeadKeys = [];
     this._prevLen = 0;
+
+    // 只发 offsetChange 不发 scroll，与 resume() 同理：DOM 层要据此把内容搬回
+    // 原点，但「重置」不是一次滚动，方向 / 边界 / 来源那套载荷在这里没有意义
+    if (hadOffset) this._events.offsetChange?.(0);
     this._updateRenderRange();
-  }
-
-  /**
-   * 本次列表变更的位移是否已由 _onListChange 自动补偿。
-   *
-   * 列表变更会自动补偿头部增删的位移，此时旧代码里的 addedList2Top /
-   * deletedList2Top 调用必须短路，否则同一次变更被补两遍，视口会跳两倍距离。
-   */
-  private _isAutoFixed(): boolean {
-    return this._autoFixedVersion === this._listVersion;
-  }
-
-  /**
-   * 列表头部删除项后修正滚动位置，使视口内容保持不跳动。
-   *
-   * 头部增删现已由列表变更自动补偿，这个方法只在自动识别失败时才需要手动调用
-   * （例如一次变更同时改动头部两端、或头部改动超过 HEAD_SCAN_LIMIT 项）。
-   */
-  deletedList2Top(deletedList: T[]): void {
-    if (this._isAutoFixed()) return;
-    this._calcListTotalSize();
-    let deletedListSize = 0;
-    for (const item of deletedList) {
-      deletedListSize += this.getItemSize(item[this._props.itemKey]);
-    }
-    this._updateTotalVirtualSize();
-    this._writeOffset(this._offset - deletedListSize, 'adjust');
-    // 必须走 _syncAfterWrite 而不是裸的 _calcRange：这两个方法都从 _offset 读出
-    // 起点再加减，写完不同步的话下一次调用会从旧值上再算一遍
-    this._syncAfterWrite();
-  }
-
-  /**
-   * 列表头部新增项后修正滚动位置，使视口内容保持不跳动。
-   *
-   * 同 deletedList2Top，头部增删现已自动补偿，这里只作为识别失败时的兜底。
-   */
-  addedList2Top(addedList: T[]): void {
-    if (this._isAutoFixed()) return;
-    this._calcListTotalSize();
-    let addedListSize = 0;
-    for (const item of addedList) {
-      addedListSize += this.getItemSize(item[this._props.itemKey]);
-    }
-    this._updateTotalVirtualSize();
-    this._writeOffset(this._offset + addedListSize, 'adjust');
-    // 同 deletedList2Top：写完必须同步 _offset，否则连续调用会漏掉前一次
-    this._syncAfterWrite();
-    // 头部插入的项尺寸多为估算值，先锚定当前顶部项，
-    // 待新项测出真实尺寸后由 _resolvePinned 二次校正
-    this._pinIndex(this.state.inViewBegin);
   }
 
   /** 强制触发一次完整的重新计算与渲染更新 */
   forceUpdate(): void {
     this._calcListTotalSize();
-    this._updateTotalVirtualSize();
+    this._updateLeadingSize();
     this._updateRange(this.state.inViewBegin);
     this._notify();
   }
@@ -687,6 +710,9 @@ export class VirtListCore<T extends Record<string, any>> {
     if ('bufferTop' in partial || 'bufferBottom' in partial || 'buffer' in partial) {
       this._initBuffer();
     }
+
+    // 复制能力可以被运行时开关（框架层的 props 变化最终都走到这里）
+    if ('copyText' in partial) this._syncCopyListener();
   }
 
   /** 获取当前的加载状态（loading / hasMore / pendingNew） */
@@ -700,11 +726,12 @@ export class VirtListCore<T extends Record<string, any>> {
     this._bound = true;
 
     this._resizeObserver?.observe(clientEl);
+    this._syncCopyListener();
 
-    if (this._props.start) {
-      this.scrollToIndex(this._props.start);
-    } else if (this._props.offset) {
-      this.scrollToOffset(this._props.offset);
+    if (this._props.initialIndex) {
+      this.scrollToIndex(this._props.initialIndex);
+    } else if (this._props.initialOffset) {
+      this.scrollToOffset(this._props.initialOffset);
     } else if (this._props.initialPosition === 'bottom') {
       // scrollToBottom 自带渐进修正，不定高首屏也能稳定落到底部——
       // 这正是聊天室过去要靠「itemResize 里判一个 firstResize 布尔量」手写的事
@@ -729,12 +756,33 @@ export class VirtListCore<T extends Record<string, any>> {
   }
 
   /**
+   * 直接写入某个插槽的尺寸。
+   *
+   * `observeSlotEl` 之外的**同步**通道：DOM 层刚建好吸顶表头 / header / footer、
+   * 手里已经有 `offsetHeight` 时调它，账本立刻就对，不用等 ResizeObserver 那一拍。
+   *
+   * 为什么需要它：RO 是异步的，而 DOM 层的首帧摆放（`_applyLayout` 从
+   * `stickyHeaderSize` 处排起）和 `bindDOM` 里的首屏定位（`initialIndex` /
+   * `initialPosition: 'bottom'` 都要扣掉吸顶高度）都发生在**第一次 RO 回调之前**。
+   * 那时账本里是 0，于是首帧内容整体上移一个吸顶高度 —— 第一项正好躲在吸顶区背后
+   * （virt-table 的表格首行被固定表头压住就是这个原因，见其 `_syncGeometryVars`）。
+   *
+   * 值变了会 `_notify()`，与 RO 那条路径同一个规则（见 `_writeSlotSize`）。
+   * 重复写同一个值是空操作，可以放心在每次重建插槽后无脑调。
+   *
+   * `client`（滚动容器）不走这里：它还要连带重算可视区间，只由 RO 与 `bindDOM` 维护。
+   */
+  setSlotSize(id: SlotId, size: number): void {
+    if (this._writeSlotSize(id, size)) this._notify();
+  }
+
+  /**
    * 重新把内容摆到当前偏移量上（如 keep-alive 场景）。
    *
    * 偏移量本身归 JS 掌管，hide / show 不会把它弄丢——需要恢复的是 **DOM**：
    * 容器重建后 transform 会被清掉，内容就回到了 0 的位置。
    *
-   * 所以这里不能走 `scrollToOffset(this._offset)`：偏移量没变，
+   * 所以这里不能走 `scrollToOffset(this._syncedOffset)`：偏移量没变，
    * `_writeOffset` 会因为"值没变"而跳过通知，DOM 层收不到 offsetChange，
    * transform 也就不会被重写——`resume()` 就成了空操作。
    */
@@ -749,6 +797,10 @@ export class VirtListCore<T extends Record<string, any>> {
     this._pinned = null;
     if (this._clientEl) {
       this._resizeObserver?.unobserve(this._clientEl);
+      if (this._onCopy) {
+        this._clientEl.removeEventListener('copy', this._onCopy);
+        this._onCopy = null;
+      }
       this.slotSize.clientSize = 0;
     }
     this._resizeObserver?.disconnect();
@@ -758,6 +810,72 @@ export class VirtListCore<T extends Record<string, any>> {
   }
 
   // ==================== 私有方法 ====================
+
+  /**
+   * 让 copy 监听与 `copyText` 配置保持一致。
+   *
+   * 没配就一个监听都不挂：复制是浏览器的原生行为，不该因为引入了虚拟列表
+   * 而多出一条谁都没要求的拦截。配置被运行时改掉时也要相应摘掉。
+   *
+   * 判断用 typeof 而不是真值：`_props` 是 `Required<Options>`，类型上这个字段
+   * 「总是有值」，直接 `if (fn)` 会被 tsc 判成恒真（TS2774）。
+   */
+  private _syncCopyListener(): void {
+    const el = this._clientEl;
+    if (!el) return;
+
+    const wanted = typeof this._props.copyText === 'function';
+    if (wanted === !!this._onCopy) return;
+
+    if (wanted) {
+      this._onCopy = (e: ClipboardEvent) => this._handleCopy(e);
+      el.addEventListener('copy', this._onCopy);
+    } else if (this._onCopy) {
+      el.removeEventListener('copy', this._onCopy);
+      this._onCopy = null;
+    }
+  }
+
+  /**
+   * 供 buildCopyText 读取的最小信息面。
+   *
+   * 只读渲染窗口内的 key→索引：选区的两端必然落在已渲染的 DOM 上，
+   * 而中间那些「不在 DOM 里」的项由索引区间直接推出，不需要查表。
+   */
+  private get _copyHost(): SelectionCopyHost {
+    return {
+      getRootEl: () => this._clientEl,
+      getIndexByKey: (key: string) => this._renderKeys.get(key),
+      getItemText: (index: number) => {
+        const item = this._props.list[index];
+        if (!item) return null;
+        return this._props.copyText!(item, index);
+      },
+      getLength: () => this._props.list.length,
+    };
+  }
+
+  /**
+   * 用「选区真正覆盖的内容」改写剪贴板。
+   *
+   * 解不出结果时直接返回，既不 preventDefault 也不写剪贴板——浏览器的默认行为
+   * 接着走，最坏情况是回到没有这个功能时的表现，不会因为拦截失败而复制不到东西。
+   */
+  private _handleCopy(e: ClipboardEvent): void {
+    const doc = this._clientEl?.ownerDocument;
+    const selection = doc?.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const text = buildCopyText(
+      selection.getRangeAt(0),
+      this._copyHost,
+      this._props.copySeparator,
+    );
+    if (text === null) return;
+
+    e.clipboardData?.setData('text/plain', text);
+    e.preventDefault();
+  }
 
   /**
    * 写入偏移量并返回裁剪后的真实值。
@@ -829,7 +947,7 @@ export class VirtListCore<T extends Record<string, any>> {
   /**
    * 程序化写入偏移量之后，把内部状态与渲染区间同步到新位置。
    *
-   * 写入是同步的（偏移量就是个 JS 数字），但 `_offset`（上一次同步到的位置）与
+   * 写入是同步的（偏移量就是个 JS 数字），但 `_syncedOffset`（上一次同步到的位置）与
    * 渲染区间不会自动跟上——不同步的话，本帧的绘制已经用了新位置，而区间还按旧位置
    * 算出来，视口就落在没有 DOM 的地方。
    */
@@ -837,11 +955,11 @@ export class VirtListCore<T extends Record<string, any>> {
     if (!this._bound) return;
 
     const real = this.getOffset();
-    if (real === this._offset) return;
+    if (real === this._syncedOffset) return;
 
     // 方向按真实位移更新，否则后续的增量搜索会走错分支
-    this._direction = real < this._offset ? 'forward' : 'backward';
-    this._offset = real;
+    this._direction = real < this._syncedOffset ? 'forward' : 'backward';
+    this._syncedOffset = real;
     this._calcRange();
   }
 
@@ -901,7 +1019,7 @@ export class VirtListCore<T extends Record<string, any>> {
     if (typeof explicit === 'number' && explicit > 0) return explicit;
     const viewport =
       this.slotSize.clientSize ||
-      (this._props.itemPreSize + this._props.itemGap) * 10;
+      (this._props.estimatedSize + this._props.itemGap) * 10;
     return viewport * 2;
   }
 
@@ -1030,22 +1148,22 @@ export class VirtListCore<T extends Record<string, any>> {
    * 而不定高模式下 `getItemPosByIndex` 要从 0 累加到 index——30w 列表滚到中段
    * 单次就是十几万次查表，向上滚动时每帧多次，直接吃掉整个帧预算。
    *
-   * 快路径复用增量维护的 `virtualSize`（= renderBegin 之前的累计尺寸），
+   * 快路径复用增量维护的 `leadingSize`（= renderBegin 之前的累计尺寸），
    * 只累加窗口内的几十项，成本与列表长度无关。被观察的项都在窗口内，
-   * 所以 ResizeObserver 期间 `virtualSize` 不会失效。
+   * 所以 ResizeObserver 期间 `leadingSize` 不会失效。
    */
   private _getTopByIndex(index: number): number {
-    // fixed 模式本就是 O(1) 乘法，且不计 headerSize，语义交给原方法
-    if (this._props.fixed) return this.getItemPosByIndex(index).top;
+    // fixedSize 模式本就是 O(1) 乘法，且不计 headerSize，语义交给原方法
+    if (this._props.fixedSize) return this.getItemPosByIndex(index).top;
 
-    // virtualSize 失效时先补一次全量重算（罕见），之后重新走快路径
-    if (this._virtualSizeDirty) this._updateTotalVirtualSize();
+    // leadingSize 失效时先补一次全量重算（罕见），之后重新走快路径
+    if (this._leadingSizeDirty) this._updateLeadingSize();
 
     const { renderBegin, renderEnd } = this.state;
     if (index >= renderBegin && index <= renderEnd + 1) {
       return (
         this.slotSize.headerSize +
-        this.state.virtualSize +
+        this.state.leadingSize +
         this._getRangeSize(renderBegin, index)
       );
     }
@@ -1123,7 +1241,7 @@ export class VirtListCore<T extends Record<string, any>> {
     // 而渲染区间还按旧位置算——视口落在没有 DOM 的地方，就是一帧露白。
     // 向上滚动时每次 ResizeObserver 回调都会走到这里，会被放大成连续白屏。
     //
-    // 必须走 _syncAfterWrite，不能自己赋 _offset 再调 _calcRange：那样会漏掉
+    // 必须走 _syncAfterWrite，不能自己赋 _syncedOffset 再调 _calcRange：那样会漏掉
     // **方向**的更新，而 _calcRange 的增量搜索是按方向分支的——方向不对时两个
     // 分支都不进，区间就原地不动（贴底求解正是这种情形：目标比当前位置更靠上）
     this._syncAfterWrite();
@@ -1132,6 +1250,84 @@ export class VirtListCore<T extends Record<string, any>> {
   private _initBuffer(): void {
     this._bufferTop = this._props.bufferTop || this._props.buffer;
     this._bufferBottom = this._props.bufferBottom || this._props.buffer;
+  }
+
+  /**
+   * 比对实测尺寸与 `estimatedSize`，差得离谱时提示一次。
+   *
+   * 为什么值得内建：`estimatedSize` 给错不会报错、也不会让布局最终出错
+   * （项测量之后一切以实测为准），但它决定**首屏渲染多少项**——给大了视口下半部分
+   * 会短暂留白，给小了白建一堆 DOM。这类症状很难反推到一个配置项上，
+   * 而组件手里正好有判断它的全部依据。
+   *
+   * 用中位数而不是均值：不定高列表里几条超长消息就能把均值拉走，
+   * 而中位数给出的正是「典型一项有多高」——也就是这个配置该填的值。
+   */
+  private _checkEstimatedSize(): void {
+    const samples = this._sizeSamples;
+    if (!samples) return;
+    // 只诊断一次。样本一并丢掉，热路径上那个判断从此是一次 null 检查
+    this._sizeSamples = null;
+
+    const configured = this._props.estimatedSize;
+    // 非正数是另一类配置错误，不在这里越权判断
+    if (!(configured > 0)) return;
+
+    const sorted = samples.slice().sort((a, b) => a - b);
+    const median = sorted[sorted.length >> 1]!;
+    if (median <= 0) return;
+
+    const ratio = median / configured;
+    if (ratio <= SIZE_MISMATCH_RATIO && ratio >= 1 / SIZE_MISMATCH_RATIO) return;
+
+    const suggested = Math.round(median);
+    const detail = this._fixedSize
+      ? `fixedSize 为 true 时所有项都按 estimatedSize 定位，与实际高度不符会让内容逐项错位。` +
+        `要么把 estimatedSize 改成 ${suggested}，要么关掉 fixedSize 改用实测。`
+      : `首屏渲染的项数按 estimatedSize 估算：偏大会少渲染（视口下方短暂留白），` +
+        `偏小会多建 DOM。建议改为 ${suggested} 左右。`;
+
+    console.warn(
+      `[virt-list] estimatedSize 与实测尺寸相差较大：配置 ${configured}，` +
+        `实测中位数 ${suggested}（取前 ${samples.length} 项）。${detail}` +
+        `这条提示只出现一次。`,
+    );
+  }
+
+  /**
+   * 写入一个插槽的尺寸，返回**是否真的变了**。
+   *
+   * 收成一处是因为「变了要通知」这条规则不能只在一条写入路径上成立。原来两条路径
+   * （RO 回调、无）都是直接赋值，而 `_notify()` 只在**列表项**尺寸有增量（`diff !== 0`）
+   * 时才调 —— 插槽的 entry 不计入 `diff`，于是插槽尺寸的变化**从不通知上层**。
+   *
+   * 后果是实打实的：`stickyHeaderSize` 是内容坐标系的起点（DOM 层的 `_applyLayout`
+   * 从它排起），它 0 → 42 之后没人重摆，内容就整体压在吸顶区背后，要等下一次滚动 /
+   * 数据变化 / 强制刷新才「自己好了」。吸顶表头是运行时会变高的（多级分组表头重排、
+   * 字体加载完成、display:none → 显示），不是只有首帧这一次。
+   *
+   * 只在**值确实变化**时返回 true：RO 每轮都会把没变的插槽也报一遍，
+   * 无条件通知等于给每次容器 resize 附赠一次全量重绘。
+   */
+  private _writeSlotSize(id: SlotId, size: number): boolean {
+    switch (id) {
+      case 'header':
+        if (this.slotSize.headerSize === size) return false;
+        this.slotSize.headerSize = size;
+        return true;
+      case 'footer':
+        if (this.slotSize.footerSize === size) return false;
+        this.slotSize.footerSize = size;
+        return true;
+      case 'stickyHeader':
+        if (this.slotSize.stickyHeaderSize === size) return false;
+        this.slotSize.stickyHeaderSize = size;
+        return true;
+      case 'stickyFooter':
+        if (this.slotSize.stickyFooterSize === size) return false;
+        this.slotSize.stickyFooterSize = size;
+        return true;
+    }
   }
 
   /**
@@ -1144,6 +1340,8 @@ export class VirtListCore<T extends Record<string, any>> {
     if (typeof ResizeObserver === 'undefined') return;
     this._resizeObserver = new ResizeObserver((entries) => {
       let diff = 0;
+      /** 本轮有插槽尺寸真的变了（吸顶/吸底/header/footer，不含 client） */
+      let slotChanged = false;
       for (const entry of entries) {
         const id = (entry.target as HTMLElement).dataset.id;
         if (!id) continue;
@@ -1167,14 +1365,8 @@ export class VirtListCore<T extends Record<string, any>> {
         if (id === 'client') {
           this.slotSize.clientSize = newSize;
           this._onClientResize();
-        } else if (id === 'header') {
-          this.slotSize.headerSize = newSize;
-        } else if (id === 'footer') {
-          this.slotSize.footerSize = newSize;
-        } else if (id === 'stickyHeader') {
-          this.slotSize.stickyHeaderSize = newSize;
-        } else if (id === 'stickyFooter') {
-          this.slotSize.stickyFooterSize = newSize;
+        } else if (isSlotId(id)) {
+          if (this._writeSlotSize(id, newSize)) slotChanged = true;
         } else if (oldSize !== newSize) {
           // 直接写 map：公开的 setItemSize 会保守地整体废弃索引，
           // 而这里知道项的索引，可以只修正它所属的那一块
@@ -1185,16 +1377,23 @@ export class VirtListCore<T extends Record<string, any>> {
           const index = this._renderKeys.get(id);
           if (index === undefined) {
             // 渲染窗口之外的项上报了尺寸：增量维护的值都不再可信
-            this._virtualSizeDirty = true;
+            this._leadingSizeDirty = true;
             this._sizeIndex.invalidate();
           } else {
             this._sizeIndex.applyDelta(index, delta);
           }
           this._events.itemResize?.(id, newSize);
+
+          if (this._sizeSamples) {
+            this._sizeSamples.push(newSize);
+            if (this._sizeSamples.length >= SIZE_SAMPLE_TARGET) {
+              this._checkEstimatedSize();
+            }
+          }
         }
       }
 
-      this.state.listTotalSize += diff;
+      this.state.itemsTotalSize += diff;
 
       // 重新求解待维持的目标，防止内容跳动。只有目标上方的项才会改变解，
       // 下方项的尺寸变化自然得出零位移，无需额外判断。
@@ -1211,29 +1410,34 @@ export class VirtListCore<T extends Record<string, any>> {
         // 原本一项撑满视口，缩回去之后要好几项才够。偏移量没动的话上面那次同步
         // 是空操作，所以这里必须单独重算一次结束项
         this._refreshViewEnd();
-        // listTotalSize 已更新，通知 UI 层刷新 minHeight，防止底部空白
+        // itemsTotalSize 变了，footer 的文档位置随之改变；同时最大偏移量也变了，
+        // 通知上层重摆各段并刷新滚动条滑块
         this._notify();
         // 首屏项测出真实尺寸后总高度才准，这时才能判断内容是否填满视口。
         // 首屏只回来半屏数据的情况全靠这里续拉，否则会停在半屏不再加载
         this._loader.checkAutoLoad();
+      } else if (slotChanged) {
+        // 插槽尺寸变了也必须通知，理由见 `_writeSlotSize`。
+        // `diff !== 0` 那支已经 `_notify()` 过，这里只补它漏下的那种轮次
+        this._notify();
       }
 
       // 首次渲染完成后再校准一次区间：首次测量之前 clientSize 是 0，
       // 那时算出的可视区间必然不可信。
       //
-      // 参照物是当前真实的滚动偏移量，不是 props.start：start / offset /
-      // initialPosition='bottom' 以及用户在首帧里的滚动，都会让实际位置偏离
-      // start。用 start 就会把区间拽回列表顶部，而滚动位置在别处——视口于是
-      // 落在还没渲染的空白上，且因为偏移量未变时同步逻辑会直接返回，
-      // 这个错误状态不会自愈，非得用户滚一下才恢复。
+      // 参照物是当前真实的滚动偏移量，不是 props.initialIndex：initialIndex /
+      // initialOffset / initialPosition='bottom' 以及用户在首帧里的滚动，都会让
+      // 实际位置偏离它。用 initialIndex 就会把区间拽回列表顶部，而滚动位置在
+      // 别处——视口于是落在还没渲染的空白上，且因为偏移量未变时同步逻辑会直接
+      // 返回，这个错误状态不会自愈，非得用户滚一下才恢复。
       if (!this._isInit) {
         requestAnimationFrame(() => {
           if (this._bound) {
-            this._offset = this.getOffset();
+            this._syncedOffset = this.getOffset();
             this._calcRange();
           } else {
             // 还没绑定滚动容器，偏移量无从得知，此时 start 是唯一的参照
-            this._updateRange(this._props.start);
+            this._updateRange(this._props.initialIndex);
           }
         });
         this._isInit = true;
@@ -1268,9 +1472,9 @@ export class VirtListCore<T extends Record<string, any>> {
    */
   private _syncFromScrollPosition(): void {
     const offset = this.getOffset();
-    if (offset === this._offset) return;
+    if (offset === this._syncedOffset) return;
 
-    const direction = offset < this._offset ? 'forward' : 'backward';
+    const direction = offset < this._syncedOffset ? 'forward' : 'backward';
     this._direction = direction;
 
     // 用户接管了滚动，显式定位（scrollToIndex / scrollToBottom）的意图作废
@@ -1279,14 +1483,14 @@ export class VirtListCore<T extends Record<string, any>> {
     if (direction === 'forward') {
       // 向上滚：锚定当前顶部项。它已经渲染测量过、尺寸稳定，是可靠的参照物——
       // 上方即将进入窗口的新项测出真实尺寸后，据此把视口拉回同一段内容。
-      // 必须在 _offset / 区间更新**之前**捕获，那时顶部项还是"用户正在看的那一项"
+      // 必须在 _syncedOffset / 区间更新**之前**捕获，那时顶部项还是"用户正在看的那一项"
       if (!this._pinned?.explicit) this._pinIndex(this.state.inViewBegin);
     } else {
       // 向下滚说明用户已经离开原来那段内容，不再需要维持
       this._pinned = null;
     }
 
-    this._offset = offset;
+    this._syncedOffset = offset;
 
     // 用户真的动了滚动条：解开上一次空加载留下的停摆，让自动续拉重新可用
     this._loader.onUserScroll();
@@ -1310,16 +1514,16 @@ export class VirtListCore<T extends Record<string, any>> {
 
     // 固定行高：填满视口所需的项数可直接算出，无需逐项累加。
     // 同样要按绝对的视口下边界来算（见下方不定高分支的说明），
-    // 否则 itemPreSize 大于视口时会少渲染
-    if (this._fixed) {
+    // 否则 estimatedSize 大于视口时会少渲染
+    if (this._fixedSize) {
       const startTop = this.slotSize.headerSize + start * this._unitSize;
-      const span = Math.max(0, this._offset + clientSize - startTop);
+      const span = Math.max(0, this._syncedOffset + clientSize - startTop);
       const end = start + Math.floor(span / this._unitSize) + 1;
       return end <= len ? end : Math.max(0, len - 1);
     }
 
     // 视口顶部通常落在 start 项的内部，而不是恰好对齐它的顶部。所以要覆盖的是
-    // 绝对区间 [_offset, _offset + clientSize]，而不是"从 start 项顶部起的一屏"。
+    // 绝对区间 [_syncedOffset, _syncedOffset + clientSize]，而不是"从 start 项顶部起的一屏"。
     //
     // 两者的差值就是视口顶部扎进 start 项的那段深度。项高远小于视口时，这点偏差
     // 被下面"多给一个渲染位"掩盖住了；可一旦某一项高于视口（展开的长消息就是），
@@ -1327,8 +1531,8 @@ export class VirtListCore<T extends Record<string, any>> {
     // 下半部分，那里于是留下一块空白。
     //
     // 代价是一次 O(√n) 的前缀和查询；不定高路径本来就在用同量级的索引查询，
-    // 而 fixed 模式走上面的快路径，不受影响。
-    const targetBottom = this._offset + clientSize;
+    // 而 fixedSize 模式走上面的快路径，不受影响。
+    const targetBottom = this._syncedOffset + clientSize;
     let pos = this.getItemPosByIndex(start).top;
 
     for (let i = start; i < len; i += 1) {
@@ -1350,11 +1554,11 @@ export class VirtListCore<T extends Record<string, any>> {
     const { itemKey, list } = this._props;
     const len = list.length;
 
-    if (this._fixed || this.sizesMap.size === 0) {
+    if (this._fixedSize || this.sizesMap.size === 0) {
       // 均匀尺寸：顺手把索引也建好（O(n / 块大小)），这样即便随后开始实测，
       // 索引也一直是有效的，不会在某次大跳跃时突然付一笔 O(n) 重建
       this._sizeIndex.fill(len, this._unitSize);
-      this.state.listTotalSize = len * this._unitSize;
+      this.state.itemsTotalSize = len * this._unitSize;
       return;
     }
 
@@ -1363,7 +1567,7 @@ export class VirtListCore<T extends Record<string, any>> {
     this._sizeIndex.rebuild(len, (index) =>
       this.getItemSize(list[index]?.[itemKey]),
     );
-    this.state.listTotalSize = this._sizeIndex.total;
+    this.state.itemsTotalSize = this._sizeIndex.total;
   }
 
   /** 更新可视区间 [inViewBegin, inViewEnd] 并触发渲染区间更新 */
@@ -1381,13 +1585,13 @@ export class VirtListCore<T extends Record<string, any>> {
   /**
    * 根据当前 offset 定位新的 inViewBegin。
    *
-   * - fixed：一次除法直接算出，与列表长度无关
+   * - fixedSize：一次除法直接算出，与列表长度无关
    * - 不定高：从上一次的 inViewBegin 出发增量搜索（forward 往前、backward 往后）。
    *   增量是这里的关键，稳态滚动每帧只跨越几项；但一次性大跳（scrollToBottom、
    *   End 键、恢复滚动位置）仍是 O(跨越项数)，30w 列表全程约 13ms。
    */
   private _calcRange(): void {
-    const target = this._offset - this.slotSize.headerSize;
+    const target = this._syncedOffset - this.slotSize.headerSize;
     if (target < 0) {
       this._updateRange(0);
       return;
@@ -1399,10 +1603,10 @@ export class VirtListCore<T extends Record<string, any>> {
     const last = Math.max(0, list.length - 1);
     let start = inViewBegin;
     // 当前 inViewBegin 顶部的累计尺寸；搜索时随迭代推进，因此先留一份初值
-    const beginTop = this._getVirtualSize2beginInView();
+    const beginTop = this._leadingSizeToInView();
     let top = beginTop;
 
-    if (this._fixed) {
+    if (this._fixedSize) {
       start = Math.min(Math.floor(target / this._unitSize), last);
     } else if (this._direction === 'forward') {
       // 目标已落在当前项内部时无需搜索
@@ -1479,24 +1683,35 @@ export class VirtListCore<T extends Record<string, any>> {
     const threshold = this._edgeThreshold();
 
     if (this._direction === 'forward') {
-      if (this._offset - threshold <= 0) {
+      if (this._syncedOffset - threshold <= 0) {
         this._events.toTop?.(list[0] as T);
         this._loader.onReachEdge('top');
       }
       return;
     }
 
-    const scrollSize = Math.round(this._offset + this.slotSize.clientSize);
+    const scrollSize = Math.round(this._syncedOffset + this.slotSize.clientSize);
     if (Math.round(this.getTotalSize() - scrollSize) <= threshold) {
+      // 用户自己滚到底 = 表达了「我要跟着最新内容看」。这一步之前，跟随只能靠
+      // `scrollToBottom()` 或「追加时恰好贴底」建立，手动滚到底之后 _pinned 是
+      // null——AI 流式输出那种「同一项持续变高」的变更于是不会跟随，内容直接
+      // 长出视口下沿。
+      //
+      // explicit 必须是 false：向上滚时 `_syncFromScrollPosition` 会用
+      // `_pinIndex(inViewBegin)` 覆盖非显式目标，脱离跟随这件事因此不需要
+      // 额外的状态位，交回给既有的两条分支即可。
+      if (this._props.stickyBottom) {
+        this._pinned = { kind: 'end', explicit: false };
+      }
       this._events.toBottom?.(list[list.length - 1] as T);
       this._loader.onReachEdge('bottom');
     }
   }
 
-  /** 获取 virtualSize 到 inViewBegin 的累计尺寸（renderBegin → inViewBegin） */
-  private _getVirtualSize2beginInView(): number {
+  /** 获取 leadingSize 到 inViewBegin 的累计尺寸（renderBegin → inViewBegin） */
+  private _leadingSizeToInView(): number {
     return (
-      this.state.virtualSize +
+      this.state.leadingSize +
       this._getRangeSize(this.state.renderBegin, this.state.inViewBegin)
     );
   }
@@ -1505,9 +1720,9 @@ export class VirtListCore<T extends Record<string, any>> {
   private _getRangeSize(range1: number, range2: number): number {
     const start = Math.min(range1, range2);
     const end = Math.max(range1, range2);
-    // 没有任何实测尺寸时每项都是 itemPreSize + itemGap，与 fixed 同为一次乘法。
+    // 没有任何实测尺寸时每项都是 estimatedSize + itemGap，与 fixedSize 同为一次乘法。
     // 首次装载正是这种情形——此时遍历几十万项纯属做白工
-    if (this._fixed || this.sizesMap.size === 0) {
+    if (this._fixedSize || this.sizesMap.size === 0) {
       return (end - start) * this._unitSize;
     }
 
@@ -1520,11 +1735,11 @@ export class VirtListCore<T extends Record<string, any>> {
     return total;
   }
 
-  /** 重新计算 renderBegin 之前所有项的尺寸（即 virtualSize） */
-  private _updateTotalVirtualSize(): void {
-    this.state.virtualSize = this._prefixSize(this.state.renderBegin);
+  /** 重新计算 renderBegin 之前所有项的尺寸（即 leadingSize） */
+  private _updateLeadingSize(): void {
+    this.state.leadingSize = this._prefixSize(this.state.renderBegin);
     // 全量重算即为权威值，此前的失效标记随之清除
-    this._virtualSizeDirty = false;
+    this._leadingSizeDirty = false;
   }
 
   /** 更新渲染切片，并同步用于识别「窗口外尺寸上报」的 key 集合 */
@@ -1546,7 +1761,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /**
    * 根据 inViewBegin/End + buffer 计算实际渲染区间 [renderBegin, renderEnd]，
-   * 更新 virtualSize（增量计算），切片出 renderList 并通知上层。
+   * 更新 leadingSize（增量计算），切片出 renderList 并通知上层。
    */
   private _updateRenderRange(): void {
     const oldRenderBegin = this.state.renderBegin;
@@ -1571,15 +1786,15 @@ export class VirtListCore<T extends Record<string, any>> {
     this.state.renderBegin = newRenderBegin;
     this.state.renderEnd = newRenderEnd;
 
-    // virtualSize 优先增量更新（稳态滚动只挪动几项）；但一次性大跳时两端相距
+    // leadingSize 优先增量更新（稳态滚动只挪动几项）；但一次性大跳时两端相距
     // 成千上万项，增量累加本身就成了 O(n)——那时直接走索引重算前缀和
     if (
       Math.abs(newRenderBegin - oldRenderBegin) > MAX_INCREMENTAL_STEPS
     ) {
-      this.state.virtualSize = this._prefixSize(newRenderBegin);
+      this.state.leadingSize = this._prefixSize(newRenderBegin);
     } else {
       const delta = this._getRangeSize(oldRenderBegin, newRenderBegin);
-      this.state.virtualSize +=
+      this.state.leadingSize +=
         newRenderBegin > oldRenderBegin ? delta : -delta;
     }
 
@@ -1590,7 +1805,6 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 列表数据变化后重新计算尺寸和区间 */
   private _onListChange(): void {
     const newLen = this._props.list.length;
-    this._listVersion += 1;
     this._lastChangeWasAppend = false;
 
     if (newLen <= 0) {
@@ -1603,7 +1817,7 @@ export class VirtListCore<T extends Record<string, any>> {
 
     if (shiftCount !== 0) {
       // 头部增删会把后续内容整体推移：补偿等量的 scrollOffset，让视口内容留在原处。
-      // 这是 addedList2Top / deletedList2Top 做的事，现在由列表变更自动触发。
+      // 使用方只管把新数据写进 list，位移补偿由这里承担。
       //
       // 变更前视口顶部那一项要先记下来：它是"用户正在看的内容"，也是稍后立锚点的
       // 参照。等下面重新定位过，这个信息就取不回来了
@@ -1611,16 +1825,16 @@ export class VirtListCore<T extends Record<string, any>> {
 
       this._calcListTotalSize();
 
-      // 先让上层把容器高度更新到新的 listTotalSize，再写 scrollOffset。
+      // 先让上层把容器高度更新到新的 itemsTotalSize，再写 scrollOffset。
       // 顺序不能反：头部插入新增的那段高度此刻还不存在于 DOM 上，浏览器会按旧的
       // 可滚动上限把 scrollTop 裁掉。这一次通知用的还是旧渲染切片，但同一个同步
       // 任务里后面会修正，中间态不会被绘制出来
       this._notify();
 
-      this._writeOffset(this._offset + shiftSize, 'adjust');
-      // 与 _resolvePinned 同理：写完立刻把 _offset 同步到裁剪后的真实值，
+      this._writeOffset(this._syncedOffset + shiftSize, 'adjust');
+      // 与 _resolvePinned 同理：写完立刻把 _syncedOffset 同步到裁剪后的真实值，
       // 否则下一次滚动会拿旧值误判方向
-      if (this._bound) this._offset = this.getOffset();
+      if (this._bound) this._syncedOffset = this.getOffset();
 
       // 用补偿后的偏移量重新定位视口顶部项，而不是把旧的 inViewBegin 平移 shiftCount。
       //
@@ -1633,17 +1847,17 @@ export class VirtListCore<T extends Record<string, any>> {
       // 也不能交给 _calcRange：它做的是增量搜索，前提同样是"旧 inViewBegin 仍指向
       // 同一段内容"，而头部增删恰好打破了这一点。这里直接走索引定位，
       // 与方向、header 高度、是否停在边界都无关。
-      const target = this._offset - this.slotSize.headerSize;
+      const target = this._syncedOffset - this.slotSize.headerSize;
       const newBegin = target < 0 ? 0 : this._locateIndex(target);
 
       this.state.inViewBegin = newBegin;
       this.state.inViewEnd = this._calculateViewEnd(newBegin);
       this._updateRenderRange();
-      // _updateRenderRange 的 virtualSize 走增量，而增量假设两次 renderBegin 指向
-      // 同一个列表；头部平移后必须全量重算，否则占位高度会偏掉
-      this._updateTotalVirtualSize();
+      // _updateRenderRange 的 leadingSize 走增量，而增量假设两次 renderBegin 指向
+      // 同一个列表；头部平移后必须全量重算，否则渲染块的位移量会偏掉
+      this._updateLeadingSize();
 
-      // virtualSize 刚被全量校正，再通知一次让上层拿到正确的占位高度；
+      // leadingSize 刚被全量校正，再通知一次让上层拿到正确的位移量；
       // 列表内容也确实变了（旧代码正是靠手动 forceUpdate 兜住这一步）
       this._setRenderList();
       this._notify();
@@ -1657,15 +1871,13 @@ export class VirtListCore<T extends Record<string, any>> {
         // 只能保住它自己——它一变高，下面用户真正在看的内容就被整体挤下去。
         // 平移后的这一项已经渲染测量过，尺寸稳定，才是可靠参照。
         //
-        // 放在通知之后：捕获要用到刚校正的 virtualSize 与渲染区间
+        // 放在通知之后：捕获要用到刚校正的 leadingSize 与渲染区间
         const anchorIndex = Math.min(
           prevInViewBegin + shiftCount,
           Math.max(0, this._props.list.length - 1),
         );
         this._pinIndex(anchorIndex);
       }
-      // 记录版本号：本次变更的位移已经补过，手动补偿调用应当短路，否则会叠加成两倍
-      this._autoFixedVersion = this._listVersion;
     } else {
       this._lastChangeWasAppend =
         this._hasListSnapshot && newLen > this._prevLen;
@@ -1684,14 +1896,14 @@ export class VirtListCore<T extends Record<string, any>> {
       const beforeClamp = this.getOffset();
       this._writeOffset(beforeClamp, 'adjust');
       if (this.getOffset() !== beforeClamp) {
-        this._offset = this.getOffset();
+        this._syncedOffset = this.getOffset();
         // 偏移量变了，旧的 inViewBegin 不再对应当前位置，按新偏移量权威定位
-        const target = this._offset - this.slotSize.headerSize;
+        const target = this._syncedOffset - this.slotSize.headerSize;
         this._updateRange(target < 0 ? 0 : this._locateIndex(target));
       } else {
         this._updateRange(this.state.inViewBegin);
       }
-      this._updateTotalVirtualSize();
+      this._updateLeadingSize();
       this._updateRenderRange();
 
       // 列表变了，待维持的目标要按新内容重新求解（例如贴底跟随）
@@ -1790,16 +2002,16 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 通知上层渲染列表已更新 */
   private _notify(): void {
-    // virtualSize 失效时先补一次全量重算。
+    // leadingSize 失效时先补一次全量重算。
     //
-    // 上层拿它当虚拟占位的高度来摆放整个渲染块，用陈旧值会让这一块内容整体偏移，
+    // 上层拿它当渲染块的位移量（itemsEl 的 transform），用陈旧值会让这一块内容整体偏移，
     // 表现就是视口里某几项凭空消失、再滚一下才恢复。
     //
     // 失效的来源是"渲染窗口之外的项报来了尺寸"：项滚出窗口后 DOM 已移除、
     // 也调过 unobserve，但 ResizeObserver 的回调是异步的，队列里可能还压着它的
     // 一条上报，快速滚动时很常见。此前只有 _getTopByIndex 会消费这个标记，
-    // 而 DOM 层读的是 state.virtualSize，走不到那里。
-    if (this._virtualSizeDirty) this._updateTotalVirtualSize();
+    // 而 DOM 层读的是 state.leadingSize，走不到那里。
+    if (this._leadingSizeDirty) this._updateLeadingSize();
 
     this._events.update?.(this._renderList, this.state);
   }

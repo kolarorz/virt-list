@@ -66,7 +66,7 @@ function mount(
         ref: 'tree',
         props: {
           list: makeTree(),
-          itemPreSize: 32,
+          estimatedSize: 32,
           ...props,
         },
         on: listeners,
@@ -189,7 +189,7 @@ describe('Vue2 VirtTree', () => {
         return h(VirtTree as any, {
           props: {
             list: makeTree(),
-            itemPreSize: 32,
+            estimatedSize: 32,
             expandedKeys: (this as any).keys,
           },
         });
@@ -249,12 +249,12 @@ describe('Vue2 VirtTree', () => {
 
   it('暴露滚动 API', () => {
     vi.useFakeTimers();
-    const { vm, api } = mount({ list: makeTree(40, 0), fixed: true });
+    const { vm, api } = mount({ list: makeTree(40, 0), fixedSize: true });
 
     api().scrollTo({ offset: 100 });
     expect(api().getOffset()).toBe(100);
 
-    api().scrollTo({ key: '20', align: 'top' });
+    api().scrollTo({ key: '20', align: 'start' });
     expect(api().getOffset()).toBe(20 * 32);
 
     api().scrollToTop();
@@ -273,7 +273,7 @@ describe('Vue2 VirtTree', () => {
     const vm = new Vue({
       render(h: any) {
         return h(VirtTree as any, {
-          props: { list: makeTree(), itemPreSize: 32 },
+          props: { list: makeTree(), estimatedSize: 32 },
           scopedSlots: {
             content: ({ node }: any) => h('span', `c-${node.key}`),
           },

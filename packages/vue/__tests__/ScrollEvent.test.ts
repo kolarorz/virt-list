@@ -49,7 +49,7 @@ function mount(component: any, props: Record<string, unknown>) {
   );
   app.mount(container);
 
-  return { app, onScroll, instRef };
+  return { app, container, onScroll, instRef };
 }
 
 /*
@@ -61,8 +61,8 @@ describe('Vue: @scroll', () => {
     const { app, onScroll, instRef } = mount(VirtList, {
       list: makeList(50),
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _i: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -86,8 +86,8 @@ describe('Vue: @scroll', () => {
       list: makeList(60),
       gridItems: 3,
       itemKey: 'id',
-      itemPreSize: 40,
-      fixed: true,
+      estimatedSize: 40,
+      fixedSize: true,
       renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => {
         el.textContent = item.text;
       },
@@ -110,8 +110,8 @@ describe('Vue: @scroll', () => {
   it('VirtTree 触发 scroll', async () => {
     const { app, onScroll, instRef } = mount(VirtTree, {
       list: makeList(50).map((item) => ({ ...item, label: item.text })),
-      itemPreSize: 32,
-      fixed: true,
+      estimatedSize: 32,
+      fixedSize: true,
     });
     await nextTick();
     onScroll.mockClear();
@@ -124,6 +124,46 @@ describe('Vue: @scroll', () => {
       offset: 320,
       source: 'user',
     });
+
+    app.unmount();
+  });
+});
+
+/*
+ * 声明 emits.scroll 会拦掉「落到根元素的原生 scroll」——这就是当初把 click 改叫
+ * nodeClick 的那个坑（见 VirtTree.ts 的 emits 注释）。取 scroll 这个名字的前提是
+ * **根元素压根不会派发原生 scroll**，而这条依赖一个实现细节：根元素是个没有
+ * overflow 的 wrapper。
+ *
+ * 前提写在注释里就只是个说法，将来谁给根 div 加上 overflow 也不会有任何东西提醒。
+ * 这里把它变成断言。
+ */
+describe('emits.scroll 拦不到任何东西的前提', () => {
+  it('组件根元素不是 scrollport，唯一的 scrollport 是它的子节点 clientEl', () => {
+    const { app, container, instRef } = mount(VirtList, {
+      list: makeList(50),
+      itemKey: 'id',
+      estimatedSize: 40,
+      fixedSize: true,
+      renderItem: (item: Item, _i: number, el: HTMLElement) => {
+        el.textContent = item.text;
+      },
+    });
+
+    const root = container.firstElementChild as HTMLElement;
+    // 根元素上没有任何 overflow 声明 → overflow 保持 visible → 不构成 scrollport，
+    // 永远不派发 scroll。（jsdom 的 getComputedStyle 不解析 overflow，
+    // 只能查库自己写上去的那份 inline style，而库正是在那里设样式的。）
+    expect(root.style.overflow).toBe('');
+    expect(root.getAttribute('style')).not.toContain('overflow');
+
+    // 真正的 scrollport 在根元素**下面**，而原生 scroll 不冒泡，到不了根元素
+    const clientEl = root.querySelector('[data-id="client"]') as HTMLElement;
+    expect(clientEl).toBeTruthy();
+    expect(clientEl).not.toBe(root);
+    expect(clientEl.parentElement).toBe(root);
+    // 它就是 ref 上那个逃生舱——真要挂原生监听，挂到这上面才有意义
+    expect(instRef.value!.clientEl).toBe(clientEl);
 
     app.unmount();
   });

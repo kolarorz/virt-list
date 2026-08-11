@@ -10,6 +10,10 @@ docs/.vitepress/dist-deploy-check
 # Micro-app build output (regenerated during CI / local dev)
 docs/public/micro-apps
 
+# 面向 LLM 的文档快照，由 scripts/gen-llms-txt.mjs 在构建时生成
+docs/public/llms.txt
+docs/public/llms-full.txt
+
 # Vite
 *.local
 docs/apps/*/.vite

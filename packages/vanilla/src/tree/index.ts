@@ -1,4 +1,4 @@
-export { VirtTree } from './VirtTree';
+export { VirtTree } from './VirtTree.js';
 export type {
   TreeNode,
   TreeNodeData,
@@ -7,7 +7,7 @@ export type {
   TreeFieldNames,
   TreeInfo,
   CheckedInfo,
-  IScrollParams,
+  VirtTreeScrollTarget,
   VirtTreeDOMOptions,
   VirtTreeDOMEvents,
-} from './types';
+} from './types.js';

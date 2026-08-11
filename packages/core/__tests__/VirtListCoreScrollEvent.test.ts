@@ -36,7 +36,7 @@ function setup(list = makeList(50), clientSize = 200) {
   const scroll = vi.fn<(e: VirtScrollEvent) => void>();
   const offsetChange = vi.fn<(offset: number) => void>();
   const core = new VirtListCore<Item>(
-    { list, itemKey: 'id', itemPreSize: ITEM_SIZE, fixed: true },
+    { list, itemKey: 'id', estimatedSize: ITEM_SIZE, fixedSize: true },
     { scroll, offsetChange },
   );
   const el = makeScrollEl(() => core.getTotalSize(), clientSize);
@@ -224,16 +224,18 @@ describe('scroll 事件', () => {
       expect(lastEvent(scroll).offset).toBe(200);
     });
 
-    it('deletedList2Top / addedList2Top → adjust', () => {
+    it('头部增删的位移补偿 → adjust', () => {
       const list = makeList(50);
       const { core, scroll } = setup(list);
       core.scrollFromUser(800);
       scroll.mockClear();
 
-      core.addedList2Top(makeList(5, 'added'));
+      const prepended = [...makeList(5, 'added'), ...list];
+      core.updateOptions({ list: prepended });
       expect(lastEvent(scroll).source).toBe('adjust');
 
-      core.deletedList2Top(makeList(5, 'added'));
+      scroll.mockClear();
+      core.updateOptions({ list: [...list] });
       expect(lastEvent(scroll).source).toBe('adjust');
     });
   });
@@ -262,7 +264,7 @@ describe('scroll 事件', () => {
     it('未绑定 DOM 时不触发', () => {
       const scroll = vi.fn();
       const core = new VirtListCore<Item>(
-        { list: makeList(50), itemKey: 'id', itemPreSize: ITEM_SIZE },
+        { list: makeList(50), itemKey: 'id', estimatedSize: ITEM_SIZE },
         { scroll },
       );
 
@@ -287,7 +289,7 @@ describe('scroll 事件', () => {
     it('在 offsetChange 之后触发，两者看到的偏移量一致', () => {
       const seen: string[] = [];
       const core = new VirtListCore<Item>(
-        { list: makeList(50), itemKey: 'id', itemPreSize: ITEM_SIZE },
+        { list: makeList(50), itemKey: 'id', estimatedSize: ITEM_SIZE },
         {
           offsetChange: (o) => seen.push(`offsetChange:${o}`),
           scroll: (e) => seen.push(`scroll:${e.offset}`),
@@ -304,7 +306,7 @@ describe('scroll 事件', () => {
 
     it('没有监听者时不报错', () => {
       const core = new VirtListCore<Item>(
-        { list: makeList(50), itemKey: 'id', itemPreSize: ITEM_SIZE },
+        { list: makeList(50), itemKey: 'id', estimatedSize: ITEM_SIZE },
         { offsetChange: vi.fn() },
       );
       core.bindDOM(makeScrollEl(() => core.getTotalSize(), 200));
@@ -322,8 +324,8 @@ describe('scroll 事件', () => {
         {
           list,
           itemKey: 'id',
-          itemPreSize: ITEM_SIZE,
-          fixed: true,
+          estimatedSize: ITEM_SIZE,
+          fixedSize: true,
           horizontal: true,
         },
         { scroll },

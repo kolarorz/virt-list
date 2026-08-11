@@ -86,7 +86,7 @@ function setup(list: Item[]) {
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
+    estimatedSize: PRE_SIZE,
     renderItem: (item, _index, el) => {
       el.textContent = item.text;
     },

@@ -169,6 +169,31 @@ if (version === current) fail(`目标版本与当前版本相同（${version}）
 ok(`${current} → ${c.bold(version)}（${pkgs.length} 个包，dist-tag: ${distTag}）`);
 for (const p of pkgs) console.log(c.dim(`    ${p.name}`));
 
+// 目标版本已在 registry 上存在时，publish 一定会被拒——而那是第 7 步，
+// 前面的测试与构建全白跑。这里提前问一次 registry，顺便兜住"本地版本号落后于
+// 已发布版本"这种情形（本地 0.0.4 而线上已有 0.0.5，patch 算出来正好撞上）。
+step('检查目标版本在 registry 上是否已存在');
+const probe = pkgs[0];
+const alreadyPublished = run(
+  'npm',
+  ['view', `${probe.name}@${version}`, 'version', '--registry', REGISTRY],
+  { capture: true, allowFail: true },
+);
+if (alreadyPublished.status === 0 && alreadyPublished.stdout) {
+  const latest = run(
+    'npm',
+    ['view', probe.name, 'version', '--registry', REGISTRY],
+    { capture: true, allowFail: true },
+  ).stdout;
+  fail(
+    `${probe.name}@${version} 已发布过，npm 不允许覆盖`,
+    `registry 上的最新版是 ${latest || '未知'}，而本地 package.json 是 ${current}。\n` +
+      `  先把 packages/*/package.json 对齐到 ${latest || '线上最新版'}，或显式指定一个更高的版本：\n` +
+      `  pnpm release <version>`,
+  );
+}
+ok(`${version} 尚未发布`);
+
 step('检查 npm 登录状态');
 console.log(c.dim(`  registry: ${REGISTRY}`));
 const who = run('npm', ['whoami', '--registry', REGISTRY], { capture: true, allowFail: true });

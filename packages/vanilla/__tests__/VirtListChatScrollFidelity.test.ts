@@ -5,7 +5,7 @@ import { VirtList } from '../src/VirtList';
  * 尽量贴近聊天室 demo 的完整场景。
  *
  * 与之前几个测试的关键差别：**项是按需测量的**。只有渲染出来的项才会被
- * ResizeObserver 观察到、才有真实高度；没渲染过的一直用 itemPreSize 估算。
+ * ResizeObserver 观察到、才有真实高度；没渲染过的一直用 estimatedSize 估算。
  * demo 里估算值 76 而长消息实际 200，所以向下滚动时每进入一项，它的尺寸就会
  * 从估算值跳到真实值，总高度和后续项的位置随之持续变化。
  *
@@ -33,7 +33,7 @@ function makeList(n: number, prefix = 'm'): Item[] {
   }));
 }
 
-/** 折叠态的真实高度：长短消息交替，且都不等于 itemPreSize */
+/** 折叠态的真实高度：长短消息交替，且都不等于 estimatedSize */
 function collapsedSizeOf(index: number): number {
   return index % 10 === 0 ? 200 : 76 + (index % 5) * 12;
 }
@@ -120,7 +120,7 @@ function setup(list: Item[]) {
   const vl = new VirtList<Item>(container, {
     list,
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
+    estimatedSize: PRE_SIZE,
     initialPosition: 'bottom',
     stickyBottom: true,
     renderItem: (item, _index, el) => {
@@ -181,7 +181,7 @@ function wheel(
  *
  * 这是关键判据。用 core 的 getItemPosByIndex 去验证 core 是自证——它拿的是
  * sizesMap，而项刚渲染出来、ResizeObserver 还没上报的那一刻，sizesMap 里还是
- * itemPreSize 估算值，与浏览器实际布局出来的高度并不相同。用户看到的是后者。
+ * estimatedSize 估算值，与浏览器实际布局出来的高度并不相同。用户看到的是后者。
  *
  * jsdom 不做布局，所以这里自己按浏览器的规则算一遍：
  * header 占前面一段，接着是虚拟占位元素（高度取 DOM 上生效的那个值），

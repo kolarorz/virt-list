@@ -100,8 +100,8 @@ function mount(options: Partial<VirtTreeDOMOptions> = {}) {
 
   const tree = new VirtTree(container, {
     list: makeTree(),
-    itemPreSize: ROW,
-    fixed: true,
+    estimatedSize: ROW,
+    fixedSize: true,
     buffer: 0,
     draggable: true,
     ...options,

@@ -34,7 +34,7 @@ function makeScrollEl(totalSize: () => number, clientSize: number) {
 function setup(list: Item[], clientSize = 200) {
   const events = { update: vi.fn() };
   const core = new VirtListCore<Item>(
-    { list, itemKey: 'id', itemPreSize: ITEM_SIZE, fixed: true },
+    { list, itemKey: 'id', estimatedSize: ITEM_SIZE, fixedSize: true },
     events,
   );
   const el = makeScrollEl(() => core.getTotalSize(), clientSize);
@@ -49,7 +49,7 @@ function scrollTo(core: VirtListCore<any>, offset: number) {
 }
 
 describe('列表变更时自动补偿滚动位移', () => {
-  it('头部插入后视口内容保持不动，无需手动调用 addedList2Top', () => {
+  it('头部插入后视口内容保持不动', () => {
     const list = makeList(50);
     const { core, el } = setup(list);
     scrollTo(core, 400);
@@ -64,7 +64,7 @@ describe('列表变更时自动补偿滚动位移', () => {
     expect(core.props.list[core.getState().inViewBegin]!.id).toBe(keyBefore);
   });
 
-  it('头部删除后视口内容保持不动，无需手动调用 deletedList2Top', () => {
+  it('头部删除后视口内容保持不动', () => {
     const list = makeList(50);
     const { core, el } = setup(list);
     scrollTo(core, 800);
@@ -95,52 +95,8 @@ describe('列表变更时自动补偿滚动位移', () => {
     expect(core.props.list[core.getState().inViewBegin]!.id).toBe(keyBefore);
   });
 
-  it('自动补偿后再手动调用 addedList2Top 不会叠加成两倍位移', () => {
-    const list = makeList(50);
-    const { core, el } = setup(list);
-    scrollTo(core, 400);
 
-    const inserted = makeList(20, 'prepend');
-    core.updateOptions({ list: [...inserted, ...list] });
-    const afterAuto = core.getOffset();
 
-    // 旧代码的写法：改完 list 再手动补一次
-    core.addedList2Top(inserted);
-
-    expect(core.getOffset()).toBe(afterAuto);
-  });
-
-  it('自动补偿后再手动调用 deletedList2Top 不会叠加', () => {
-    const list = makeList(50);
-    const { core, el } = setup(list);
-    scrollTo(core, 800);
-
-    const removed = list.slice(0, 10);
-    core.updateOptions({ list: list.slice(10) });
-    const afterAuto = core.getOffset();
-
-    core.deletedList2Top(removed);
-
-    expect(core.getOffset()).toBe(afterAuto);
-  });
-
-  it('下一次列表变更后手动补偿重新生效（幂等短路只作用于当次变更）', () => {
-    const list = makeList(50);
-    const { core, el } = setup(list);
-    scrollTo(core, 400);
-
-    // 第一次变更：自动补偿
-    const first = makeList(10, 'p1');
-    core.updateOptions({ list: [...first, ...list] });
-
-    // 第二次变更只换引用不动头部，自动补偿不介入，此时手动 API 应当照常工作
-    const withoutHeadChange = [...first, ...list];
-    core.updateOptions({ list: withoutHeadChange });
-    const before = core.getOffset();
-    core.addedList2Top(makeList(5, 'manual'));
-
-    expect(core.getOffset()).not.toBe(before);
-  });
 
   it('尾部追加不改动滚动位置', () => {
     const list = makeList(50);
@@ -184,11 +140,11 @@ describe('列表变更时自动补偿滚动位移', () => {
     const { core, el } = setup(list);
     scrollTo(core, 400);
 
-    // 非 fixed 才会查 sizesMap，这里单独构造一个不定高实例
+    // 非 fixedSize 才会查 sizesMap，这里单独构造一个不定高实例
     const list2 = makeList(50);
     const events2 = { update: vi.fn() };
     const core2 = new VirtListCore<Item>(
-      { list: list2, itemKey: 'id', itemPreSize: ITEM_SIZE },
+      { list: list2, itemKey: 'id', estimatedSize: ITEM_SIZE },
       events2,
     );
     const el2 = makeScrollEl(() => core2.getTotalSize(), 200);
@@ -197,7 +153,7 @@ describe('列表变更时自动补偿滚动位移', () => {
     scrollTo(core2, 400);
 
     const inserted = makeList(3, 'prepend');
-    // 插入项在进入渲染窗口前就被测量过（addedList2Top 场景的常态）
+    // 插入项在进入渲染窗口前就被测量过（头部插入场景的常态）
     inserted.forEach((it) => core2.setItemSize(it.id, 100));
     core2.updateOptions({ list: [...inserted, ...list2] });
 
@@ -223,7 +179,7 @@ describe('列表变更时自动补偿滚动位移', () => {
     const list = makeList(50);
     const events = { update: vi.fn() };
     const core = new VirtListCore<Item>(
-      { list, itemKey: 'id', itemPreSize: ITEM_SIZE, fixed: true },
+      { list, itemKey: 'id', estimatedSize: ITEM_SIZE, fixedSize: true },
       events,
     );
 

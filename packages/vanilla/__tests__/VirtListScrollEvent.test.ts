@@ -71,8 +71,8 @@ describe('scroll 事件透传到 DOM 层', () => {
       {
         list: makeList(50),
         itemKey: 'id',
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
         renderItem: (item, _i, el) => {
           el.textContent = item.text;
         },
@@ -104,8 +104,8 @@ describe('scroll 事件透传到 DOM 层', () => {
         list: makeList(60),
         gridItems: 3,
         itemKey: 'id',
-        itemPreSize: 40,
-        fixed: true,
+        estimatedSize: 40,
+        fixedSize: true,
         renderItem: (item: Item, _r, _l, el: HTMLElement) => {
           el.textContent = item.text;
         },
@@ -130,8 +130,8 @@ describe('scroll 事件透传到 DOM 层', () => {
       makeContainer(),
       {
         list: makeList(50).map((item) => ({ ...item, label: item.text })),
-        itemPreSize: 32,
-        fixed: true,
+        estimatedSize: 32,
+        fixedSize: true,
       } as any,
       { scroll },
     );
@@ -145,5 +145,36 @@ describe('scroll 事件透传到 DOM 层', () => {
       offset: 320,
       source: 'user',
     });
+  });
+});
+
+/*
+ * clientEl 是逃生舱：给只认 DOM 元素的场合用。三层都得指向同一个东西——
+ * 那个 data-id="client" 的 scrollport，而不是外层容器。
+ */
+describe('clientEl 指向真正的 scrollport', () => {
+  it.each([
+    ['VirtList', (c: HTMLElement) => new VirtList<Item>(c, {
+      list: makeList(50), itemKey: 'id', estimatedSize: 40, fixedSize: true,
+      renderItem: (item: Item, _i: number, el: HTMLElement) => { el.textContent = item.text; },
+    } as any)],
+    ['VirtGrid', (c: HTMLElement) => new VirtGrid<Item>(c, {
+      list: makeList(60), gridItems: 3, itemKey: 'id', estimatedSize: 40, fixedSize: true,
+      renderItem: (item: Item, _r: number, _l: number, el: HTMLElement) => { el.textContent = item.text; },
+    } as any)],
+    ['VirtTree', (c: HTMLElement) => new VirtTree(c, {
+      list: makeList(50).map((item) => ({ ...item, label: item.text })),
+      estimatedSize: 32, fixedSize: true,
+    } as any)],
+  ])('%s.clientEl 就是 data-id="client" 的那个元素', (_name, create) => {
+    const container = makeContainer();
+    const inst = create(container) as { clientEl: HTMLElement };
+
+    const scrollport = container.querySelector('[data-id="client"]');
+    expect(scrollport).toBeTruthy();
+    expect(inst.clientEl).toBe(scrollport);
+    // 是容器的后代，不是容器本身——原生 scroll 不冒泡，这个区别是实质的
+    expect(inst.clientEl).not.toBe(container);
+    expect(container.contains(inst.clientEl)).toBe(true);
   });
 });

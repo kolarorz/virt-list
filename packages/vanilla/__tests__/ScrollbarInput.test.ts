@@ -111,8 +111,8 @@ function mount(
       text: `item-${i}`,
     })),
     itemKey: 'id',
-    itemPreSize: PRE_SIZE,
-    fixed: true,
+    estimatedSize: PRE_SIZE,
+    fixedSize: true,
     renderItem: ((item: Item, _i: number, el: HTMLElement) => {
       el.textContent = item.text;
     }) as any,
@@ -315,6 +315,56 @@ describe('键盘', () => {
     // 纵向键在横向列表里不该有反应
     key(clientEl, { key: 'ArrowDown' });
     expect(vl.core.getOffset()).toBe(40);
+  });
+});
+
+/**
+ * `keyboard: false` 的用途是让宿主自己接管方向键。
+ *
+ * 库的监听挂在后代元素上、比祖先**先**触发，两边都响应的话一次按键会既滚一段
+ * 又移动一格（表格的单元格键盘导航就是这个场景）。
+ */
+describe('keyboard 开关', () => {
+  it('默认接管键盘', () => {
+    const { vl, clientEl } = mount();
+    key(clientEl, { key: 'ArrowDown' });
+    expect(vl.core.getOffset()).toBe(40);
+  });
+
+  it('keyboard: false 时方向键不再滚动，也不拦截事件', () => {
+    const { vl, clientEl } = mount({ keyboard: false });
+    const e = key(clientEl, { key: 'ArrowDown' });
+    expect(vl.core.getOffset()).toBe(0);
+    // 不 preventDefault，事件才能冒泡到宿主自己的处理逻辑
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('keyboard: false 不影响滚轮与触摸', () => {
+    const { vl, clientEl } = mount({ keyboard: false });
+    wheel(clientEl, { deltaY: 100 });
+    expect(vl.core.getOffset()).toBe(100);
+  });
+
+  it('keyboard: false 时 Home / End 也交回宿主', () => {
+    const { vl, clientEl } = mount({ keyboard: false });
+    key(clientEl, { key: 'End' });
+    expect(vl.core.getOffset()).toBe(0);
+  });
+});
+
+describe('resume', () => {
+  it('重挂 DOM 后把内容摆回当前偏移量', () => {
+    const offsetChange = vi.fn();
+    const { vl, clientEl } = mount({}, { offsetChange });
+    wheel(clientEl, { deltaY: 400 });
+    expect(vl.core.getOffset()).toBe(400);
+
+    offsetChange.mockClear();
+    vl.resume();
+
+    // 偏移量没变，但 DOM 层必须收到通知才会重写 transform
+    expect(offsetChange).toHaveBeenCalledWith(400);
+    expect(vl.core.getOffset()).toBe(400);
   });
 });
 

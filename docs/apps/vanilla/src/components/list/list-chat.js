@@ -51,25 +51,59 @@ export function bootstrapChat(root) {
 
   let page = 5;
   let list = generatePage(page, PAGE_SIZE);
-  let loading = false;
-  let firstResize = true;
+  let loadState = null;
+
+  /**
+   * 提前声明：loadMore 有可能在构造期间就被调用（首屏内容不足一屏时会自动续拉），
+   * 那时 `new VirtList(...)` 还没返回。用 const 声明就会撞上 TDZ 错误。
+   */
+  let virtList;
 
   function updateStats(state) {
-    statsEl.textContent = `总数: ${list.length} | 可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'} | 渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}${loading ? ' | 加载中...' : ''}`;
+    const parts = [
+      `总数: ${list.length}`,
+      `Page: ${page}`,
+      `可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'}`,
+      `渲染区间: ${state?.renderBegin ?? '-'} - ${state?.renderEnd ?? '-'}`,
+    ];
+    if (loadState?.loadingTop) parts.push('加载中...');
+    // 用户正在翻历史时收到的新消息数，实际项目里可以拿它渲染「N 条新消息」角标
+    const pending = loadState?.pendingNew ?? 0;
+    if (pending > 0) parts.push(`${pending} 条新消息`);
+    statsEl.textContent = parts.join(' | ');
   }
 
-  const virtList = new VirtList(
+  virtList = new VirtList(
     container,
     {
       list,
       itemKey: 'id',
-      itemPreSize: 60,
-      renderHeader: () => {
-        const el = document.createElement('div');
+      estimatedSize: 60,
+      /**
+       * 向上加载更早的消息。
+       *
+       * 只需取数并写入 list，返回是否还有更早的数据。防重入、加载中不重复触发、
+       * 加载后的滚动位置补偿与重新渲染都由组件内部完成。
+       */
+      loadMore: async (direction) => {
+        if (direction !== 'top') return false;
+        const prevPage = await asyncGeneratePage(page - 1, PAGE_SIZE);
+        page--;
+        list = prevPage.concat(list);
+        virtList.setList(list);
+        return page > 1;
+      },
+      hasMoreBottom: false,
+      initialPosition: 'bottom',
+      stickyBottom: true,
+      renderHeader: (el, state) => {
         el.className = 'demo-loading-bar';
         el.id = 'chatLoadingBar';
-        el.textContent = page > 1 ? '加载中...' : '没有更早的消息了';
-        return el;
+        el.textContent = state.loadingTop
+          ? '加载中...'
+          : state.hasMoreTop
+            ? ''
+            : '没有更早的消息了';
       },
       renderItem: (item) => {
         const row = document.createElement('div');
@@ -84,44 +118,22 @@ export function bootstrapChat(root) {
       },
     },
     {
-      toTop: async () => {
-        if (loading || page <= 1) return;
-        loading = true;
-        statsEl.textContent += ' | 加载中...';
-        const prevPage = await asyncGeneratePage(page - 1, PAGE_SIZE);
-        page--;
-        list = prevPage.concat(list);
-        virtList.setList(list);
-        virtList.addedList2Top(prevPage);
-        virtList.forceUpdate();
-        loading = false;
-        updateStats();
+      loadStateChange: (state) => {
+        loadState = state;
+        updateStats(virtList?.core.getState());
       },
-      itemResize: () => {
-        if (firstResize) {
-          firstResize = false;
-          virtList.scrollToBottom();
-        }
-      },
-      update: (_, state) => {
-        statsEl.textContent = `总数: ${list.length} | Page: ${page} | 可视区域: ${state.inViewBegin} - ${state.inViewEnd} | 渲染区间: ${state.renderBegin} - ${state.renderEnd}`;
-      },
+      update: (_, state) => updateStats(state),
     },
   );
 
   updateStats();
 
   const sendBtn = root.querySelector('#sendBtn');
+  /** 发消息只管往列表里加，stickyBottom 负责「贴底时才跟随」 */
   sendBtn.addEventListener('click', () => {
     const text = CHAT_MSGS[Math.floor(Math.random() * CHAT_MSGS.length)];
-    const newItem = { id: uid++, index: list.length, text };
-    list.push(newItem);
-    virtList.setList([...list]);
-    virtList.forceUpdate();
-    requestAnimationFrame(() => {
-      virtList.scrollToBottom();
-    });
-    updateStats();
+    list = [...list, { id: uid++, index: list.length, text }];
+    virtList.setList(list);
   });
 
   return () => {

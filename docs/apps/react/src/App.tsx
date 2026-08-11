@@ -2,8 +2,6 @@
 import type { JSX } from 'react';
 import DemoBlock from './components/DemoBlock.tsx';
 import type { DemoSource } from '../../_shared/demoSource';
-import Literal from './components/Literal.tsx';
-import Widget from './components/Widget.tsx';
 
 import ListBasic from './components/list/ListBasic.tsx';
 import ListBuffer from './components/list/ListBuffer.tsx';
@@ -43,8 +41,14 @@ import TreeDragArea from './components/tree/TreeDragArea.tsx';
 
 import GridBasic from './components/grid/GridBasic.tsx';
 
+import AiStreaming from './components/ai/AiStreaming.tsx';
+import AiCopy from './components/ai/AiCopy.tsx';
+import AiSearch from './components/ai/AiSearch.tsx';
+import AiTrace from './components/ai/AiTrace.tsx';
+import AiOutline from './components/ai/AiOutline.tsx';
+
 const highlightedSources = import.meta.glob(
-  ['./components/list/*.tsx', './components/tree/*.tsx', './components/grid/*.tsx'],
+  ['./components/list/*.tsx', './components/tree/*.tsx', './components/grid/*.tsx', './components/ai/*.tsx'],
   { query: '?highlight', import: 'default', eager: true },
 ) as Record<string, DemoSource>;
 
@@ -58,8 +62,6 @@ interface AppProps {
 }
 
 const demoRenderMap: Record<string, () => JSX.Element> = {
-  'list-literal': () => <Literal />,
-  'list-widget': () => <Widget />,
   'list-basic': () => <DemoBlock source={src('./components/list/ListBasic.tsx')}><ListBasic /></DemoBlock>,
   'list-buffer': () => <DemoBlock source={src('./components/list/ListBuffer.tsx')}><ListBuffer /></DemoBlock>,
   'list-huge-data': () => <DemoBlock source={src('./components/list/ListHugeData.tsx')}><ListHugeData /></DemoBlock>,
@@ -95,12 +97,18 @@ const demoRenderMap: Record<string, () => JSX.Element> = {
   'tree-default': () => <DemoBlock source={src('./components/tree/TreeDefault.tsx')}><TreeDefault /></DemoBlock>,
   'tree-dragarea': () => <DemoBlock source={src('./components/tree/TreeDragArea.tsx')}><TreeDragArea /></DemoBlock>,
   'grid-basic': () => <DemoBlock source={src('./components/grid/GridBasic.tsx')}><GridBasic /></DemoBlock>,
+
+  'ai-streaming': () => <DemoBlock source={src('./components/ai/AiStreaming.tsx')}><AiStreaming /></DemoBlock>,
+  'ai-copy': () => <DemoBlock source={src('./components/ai/AiCopy.tsx')}><AiCopy /></DemoBlock>,
+  'ai-search': () => <DemoBlock source={src('./components/ai/AiSearch.tsx')}><AiSearch /></DemoBlock>,
+  'ai-trace': () => <DemoBlock source={src('./components/ai/AiTrace.tsx')}><AiTrace /></DemoBlock>,
+  'ai-outline': () => <DemoBlock source={src('./components/ai/AiOutline.tsx')}><AiOutline /></DemoBlock>,
 };
 
 function App({ exampleId = '' }: AppProps) {
   const renderCurrentDemo = () => {
     const renderer =
-      demoRenderMap[exampleId as keyof typeof demoRenderMap] ?? demoRenderMap['list-literal'];
+      demoRenderMap[exampleId as keyof typeof demoRenderMap] ?? demoRenderMap['list-basic'];
     return renderer();
   };
 
