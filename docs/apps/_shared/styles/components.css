@@ -795,6 +795,877 @@
   overflow-x: auto;
 }
 
+/* -------------------------------------------------------------------
+ * 执行流节点：把日志行分成「阶段头」与「阶段内的步骤」两级
+ *
+ * 缩进与分隔一律用 padding + border，不用 margin：项的尺寸由 ResizeObserver
+ * 按 border box 量出，外边距不在其中——用 margin 拉开间距，测量值就会
+ * 每项少算几像素，几千行累积下来是可观的偏移。
+ * ------------------------------------------------------------------- */
+
+/* 思考行是一个阶段的开始：上方留白 + 虚线分隔，读起来有段落感 */
+.demo-trace-line.kind-thought {
+  padding-top: 7px;
+  border-top: 1px dashed var(--demo-c-code-border);
+}
+
+/* 阶段内的步骤：左侧一条竖线把它们串起来，行行相接即成一条连续的线 */
+.demo-trace-line:not(.kind-thought) {
+  padding-left: 20px;
+  border-left: 1px solid var(--demo-c-code-border);
+}
+
+/* 状态图标：执行中是品牌色，成功绿、失败红，宽度固定避免文字左右跳动 */
+.demo-trace-status {
+  width: 10px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.demo-trace-status.is-ok {
+  color: var(--demo-c-success-text);
+}
+
+.demo-trace-status.is-error {
+  color: var(--demo-c-danger-text);
+}
+
+.demo-trace-status.is-running {
+  display: inline-block;
+  color: var(--demo-c-brand-text);
+  animation: demo-agent-spin 0.9s linear infinite;
+}
+
+.demo-trace-ms {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding-left: 8px;
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 展开后的输出容器。
+ *
+ * 它只负责留白与描边，正文交给 .demo-agent-term / .demo-agent-diff 渲染——
+ * 终端回显与 diff 的着色规则和消息里的工具卡完全一样，没有理由写两套。
+ */
+.demo-trace-output {
+  margin-bottom: 4px;
+  border: 1px solid var(--demo-c-code-border);
+  border-radius: var(--demo-radius-sm);
+  overflow: hidden;
+}
+
+/* 当前阶段的悬浮标题（stickyHeader 插槽） */
+.demo-trace-stage {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--demo-c-code-border);
+  background-color: var(--demo-c-fill-1);
+  color: var(--demo-c-text-1);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+}
+
+.demo-trace-stage-index {
+  color: var(--demo-c-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-trace-stage-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-trace-stage-errors {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 3px;
+  background-color: var(--demo-c-danger-soft);
+  color: var(--demo-c-danger-text);
+  font-size: var(--demo-fs-xs);
+  line-height: 18px;
+}
+
+/* ===================================================================
+ * 8.2 Agent 工作台
+ *
+ * AI 场景示例的外观：顶部状态条、消息（角色头 + 若干块 + 操作栏）、底部输入区。
+ * 命名一律用 .demo-agent-*，与 .demo-chat-*（list 章节的聊天示例）分开——
+ * 那一套仍被 ListChat / ListChatCollapse / ListPagination 使用，不能动。
+ *
+ * 两条自我约束，都是虚拟列表特有的：
+ *
+ * 1. **列表项内不做入场动画。** 项进出视口会被回收再挂载，入场动画于是在滚动时
+ *    反复重播，整屏都在动。动画只给「正在生成」的那一处（光标、执行中的工具卡），
+ *    它们数量恒定且本来就该一直动。
+ * 2. **列表项内不用 box-shadow / filter。** 见文件头的性能约定；层次靠描边与底色。
+ * =================================================================== */
+
+.demo-agent-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- 顶部状态条 ---------- */
+
+.demo-agent-topbar {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-lg);
+  background-color: var(--demo-c-bg-soft);
+}
+
+.demo-agent-model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--demo-c-text-1);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+}
+
+/* 状态灯：空闲是静止的灰点，生成中才呼吸 */
+.demo-agent-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-text-3);
+  flex-shrink: 0;
+}
+
+.demo-agent-dot.is-live {
+  background-color: var(--demo-c-success);
+  animation: demo-agent-breathe 1.4s var(--demo-ease) infinite;
+}
+
+@keyframes demo-agent-breathe {
+  50% { opacity: 0.25; }
+}
+
+.demo-agent-phase {
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+}
+
+/* 步骤进度：一步一格，比百分比进度条更贴合「第 3/5 步」这种离散进度 */
+.demo-agent-steps {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.demo-agent-step {
+  width: 18px;
+  height: 4px;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-fill-3);
+  transition: background-color var(--demo-duration) var(--demo-ease);
+}
+
+.demo-agent-step.is-done {
+  background-color: var(--demo-c-brand-1);
+}
+
+.demo-agent-step.is-current {
+  background-color: var(--demo-c-brand-1);
+  animation: demo-agent-breathe 1.4s var(--demo-ease) infinite;
+}
+
+/* ---------- 底部输入区 ---------- */
+
+.demo-agent-composer {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-lg);
+  background-color: var(--demo-c-bg-soft);
+}
+
+.demo-agent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.demo-agent-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-bg-elv);
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--demo-duration-fast) var(--demo-ease),
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-agent-chip:hover:not(:disabled) {
+  border-color: var(--demo-c-brand-1);
+  color: var(--demo-c-brand-text);
+}
+
+.demo-agent-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.demo-agent-inputrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-agent-inputrow .demo-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- 一条消息 ---------- */
+
+.demo-agent-msg {
+  padding: 10px 14px;
+}
+
+.demo-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.demo-agent-avatar {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: var(--demo-radius-sm);
+  background-color: var(--demo-c-fill-3);
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-xs);
+  font-weight: 600;
+}
+
+/* assistant 用品牌色实底，一眼区分「谁在说」——渐变只参与绘制，不建合成层 */
+.demo-agent-avatar.is-assistant {
+  background-image: linear-gradient(135deg, var(--demo-c-brand-1), var(--demo-c-brand-3));
+  color: var(--demo-c-on-accent);
+}
+
+.demo-agent-name {
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+}
+
+.demo-agent-time {
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 内容左缩进到头像右侧，形成一条对齐线。
+ * assistant 的回答不用气泡而是整幅展开——真实 agent 界面都是这样，
+ * 因为一条回答里可能有代码块、工具卡、表格，气泡装不下。
+ */
+.demo-agent-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 30px;
+}
+
+/* 用户消息反过来：右对齐的窄气泡，和整幅的回答形成节奏 */
+.demo-agent-msg.is-user .demo-agent-head {
+  flex-direction: row-reverse;
+}
+
+.demo-agent-msg.is-user .demo-agent-body {
+  align-items: flex-end;
+  padding-right: 30px;
+  padding-left: 0;
+}
+
+.demo-agent-msg.is-user .demo-agent-text {
+  max-width: 78%;
+  padding: 8px 12px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-lg);
+  border-top-right-radius: var(--demo-radius-sm);
+  background-color: var(--demo-c-brand-soft);
+}
+
+/*
+ * 搜索的当前命中：给内容区左侧一道品牌色的标记。
+ * 用 border-left 而不是 box-shadow / outline——列表行内不建额外合成层，
+ * 而 border 计入项的测量尺寸，展开收起时不会有半像素的漂移。
+ */
+.demo-agent-msg.is-current-hit .demo-agent-body {
+  border-left: 2px solid var(--demo-c-brand-1);
+  padding-left: 28px;
+}
+
+.demo-agent-msg.is-user.is-current-hit .demo-agent-body {
+  border-right: 2px solid var(--demo-c-brand-1);
+  border-left: 0;
+  padding-right: 28px;
+  padding-left: 0;
+}
+
+/* ---------- 块：正文 ---------- */
+
+.demo-agent-text {
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.demo-agent-inline-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: var(--demo-c-fill-2);
+  color: var(--demo-c-brand-text);
+  font-family: var(--demo-font-mono);
+  font-size: 0.92em;
+}
+
+/* ---------- 块：正文的 Markdown 形态 ---------- */
+
+/*
+ * 逐行渲染，所以这里不需要 pre-wrap（换行由行元素给出）。
+ * 行距用 padding 而非 margin：相邻段落的 margin 会折叠，
+ * 折叠量不进入 ResizeObserver 量到的 border box，项高就会算少。
+ */
+.demo-agent-md {
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-md);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.demo-agent-md-p {
+  padding: 1px 0;
+}
+
+.demo-agent-md-h2,
+.demo-agent-md-h3 {
+  padding: 6px 0 2px;
+  font-weight: 600;
+}
+
+.demo-agent-md-h2 {
+  font-size: var(--demo-fs-lg);
+}
+
+.demo-agent-md-h3 {
+  font-size: var(--demo-fs-md);
+  color: var(--demo-c-text-2);
+}
+
+/* 列表项：符号与正文分两列，第二行文字与第一行对齐 */
+.demo-agent-md-li {
+  display: flex;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.demo-agent-md-marker {
+  flex-shrink: 0;
+  color: var(--demo-c-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-agent-md-quote {
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--demo-c-border-strong);
+  color: var(--demo-c-text-2);
+}
+
+/* 空行只留一点间距，不占一整行的行高 */
+.demo-agent-md-gap {
+  height: 8px;
+}
+
+/* ---------- 块：代码 ---------- */
+
+.demo-agent-code {
+  border: 1px solid var(--demo-c-code-border);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-code-bg);
+  overflow: hidden;
+}
+
+.demo-agent-code-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 10px;
+  border-bottom: 1px solid var(--demo-c-code-border);
+  color: var(--demo-c-text-3);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-xs);
+}
+
+.demo-agent-code-copy {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-xs);
+  cursor: pointer;
+  transition:
+    background-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-agent-code-copy:hover {
+  background-color: var(--demo-c-surface-hover);
+  color: var(--demo-c-text-1);
+}
+
+.demo-agent-code-body {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--demo-c-code-text);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/*
+ * 不做语法高亮（运行时引一个高亮器要 60KB，示例本身是性能演示），
+ * 只把注释行压暗——一行判断就能拿到大部分可读性收益。
+ */
+.demo-agent-code-line.is-comment {
+  color: var(--demo-c-code-comment);
+}
+
+/* ---------- 块：思考过程 ---------- */
+
+.demo-agent-thinking {
+  border-left: 2px solid var(--demo-c-border-strong);
+  padding-left: 10px;
+}
+
+.demo-agent-thinking-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.demo-agent-thinking-head:hover {
+  color: var(--demo-c-text-1);
+}
+
+.demo-agent-spark {
+  color: var(--demo-c-brand-text);
+}
+
+.demo-agent-thinking-body {
+  margin-top: 4px;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+  font-style: italic;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- 块：工具调用 ---------- */
+
+.demo-agent-tool {
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-fill-1);
+  overflow: hidden;
+  transition: border-color var(--demo-duration) var(--demo-ease);
+}
+
+.demo-agent-tool.is-running {
+  border-color: var(--demo-c-brand-1);
+}
+
+.demo-agent-tool.is-error {
+  border-color: var(--demo-c-danger);
+}
+
+.demo-agent-tool-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-agent-tool-head:hover {
+  background-color: var(--demo-c-surface-hover);
+}
+
+.demo-agent-caret {
+  width: 10px;
+  flex-shrink: 0;
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-xs);
+}
+
+.demo-agent-tool-icon {
+  flex-shrink: 0;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-sm);
+}
+
+.demo-agent-tool.is-ok .demo-agent-tool-icon {
+  color: var(--demo-c-success-text);
+}
+
+.demo-agent-tool.is-error .demo-agent-tool-icon {
+  color: var(--demo-c-danger-text);
+}
+
+/* 用户中途停止：既不是成功也不是失败，压成中性灰 */
+.demo-agent-tool.is-aborted {
+  border-color: var(--demo-c-border);
+}
+
+.demo-agent-tool.is-aborted .demo-agent-tool-name,
+.demo-agent-tool.is-aborted .demo-agent-tool-icon {
+  color: var(--demo-c-text-3);
+}
+
+/* 执行中的图标转起来：整个界面里只有它在转，注意力落点明确 */
+.demo-agent-tool.is-running .demo-agent-tool-icon {
+  display: inline-block;
+  color: var(--demo-c-brand-text);
+  animation: demo-agent-spin 0.9s linear infinite;
+}
+
+@keyframes demo-agent-spin {
+  to { transform: rotate(360deg); }
+}
+
+.demo-agent-tool-name {
+  flex-shrink: 0;
+  color: var(--demo-c-text-1);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+}
+
+.demo-agent-tool-args {
+  min-width: 0;
+  color: var(--demo-c-text-2);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-agent-tool-ms {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-agent-tool-body {
+  border-top: 1px solid var(--demo-c-border);
+}
+
+/* ---------- 输出：终端 ---------- */
+
+.demo-agent-term {
+  margin: 0;
+  padding: 8px 10px;
+  background-color: var(--demo-c-code-bg);
+  color: var(--demo-c-code-text);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* 命令回显（$ 开头那行）提亮，与输出区分 */
+.demo-agent-term-line.is-cmd {
+  color: var(--demo-c-text-1);
+  font-weight: 600;
+}
+
+.demo-agent-term-line.is-fail {
+  color: var(--demo-c-danger-text);
+}
+
+.demo-agent-term-line.is-pass {
+  color: var(--demo-c-success-text);
+}
+
+/* ---------- 输出：diff ---------- */
+
+.demo-agent-diff {
+  margin: 0;
+  padding: 6px 0;
+  background-color: var(--demo-c-code-bg);
+  color: var(--demo-c-code-text);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-sm);
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* 整行铺底而不是只染文字：diff 的可读性靠色块的形状 */
+.demo-agent-diff-line {
+  padding: 0 10px;
+}
+
+.demo-agent-diff-line.is-add {
+  background-color: var(--demo-c-diff-add-bg);
+  color: var(--demo-c-success-text);
+}
+
+.demo-agent-diff-line.is-del {
+  background-color: var(--demo-c-diff-del-bg);
+  color: var(--demo-c-danger-text);
+}
+
+.demo-agent-diff-line.is-hunk {
+  background-color: var(--demo-c-brand-soft);
+  color: var(--demo-c-brand-text);
+}
+
+/* ---------- 块：图表 ---------- */
+
+.demo-agent-chart {
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-bg-soft);
+}
+
+/* 加载中只占一行——和铺开后的高度差就是要演示的那次突变 */
+.demo-agent-chart.is-loading {
+  padding: 8px 12px;
+}
+
+.demo-agent-chart-title {
+  margin-bottom: 8px;
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+}
+
+.demo-agent-chart-unit {
+  color: var(--demo-c-text-3);
+  font-weight: 400;
+}
+
+.demo-agent-chart-rows {
+  display: flex;
+  flex-direction: column;
+  /* 条与条之间留出表面间隙，相邻的条不会连成一片 */
+  gap: 6px;
+}
+
+.demo-agent-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 标签与数值都用文字色：条形自己承载「这是哪一项」 */
+.demo-agent-chart-label {
+  width: 74px;
+  flex-shrink: 0;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-agent-chart-track {
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-fill-2);
+}
+
+/* 数据端圆角、起点贴齐基线，条形本身细而不抢眼 */
+.demo-agent-chart-bar {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--demo-c-brand-1);
+  transition: background-color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-agent-chart-row:hover .demo-agent-chart-bar {
+  background-color: var(--demo-c-brand-2);
+}
+
+.demo-agent-chart-value {
+  width: 40px;
+  flex-shrink: 0;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- 块：来源引用 ---------- */
+
+/*
+ * 横向滚动而不是换行：来源卡片换行会让这一项的高度随宽度变化，
+ * 窗口一改尺寸整列都要重新测量。固定高度、横向滚，测量成本恒定。
+ */
+.demo-agent-sources {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+
+.demo-agent-source {
+  box-sizing: border-box;
+  width: 190px;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--demo-c-border);
+  border-radius: var(--demo-radius-md);
+  background-color: var(--demo-c-bg-soft);
+}
+
+.demo-agent-source-title {
+  color: var(--demo-c-text-1);
+  font-size: var(--demo-fs-sm);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.demo-agent-source-site {
+  margin-top: 2px;
+  color: var(--demo-c-brand-text);
+  font-family: var(--demo-font-mono);
+  font-size: var(--demo-fs-xs);
+}
+
+.demo-agent-source-snippet {
+  margin-top: 4px;
+  color: var(--demo-c-text-2);
+  font-size: var(--demo-fs-xs);
+  line-height: 1.5;
+}
+
+/* ---------- 消息操作栏 ---------- */
+
+.demo-agent-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.demo-agent-action {
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-xs);
+  cursor: pointer;
+  transition:
+    background-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-agent-action:hover {
+  background-color: var(--demo-c-surface-hover);
+  color: var(--demo-c-text-1);
+}
+
+.demo-agent-action.is-active {
+  color: var(--demo-c-brand-text);
+}
+
+/* token 数与耗时：靠右，等宽数字避免逐帧跳动时宽度变化 */
+.demo-agent-meta {
+  margin-left: auto;
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 生成中的骨架 ---------- */
+
+/*
+ * 「正在思考」的占位：只有一条，且只在生成开始的那一刻存在，
+ * 因此可以用动画而不必担心回收重播。
+ */
+.demo-agent-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--demo-c-text-3);
+  font-size: var(--demo-fs-sm);
+}
+
+.demo-agent-skeleton-bar {
+  height: 8px;
+  flex: 1;
+  border-radius: var(--demo-radius-full);
+  background-color: var(--demo-c-fill-2);
+  animation: demo-agent-breathe 1.4s var(--demo-ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-agent-dot.is-live,
+  .demo-agent-step.is-current,
+  .demo-agent-tool.is-running .demo-agent-tool-icon,
+  .demo-agent-skeleton-bar,
+  .demo-trace-status.is-running {
+    animation: none;
+  }
+}
+
 /* 语义滚动条：列表在左，分段导航条在右 */
 .demo-outline-layout {
   display: flex;

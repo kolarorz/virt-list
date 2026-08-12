@@ -466,9 +466,17 @@ export class VirtTree {
     this._virtListDOM.scrollToBottom(options);
   }
 
-  /** 滚动容器（唯一的 scrollport），与 `VirtList.clientEl` 一致 */
+  /** 滚动容器（主轴视口），与 `VirtList.clientEl` 一致 */
   get clientEl(): HTMLElement {
     return this._virtListDOM.clientEl;
+  }
+
+  /**
+   * 交叉轴（横向）的滚动容器，与 `VirtList.scrollContentEl` 一致。
+   * 读写它的 `scrollLeft` 就是读写横向滚动位置
+   */
+  get scrollContentEl(): HTMLElement {
+    return this._virtListDOM.scrollContentEl;
   }
 
   /** 底层虚拟列表的计算内核（与 VirtList.core 一致，供进阶用法与测试使用） */
@@ -904,6 +912,7 @@ export class VirtTree {
         scrollbarAutoHideDelay: opts.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: opts.scrollbarMinThumbSize,
         keyboard: opts.keyboard,
+        crossScroll: opts.crossScroll,
         listStyle: 'position:relative;',
         listClass,
         itemClass: (_item: TreeNode) => {
@@ -1454,6 +1463,9 @@ export class VirtTree {
     ) as HTMLElement;
 
     if (!state.dragAreaParentElement) return;
+    // 先把 listEl 变成定位元素：下面要读的 offsetTop 是相对 offsetParent 的，
+    // 顺序颠倒会让首次拖拽把偏移算到更外层的祖先上，虚线区域于是错位。
+    this._virtListDOM.listEl.style.position = 'relative';
     const parentElRect = state.dragAreaParentElement.getBoundingClientRect();
     state.allowDragArea.style.width = `${parentElRect.width}px`;
     state.allowDragArea.style.height = `${dragAreaSize}px`;
@@ -1463,7 +1475,6 @@ export class VirtTree {
         : parentElRect.height +
           (state.dragAreaParentElement.offsetTop ?? 0)
     }px`;
-    this._virtListDOM.listEl.style.position = 'relative';
     this._virtListDOM.listEl.append(state.allowDragArea);
   }
 
@@ -1659,12 +1670,17 @@ export class VirtTree {
     }
   }
 
+  /**
+   * @param lineHostItem 指示线的挂载行，默认就是悬停行。同级拖拽落到已展开节点
+   *   的下半部分时，线要画到它子树的最后一行下边，但落点仍按悬停行推导。
+   */
   private _updateDragRelateNode(
     state: DragState,
     hoverTreeItem: HTMLElement,
+    lineHostItem: HTMLElement = hoverTreeItem,
   ): void {
-    hoverTreeItem.appendChild(state.dragLine);
-    state.hasStyleTreeItem = hoverTreeItem;
+    lineHostItem.appendChild(state.dragLine);
+    state.hasStyleTreeItem = lineHostItem;
 
     if (state.placement === 'top') {
       state.dragLine.style.top = '-1px';
@@ -1723,16 +1739,6 @@ export class VirtTree {
     state.placement = positionRatio > 0.33 ? 'bottom' : 'top';
 
     if (
-      state.placement === 'bottom' &&
-      this.hasExpanded(hoverTreeNode)
-    ) {
-      state.lastHoverTreeItem = null;
-      state.prevTreeItem = null;
-      state.nextTreeItem = null;
-      return;
-    }
-
-    if (
       state.lastHoverTreeItem !== state.hoverTreeItem ||
       state.placement !== state.lastPlacement
     ) {
@@ -1747,10 +1753,34 @@ export class VirtTree {
       state.lastPlacement = state.placement;
       state.lastHoverTreeItem = state.hoverTreeItem;
       state.dragEffect = true;
-      this._updateDragRelateNode(state, state.hoverTreeItem!);
+      // 落到已展开节点的下半部分，语义是「插到它整棵子树之后」——落点仍按悬停行
+      // 推导（同级同父），只把线移到子树末行，否则线会停在父节点与它第一个子节点
+      // 之间，看着像插进了子级。
+      this._updateDragRelateNode(
+        state,
+        state.hoverTreeItem!,
+        state.placement === 'bottom' && this.hasExpanded(hoverTreeNode)
+          ? this._subtreeTailItem(hoverTreeNode) ?? state.hoverTreeItem!
+          : state.hoverTreeItem!,
+      );
       state.targetLevel = hoverTreeNode.level ?? 1;
       this._buildDragLine(state, state.targetLevel);
     }
+  }
+
+  /**
+   * 取节点最后一个可见后代所在的行元素——沿展开链一路走到底。
+   * 该行可能被虚拟化裁掉而不在 DOM 里，此时返回 null 由调用方降级。
+   */
+  private _subtreeTailItem(node: TreeNode): HTMLElement | null {
+    let tail = node;
+    while (tail.children?.length && this.hasExpanded(tail)) {
+      tail = tail.children[tail.children.length - 1]!;
+    }
+    if (tail === node) return null;
+    return this._containerEl.querySelector(
+      `.virt-tree-item[data-id="${tail.key}"]`,
+    );
   }
 
   private _crossLevelDragProcess(

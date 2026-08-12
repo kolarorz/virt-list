@@ -70,6 +70,16 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   getItemPosByIndex: (
     index: number,
   ) => { top: number; current: number; bottom: number };
+  /**
+   * 重建指定的项（不传则重建全部可见项，等价于 forceUpdate）。
+   *
+   * 通常不需要：数据变更（`list` 换新）已经会自动把最新数据交给可见项。
+   * 它是给「既不换数组引用、也不改长度、又不在框架响应式里」那种原地修改用的
+   * 出口 —— 例如 Vue 里用 shallowRef 存列表后直接改某一项的字段。
+   *
+   * 与 forceUpdate 的差别是范围：这个只动指定的几项，其余项的 DOM 原样保留。
+   */
+  refreshItems: (keys?: Array<string | number>) => void;
   forceUpdate: () => void;
   setList: (list: T[]) => void;
   getLoadState: () => LoadState;
@@ -133,6 +143,7 @@ export function useVirtList<T extends Record<string, any>>(
     getItemSize: (k) => getVL().core.getItemSize(k),
     deleteItemSize: (k) => getVL().core.deleteItemSize(k),
     getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
+    refreshItems: (keys?: Array<string | number>) => vl?.refreshItems(keys),
     forceUpdate: () => vl?.forceUpdate(),
     setList: (l) => vl?.setList(l),
     getLoadState: () => getVL().getLoadState(),
@@ -181,6 +192,8 @@ export const VirtList = defineComponent({
     scrollbarMinThumbSize: { type: Number, default: undefined },
     /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
     keyboard: { type: Boolean, default: true },
+    /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+    crossScroll: { type: Boolean, default: true },
     listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
     listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
@@ -200,6 +213,22 @@ export const VirtList = defineComponent({
     let vl: VirtListVanilla<any> | null = null;
 
     const { mountSlot, cleanupSlots } = createSlotMounter();
+
+    /**
+     * 挂载/更新一项的插槽内容，同时充当 `renderItem` 与 `updateItem`。
+     *
+     * vue2 的挂载器给每个挂载点开一个 Vue 实例，靠依赖收集自更新 —— 那只覆盖
+     * 「原地改响应式属性」。不可变替换（`list = list.map(...)`）给同一个 key 换了
+     * 新对象，闭包里那份旧对象再也不会变，必须靠 core 的 `updateItem` 重新挂一次。
+     */
+    function mountItem(item: any, index: number, el: HTMLElement): void {
+      if (!slots.default) return;
+      mountSlot(
+        `item:${item[props.itemKey]}`,
+        () => slots.default!({ itemData: item, index }),
+        el,
+      );
+    }
 
     function buildOptions(): VirtListDOMOptions<any> {
       const opts: VirtListDOMOptions<any> = {
@@ -226,6 +255,7 @@ export const VirtList = defineComponent({
         scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         keyboard: props.keyboard,
+        crossScroll: props.crossScroll,
         renderControl: props.renderControl as any,
         copyText: props.copyText as any,
         copySeparator: props.copySeparator,
@@ -241,15 +271,9 @@ export const VirtList = defineComponent({
         stickyHeaderStyle: props.stickyHeaderStyle,
         stickyFooterClass: props.stickyFooterClass,
         stickyFooterStyle: props.stickyFooterStyle,
-        renderItem: props.renderItem ?? ((item: any, index: number, el: HTMLElement) => {
-          if (slots.default) {
-            mountSlot(
-              `item:${item[props.itemKey]}`,
-              () => slots.default!({ itemData: item, index }),
-              el,
-            );
-          }
-        }),
+        renderItem: props.renderItem ?? mountItem,
+        // 插槽路径才注入：用户自己接管 renderItem 时，怎么更新也由他决定
+        updateItem: typeof props.renderItem === 'function' ? undefined : mountItem,
       };
 
       // header / footer 拿到 loadState：加载提示条直接在插槽里按状态渲染
@@ -323,6 +347,7 @@ export const VirtList = defineComponent({
 
     const api = {
       clientEl: undefined as unknown as HTMLElement,
+      scrollContentEl: undefined as unknown as HTMLElement,
       state: undefined as unknown as ListState,
       slotSize: undefined as unknown as SlotSize,
       sizesMap: undefined as unknown as Map<string, number>,
@@ -350,6 +375,7 @@ export const VirtList = defineComponent({
       getItemSize: (itemKey: string) => vl!.core.getItemSize(itemKey),
       deleteItemSize: (itemKey: string) => vl!.core.deleteItemSize(itemKey),
       getItemPosByIndex: (index: number) => vl!.core.getItemPosByIndex(index),
+      refreshItems: (keys?: Array<string | number>) => vl?.refreshItems(keys),
       forceUpdate: () => {
         vl?.forceUpdate();
       },
@@ -358,13 +384,21 @@ export const VirtList = defineComponent({
     };
 
     /**
-     * 滚动容器（唯一的 scrollport）。
+     * 滚动容器（主轴视口）。
      *
      * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
      * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
      */
     Object.defineProperty(api, 'clientEl', {
       get: () => vl?.clientEl,
+      enumerable: true,
+    });
+    /**
+     * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+     * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+     */
+    Object.defineProperty(api, 'scrollContentEl', {
+      get: () => vl?.scrollContentEl,
       enumerable: true,
     });
     Object.defineProperty(api, 'state', {

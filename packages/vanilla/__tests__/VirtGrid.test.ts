@@ -101,6 +101,13 @@ function lastRows(events: { update: ReturnType<typeof vi.fn> }): GridRow<Item>[]
   return calls[calls.length - 1]![0];
 }
 
+/** 已渲染单元格的文案，按 DOM 顺序 */
+function cellTexts(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll('[data-cell]')).map(
+    (el) => el.textContent!,
+  );
+}
+
 function renderedRowIds(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll('[data-id]'))
     .map((el) => (el as HTMLElement).dataset.id!)
@@ -288,6 +295,67 @@ describe('VirtGrid setList', () => {
     grid.setList([]);
 
     expect(renderedRowIds(container)).toEqual([]);
+  });
+
+  /**
+   * 行的 key 是 _id（行首扁平索引），删一项后每行的 _id 没变、装的人变了。
+   * pool 复用不作废的话数据换了 DOM 还是旧的 —— 界面上就是「删除点了没反应」。
+   */
+  it('删掉中间某项后，单元格 DOM 跟着前移', () => {
+    const { grid, container } = mount({}, makeList(30));
+
+    grid.setList(makeList(30).filter((item) => item.id !== '1'));
+
+    expect(cellTexts(container).slice(0, 5)).toEqual([
+      'item-0',
+      'item-2',
+      'item-3',
+      'item-4',
+      'item-5',
+    ]);
+  });
+
+  it('删掉的项不再留在 DOM 里', () => {
+    const { grid, container } = mount({}, makeList(9));
+
+    grid.setList(makeList(9).filter((item) => item.id !== '4'));
+
+    expect(cellTexts(container)).not.toContain('item-4');
+    expect(cellTexts(container)).toEqual([
+      'item-0',
+      'item-1',
+      'item-2',
+      'item-3',
+      'item-5',
+      'item-6',
+      'item-7',
+      'item-8',
+    ]);
+  });
+
+  it('在头部插入一项后，单元格 DOM 跟着后移', () => {
+    const { grid, container } = mount({}, makeList(9));
+
+    grid.setList([{ id: 'new', text: 'item-new' }, ...makeList(9)]);
+
+    expect(cellTexts(container).slice(0, 4)).toEqual([
+      'item-new',
+      'item-0',
+      'item-1',
+      'item-2',
+    ]);
+  });
+
+  /** 只作废成员变了的行：末尾追加不该把前面几行的 DOM 连根重建 */
+  it('末尾追加不重建已有行的 DOM', () => {
+    const { grid, container } = mount({}, makeList(9));
+    const firstRowEl = container.querySelector('[data-id="0"]');
+    const cellCountBefore = cellTexts(container).length;
+
+    grid.setList(makeList(12));
+
+    expect(container.querySelector('[data-id="0"]')).toBe(firstRowEl);
+    expect(cellTexts(container).length).toBeGreaterThanOrEqual(cellCountBefore);
   });
 });
 

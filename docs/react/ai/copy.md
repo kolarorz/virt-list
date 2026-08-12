@@ -19,7 +19,7 @@
 ```tsx
 /** 渲染与复制共用同一个格式化函数，保证复制到的与看到的一致 */
 const copyText = (item: AiMessage) =>
-  `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+  `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
 
 <VirtList<AiMessage>
   list={list}

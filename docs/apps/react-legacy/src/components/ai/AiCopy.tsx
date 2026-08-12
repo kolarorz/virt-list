@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
 import { generateAiPage, type AiMessage } from '../../../../_shared/aiData';
+import { blocksToMarkdown } from '../../../../_shared/agentBlocks';
+import AgentMessage from './parts/AgentMessage';
 
 const COUNT = 400;
 
-/** 复制成一段可读的对话记录；渲染也用它，保证复制到的与看到的一致 */
+/**
+ * 一条消息复制出来是什么。
+ *
+ * 富消息不能按屏幕上看到的那几行来复制——工具卡默认折叠、思考过程收起、
+ * 代码块有自己的边框。这里输出 Markdown：代码带围栏、工具调用带状态，
+ * 粘到编辑器里就是一份能直接读的对话记录。
+ */
 const copyText = (item: AiMessage) =>
-  `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+  `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
 
 export default function AiCopy() {
   const vlRef = useRef<VirtListRef<AiMessage>>(null);
@@ -15,6 +23,16 @@ export default function AiCopy() {
   const [enabled, setEnabled] = useState(true);
   const [result, setResult] = useState('');
   const [stats, setStats] = useState(`消息数: ${COUNT}`);
+  const [expandedBlocks, setExpandedBlocks] = useState<ReadonlySet<string>>(() => new Set());
+
+  const toggleBlock = useCallback((key: string) => {
+    setExpandedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   /**
    * 一键全选。
@@ -60,7 +78,7 @@ export default function AiCopy() {
           ref={vlRef}
           list={list}
           itemKey="id"
-          estimatedSize={80}
+          estimatedSize={140}
           copyText={enabled ? copyText : undefined}
           copySeparator={'\n\n'}
           onUpdate={(_, state) => {
@@ -75,9 +93,11 @@ export default function AiCopy() {
           }}
         >
           {({ itemData }) => (
-            <div className={`demo-chat-message demo-ai-row${itemData.role === 'user' ? ' is-user' : ''}`}>
-              <div className="demo-chat-bubble">{copyText(itemData)}</div>
-            </div>
+            <AgentMessage
+              message={itemData}
+              expanded={expandedBlocks}
+              onToggleBlock={toggleBlock}
+            />
           )}
         </VirtList>
       </div>

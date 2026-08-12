@@ -139,7 +139,7 @@ describe('Vue: @scroll', () => {
  * 这里把它变成断言。
  */
 describe('emits.scroll 拦不到任何东西的前提', () => {
-  it('组件根元素不是 scrollport，唯一的 scrollport 是它的子节点 clientEl', () => {
+  it('组件根元素不是 scrollport，主轴的 scrollport 是它的子节点 clientEl', () => {
     const { app, container, instRef } = mount(VirtList, {
       list: makeList(50),
       itemKey: 'id',
@@ -162,6 +162,11 @@ describe('emits.scroll 拦不到任何东西的前提', () => {
     expect(clientEl).toBeTruthy();
     expect(clientEl).not.toBe(root);
     expect(clientEl.parentElement).toBe(root);
+
+    // 交叉轴（横向）的 scrollport 又在 clientEl 下面一层
+    const cross = instRef.value!.scrollContentEl as HTMLElement;
+    expect(cross.parentElement).toBe(clientEl);
+    expect(cross.style.overflowX).toBe('auto');
     // 它就是 ref 上那个逃生舱——真要挂原生监听，挂到这上面才有意义
     expect(instRef.value!.clientEl).toBe(clientEl);
 

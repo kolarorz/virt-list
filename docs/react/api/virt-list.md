@@ -47,6 +47,7 @@
 | stickyFooterStyle  | stickyFooter 样式                                                                        | `StyleValue`                                                                                 | `''`    | -                            |
 | renderControl      | 渲染控制器                                                                               | `(begin: number, end: number) => { begin: number; end: number }`                           | -       | -                            |
 | renderItem         | 自定义渲染（优先级高于 children）；返回 `HTMLElement` 或 `void`                         | `(item: T, index: number, el: HTMLElement) => HTMLElement \| void`                         | -       | -                            |
+| updateItem         | 配合自定义 `renderItem` 使用：数据变更时**原地更新**已渲染的项（滚动与尺寸上报不触发）。走默认插槽 / children 时组件已自动接好，不必传                         | `(item: T, index: number, el: HTMLElement) => void`                         | -       | -                            |
 | loadMore           | 触达边界时的取数回调，见下方 [分页与无限加载](../guide/load-more)                          | `(direction: 'top' \| 'bottom') => boolean \| void \| Promise<boolean \| void>`             | -       | -                            |
 | hasMoreTop         | 顶部方向是否还有更多数据；可作为受控属性覆盖 `loadMore` 的返回值                        | `Boolean`                                                                                   | `true`  | -                            |
 | hasMoreBottom      | 底部方向是否还有更多数据；可作为受控属性覆盖 `loadMore` 的返回值                        | `Boolean`                                                                                   | `true`  | -                            |
@@ -60,6 +61,7 @@
 | scrollbarAutoHideDelay  | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                      | `Number`                                                                                    | `1200`  | -                            |
 | scrollbarMinThumbSize | 滑块的最小长度（px）                                            | `Number`                                                                                    | `20`    | -                            |
 | keyboard          | 是否接管键盘（方向键 / PageUp-Down / Space / Home-End）。宿主已在**祖先**元素上处理这些键时关掉它——库的监听在后代上、先触发，两边都响应会让一次按键既滚一段又移动一格。滚轮 / 触摸不受影响 | `Boolean` | `true` | - |
+| crossScroll       | 交叉轴（竖向列表的横向、横向列表的竖向）是否允许滚动。那条轴上没有虚拟化、内容是完整的真实 DOM，所以交给浏览器原生滚动（落在 `scrollContentEl` 上）。关掉即回到两轴全裁切 | `Boolean` | `true` | - |
 
 ### React 根节点
 
@@ -98,7 +100,8 @@
 | 方法名             | 说明                                                                           | 签名 / 参数                                                                         |
 | ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | reset              | 重置列表                                                                       | `() => void`                                                                          |
-| clientEl           | 滚动容器（唯一的 scrollport）。逃生舱：只认 DOM 元素的场合用它，感知滚动仍用 `onScroll` | `HTMLElement`                                   |
+| clientEl           | 滚动容器 `.virt-list__client`（主轴视口；交叉轴的 scrollport 是 `scrollContentEl`）。逃生舱：只认 DOM 元素的场合用它，感知滚动仍用 `onScroll` | `HTMLElement`                                   |
+| scrollContentEl    | 交叉轴（横向）的滚动容器 `.virt-list__scroll-content`。读写它的 `scrollLeft` 就是读写横向滚动位置，横滚是真的原生 `scroll` 事件 | `HTMLElement`                                   |
 | getOffset          | 获取滚动距离                                                                   | `() => number`                                                                        |
 | getMaxOffset       | 当前允许的最大偏移量，即 `getTotalSize() - clientSize`                          | `() => number`                                                                        |
 | getTotalSize       | 内容总尺寸（列表项 + 各插槽），对应原生语境的 `scrollHeight`                    | `() => number`                                                                        |
@@ -115,7 +118,8 @@
 | getItemSize        | 获取指定 item 尺寸（参数为 **itemKey** 字符串）                                | `(itemKey: string) => number`                                                         |
 | deleteItemSize     | 删除已缓存的 item 尺寸                                                         | `(itemKey: string) => void`                                                           |
 | getItemPosByIndex  | 获取指定下标的位置信息                                                         | `(index: number) => { top: number; current: number; bottom: number }`                |
-| forceUpdate        | 强制更新                                                                       | `() => void`                                                                          |
+| refreshItems       | 重建指定的项（不传则重建全部可见项）。只在「原地改字段又不引起任何重渲染」时需要 | `(keys?: Array<string \| number>) => void`                                            |
+| forceUpdate        | 兜底手段：重建全部可见项的 DOM。能指明 key 时优先用 refreshItems                | `() => void`                                                                          |
 | getLoadState       | 获取当前加载状态                                                               | `() => LoadState`                                                                     |
 
 ::: tip estimatedSize 配错会有一次提示

@@ -34,7 +34,7 @@
 <script setup lang="ts">
 /** 渲染与复制共用同一个格式化函数，保证复制到的与看到的一致 */
 const copyText = (item: AiMessage) =>
-  `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+  `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
 
 /**
  * 必须**绑定**而不是写成属性字面量：

@@ -6,10 +6,7 @@ import {
   ref,
   watch,
   h,
-  Fragment,
-  render as vueRender,
   type PropType,
-  type VNode,
 } from 'vue';
 import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
@@ -24,6 +21,7 @@ import type {
   VirtTreeDOMEvents,
   VirtScrollOptions,
 } from '@virt-list/vanilla';
+import { createSlotMounter } from './compat.js';
 
 export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, VirtTreeScrollTarget, VirtTreeDOMEvents };
 
@@ -92,6 +90,8 @@ export const VirtTree = defineComponent({
     scrollbarMinThumbSize: { type: Number, default: undefined },
     /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
     keyboard: { type: Boolean, default: true },
+    /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+    crossScroll: { type: Boolean, default: true },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -132,18 +132,7 @@ export const VirtTree = defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     let tree: VirtTreeVanilla | null = null;
 
-    const _slotContainers = new Map<string, HTMLElement>();
-    /** 将 VNode 直接渲染到目标 el 中，无额外包裹层 */
-    function _mountSlot(mountKey: string, vnodes: VNode[], el: HTMLElement): void {
-      const old = _slotContainers.get(mountKey);
-      if (old && old !== el) vueRender(null, old);
-      vueRender(h(Fragment, null, vnodes), el);
-      _slotContainers.set(mountKey, el);
-    }
-    function _cleanupSlots() {
-      _slotContainers.forEach((el) => vueRender(null, el));
-      _slotContainers.clear();
-    }
+    const { mountSlot, cleanupSlots } = createSlotMounter();
 
     function buildOptions(): VirtTreeDOMOptions {
       const opts: VirtTreeDOMOptions = {
@@ -160,6 +149,7 @@ export const VirtTree = defineComponent({
         scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         keyboard: props.keyboard,
+        crossScroll: props.crossScroll,
         showLine: props.showLine,
         itemClass: props.itemClass,
         listClass: props.listClass,
@@ -192,33 +182,43 @@ export const VirtTree = defineComponent({
 
       if (slots.content) {
         opts.renderContent = (node: TreeNode, el: HTMLElement) => {
-          _mountSlot(`content:${node.key}`, slots.content!({ node }), el);
+          mountSlot(`content:${node.key}`, () => slots.content!({ node }), el);
         };
       }
       if (slots.icon) {
         opts.renderIcon = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
-          _mountSlot(`icon:${node.key}`, slots.icon!({ node, isExpanded }), el);
+          mountSlot(`icon:${node.key}`, () => slots.icon!({ node, isExpanded }), el);
         };
       }
       if (slots.default) {
         opts.renderNode = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
-          _mountSlot(`node:${node.key}`, slots.default!({ node, isExpanded }), el);
+          mountSlot(`node:${node.key}`, () => slots.default!({ node, isExpanded }), el);
         };
       }
       if (slots.empty) {
-        opts.renderEmpty = (el: HTMLElement) => { _mountSlot('empty', slots.empty!({}), el); };
+        opts.renderEmpty = (el: HTMLElement) => {
+          mountSlot('empty', () => slots.empty!({}), el);
+        };
       }
       if (slots.header) {
-        opts.renderHeader = (el: HTMLElement) => { _mountSlot('header', slots.header!({}), el); };
+        opts.renderHeader = (el: HTMLElement) => {
+          mountSlot('header', () => slots.header!({}), el);
+        };
       }
       if (slots.footer) {
-        opts.renderFooter = (el: HTMLElement) => { _mountSlot('footer', slots.footer!({}), el); };
+        opts.renderFooter = (el: HTMLElement) => {
+          mountSlot('footer', () => slots.footer!({}), el);
+        };
       }
       if (slots.stickyHeader) {
-        opts.renderStickyHeader = (el: HTMLElement) => { _mountSlot('stickyHeader', slots.stickyHeader!({}), el); };
+        opts.renderStickyHeader = (el: HTMLElement) => {
+          mountSlot('stickyHeader', () => slots.stickyHeader!({}), el);
+        };
       }
       if (slots.stickyFooter) {
-        opts.renderStickyFooter = (el: HTMLElement) => { _mountSlot('stickyFooter', slots.stickyFooter!({}), el); };
+        opts.renderStickyFooter = (el: HTMLElement) => {
+          mountSlot('stickyFooter', () => slots.stickyFooter!({}), el);
+        };
       }
 
       return opts;
@@ -258,7 +258,7 @@ export const VirtTree = defineComponent({
     onBeforeUnmount(() => {
       tree?.destroy();
       tree = null;
-      _cleanupSlots();
+      cleanupSlots();
     });
 
     watch(() => props.list, (newList) => {
@@ -315,13 +315,21 @@ export const VirtTree = defineComponent({
     };
 
     /**
-     * 滚动容器（唯一的 scrollport）。
+     * 滚动容器（主轴视口）。
      *
      * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
      * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
      */
     Object.defineProperty(api, 'clientEl', {
       get: () => tree?.clientEl,
+      enumerable: true,
+    });
+    /**
+     * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+     * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+     */
+    Object.defineProperty(api, 'scrollContentEl', {
+      get: () => tree?.scrollContentEl,
       enumerable: true,
     });
 

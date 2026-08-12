@@ -21,20 +21,25 @@
   <VirtList
     :list="list"
     item-key="id"
-    :estimated-size="80"
+    :estimated-size="140"
     :copy-text="copyText"
     :copy-separator="SEPARATOR"
   >
     <template #default="{ itemData }">
-      <div class="bubble">{{ copyText(itemData) }}</div>
+      <AgentMessage :message="itemData" />
     </template>
   </VirtList>
 </template>
 
 <script setup lang="ts">
-/** 渲染与复制共用同一个格式化函数，保证复制到的与看到的一致 */
+/**
+ * 富消息复制出来是 Markdown，不是屏幕上那几行字。
+ *
+ * 工具卡默认折叠、思考过程收起、代码块有自己的边框——照屏幕复制会缺内容。
+ * 输出代码围栏与工具调用状态，粘到编辑器里就是一份能直接读的记录。
+ */
 const copyText = (item: AiMessage) =>
-  `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+  `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
 
 /**
  * 必须**绑定**而不是写成属性字面量：

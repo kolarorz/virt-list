@@ -51,6 +51,8 @@ export const VirtTree = defineComponent({
     scrollbarMinThumbSize: { type: Number, default: undefined },
     /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
     keyboard: { type: Boolean, default: true },
+    /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+    crossScroll: { type: Boolean, default: true },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },
@@ -107,6 +109,7 @@ export const VirtTree = defineComponent({
         scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         keyboard: props.keyboard,
+        crossScroll: props.crossScroll,
         fixedSize: props.fixedSize,
         showLine: props.showLine,
         itemClass: props.itemClass,
@@ -274,13 +277,21 @@ export const VirtTree = defineComponent({
     };
 
     /**
-     * 滚动容器（唯一的 scrollport）。
+     * 滚动容器（主轴视口）。
      *
      * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
      * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
      */
     Object.defineProperty(api, 'clientEl', {
       get: () => tree?.clientEl,
+      enumerable: true,
+    });
+    /**
+     * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+     * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+     */
+    Object.defineProperty(api, 'scrollContentEl', {
+      get: () => tree?.scrollContentEl,
       enumerable: true,
     });
 

@@ -1,13 +1,21 @@
 import { VirtListCore } from '@virt-list/core';
 import type {
+  ClassValue,
   ListState,
+  ListUpdateReason,
   LoadState,
   VirtListDOMOptions,
   VirtListEvents,
   VirtScrollOptions,
 } from '@virt-list/core';
 import { DEFAULT_DOM_OPTIONS } from './defaults.js';
-import { mergeStyles, applyClass, applyStyle, normalizeStyle } from './utils.js';
+import {
+  mergeStyles,
+  applyClass,
+  applyStyle,
+  normalizeClass,
+  normalizeStyle,
+} from './utils.js';
 import { Scrollbar } from './scrollbar/Scrollbar.js';
 import { InputController } from './scrollbar/InputController.js';
 import { positionToRatio, ratioToPosition } from './scrollbar/geometry.js';
@@ -65,6 +73,8 @@ export class VirtList<T extends Record<string, any>> {
   private _renderedKeys: string[] = [];
   /** DOM 是否已构建完成（防止 constructor 中的首次 update 事件过早 patch） */
   private _domReady = false;
+  /** 已排了一次交叉轴视口校正，见 `_queueCrossViewportSync` */
+  private _crossSyncQueued = false;
   /**
    * header / footer 的渲染函数是否走"返回元素"模式。
    *
@@ -85,7 +95,7 @@ export class VirtList<T extends Record<string, any>> {
   }
 
   /**
-   * 滚动容器，也是整棵子树里**唯一的 scrollport**。
+   * 滚动容器，**主轴**（虚拟化的那条轴）的视口。
    *
    * 它是 `overflow: hidden`，滚动位置归 JS 掌管，所以读写它的 `scrollTop` 没有意义
    * （`getOffset` / `scrollToOffset` 才是）。暴露它是为了那些只认 DOM 元素的场合：
@@ -98,17 +108,28 @@ export class VirtList<T extends Record<string, any>> {
     return this._clientEl;
   }
 
+  /** 列表容器（`.virt-list__list`，使用方的 `listClass` 追加在这个类名后面） */
   get listEl(): HTMLElement {
     return this._listEl;
   }
 
-  /** 承载滚动位移的内容层：header / list / footer 都在它下面 */
+  /**
+   * 内容层（`.virt-list__scroll-content`），同时是**交叉轴**的滚动容器
+   * （竖向列表的横向、横向列表的竖向）。
+   *
+   * 各段（含吸顶 / 吸底）都在它下面，主轴的位移由各段自己的 transform 表达，
+   * 它自己在主轴上不动。交叉轴则是货真价实的原生滚动：读写它的
+   * `scrollLeft`（横向列表读 `scrollTop`）就是读写横向滚动位置。
+   *
+   * 想回到「两轴全裁切」，把 `crossScroll` 关掉，或直接
+   * `scrollContentEl.style.overflowX = 'hidden'`。
+   */
   get scrollContentEl(): HTMLElement {
     return this._scrollContentEl;
   }
 
   /**
-   * 列表项的直接父节点。
+   * 列表项的直接父节点（`.virt-list__items`）。
    *
    * 列表项挂在它下面，而不是 `listEl` 的直接子节点——`listEl` 高度恒为 0，
    * 只是 `itemsEl` 的定位参照，真正把渲染块推到正确位置的是 `itemsEl` 的 transform。
@@ -151,11 +172,11 @@ export class VirtList<T extends Record<string, any>> {
         for (const cb of this._offsetListeners) cb(offset);
         externalEvents?.offsetChange?.(offset);
       },
-      update: (renderList, state) => {
+      update: (renderList, state, reason) => {
         if (this._domReady) {
-          this._patch(renderList, state);
+          this._patch(renderList, state, reason);
         }
-        externalEvents?.update?.(renderList, state);
+        externalEvents?.update?.(renderList, state, reason);
       },
       loadStateChange: (loadState) => {
         this._rerenderLoadSlots(loadState);
@@ -169,7 +190,8 @@ export class VirtList<T extends Record<string, any>> {
     // 而下面 observeSlotEl 装的 ResizeObserver 是异步的，此刻账本里还是 0
     this._syncSlotSizes();
     this._domReady = true;
-    this._patch(this._core.renderList, this._core.state);
+    // 首帧池子是空的，每一项都会走新建分支，标 'list' 只是语义上的实话
+    this._patch(this._core.renderList, this._core.state, 'list');
     // 滚动条要读 core 的尺寸账本，必须在 core 建好之后再装
     this._initScrollbar();
     this._core.bindDOM(this._clientEl);
@@ -187,6 +209,9 @@ export class VirtList<T extends Record<string, any>> {
     if (options.renderFooter && this._footerEl) {
       this._core.observeSlotEl(this._footerEl);
     }
+
+    // 首帧内容一渲染出来，交叉轴的原生滚动条就可能已经出现了，视口随之矮一条
+    this._queueCrossViewportSync();
   }
 
   /**
@@ -474,31 +499,45 @@ export class VirtList<T extends Record<string, any>> {
   /**
    * 构建滚动容器的完整 DOM 结构。
    *
-   *   clientEl (overflow:hidden; position:relative; touch-action:none)
-   *   ├─ scrollContentEl (height:0，**自身不平移**，只作为各段的定位参照)
+   *   clientEl .virt-list__client (overflow:hidden; position:relative; touch-action:pan-x)
+   *   ├─ scrollContentEl .virt-list__scroll-content ← 交叉轴的滚动层
+   *   │     (inset:0; overflow-x:auto; overflow-y:hidden)
+   *   │  ├─ stickyHeaderEl (position:absolute; top:0) ← sticky 依赖原生滚动，主轴上失效
    *   │  ├─ headerEl               ← 残差 stickyHeaderSize − offset
-   *   │  ├─ listEl (height:0)
-   *   │  │  └─ itemsEl             ← 残差 listTop + leadingSize − offset
+   *   │  ├─ listEl .virt-list__list (height:0)
+   *   │  │  └─ itemsEl .virt-list__items  ← 残差 listTop + leadingSize − offset
    *   │  │     └─ [item elements...]
-   *   │  └─ footerEl               ← 残差 listTop + itemsTotalSize − offset
-   *   ├─ stickyHeaderEl (position:absolute; top:0)   ← sticky 依赖原生滚动，这里失效
-   *   ├─ stickyFooterEl (position:absolute; bottom:0)
-   *   └─ scrollbarEl └─ thumbEl
+   *   │  ├─ footerEl               ← 残差 listTop + itemsTotalSize − offset
+   *   │  └─ stickyFooterEl (position:absolute; bottom:0)
+   *   └─ scrollbarEl └─ thumbEl    ← 留在滚动层**外面**
    *
    *   listTop = stickyHeaderSize + headerSize
    *
-   * 两件事值得留意：
+   * 三件事值得留意：
    *
    * - **没有占位元素**。吸顶区占的滚动空间不靠 spacer 还给内容流，各段的位置是
    *   **算**出来的（`stickyHeaderSize` 直接计入文档位置），最高的元素只有一屏。
    * - **平移在每一段上，不在公共父节点上**。每段只带自己的残差
    *   `该段的文档位置 − offset`，所以任何单个 transform 都碰不到浏览器的位移上限。
    *   详见 `_applyLayout`。
+   * - **两条轴的滚动归属不同**。主轴（虚拟化的那条）归 JS，交叉轴归浏览器原生
+   *   滚动，落在 `scrollContentEl` 上（理由见 `crossScroll` 选项）。自绘滚动条与
+   *   空状态因此必须留在 `clientEl` 里：放进滚动层的话，横滚 400px 就把整条滚动条
+   *   推出视口了（实测如此）。吸顶 / 吸底反过来要放**进**滚动层，表头才会跟着列横移。
    *
-   * 没有任何元素的**几何尺寸**与列表长度相关，所有偏移都由 transform 表达。
+   * 没有任何元素的**几何尺寸**与列表长度相关，主轴的偏移都由 transform 表达。
    */
   private _buildDOM(): void {
     const { horizontal } = this._options;
+    const crossScroll = this._options.crossScroll !== false;
+    /**
+     * 交叉轴方向上放行的原生 pan 手势。
+     *
+     * 不能再一律 `none`：主轴的触摸滚动由 InputController 接管（`touchmove` 里
+     * preventDefault），交叉轴则要让浏览器自己滚。而 touch-action 沿祖先链**求交**，
+     * 只在内层滚动层上写 pan-x、外层留 none 的话一样滚不动。
+     */
+    const touchAction = crossScroll ? (horizontal ? 'pan-y' : 'pan-x') : 'none';
 
     this._clientEl = document.createElement('div');
     this._clientEl.className = 'virt-list__client';
@@ -512,15 +551,15 @@ export class VirtList<T extends Record<string, any>> {
     // 浏览器的滚动锚定照样会在内容高度变化时悄悄改 scrollTop（且不派发 scroll
     // 事件）。滚动位置由列表自己维护，浏览器这份好意只会和它打架。
     //
-    // touch-action:none 是因为触摸滚动改由 InputController 接管。
+    // touch-action 收窄到只放行交叉轴，是因为主轴的触摸滚动改由 InputController 接管。
     this._clientEl.tabIndex = 0;
     applyStyle(
       this._clientEl,
       'width:100%; height:100%; overflow:hidden; overflow-anchor:none;' +
-        ' position:relative; touch-action:none;',
+        ` position:relative; touch-action:${touchAction};`,
     );
 
-    // 参与滚动的各段都挂在这一层里，但**它自己不平移**。
+    // 参与滚动的各段都挂在这一层里，但**它在主轴上不平移**。
     //
     // 曾经的做法是让这一层整体 translate(-offset)、再让 itemsEl translate(+leadingSize)，
     // 两者的合成才是内容的真实位置。问题是浏览器对**单个** transform 的位移量有上限
@@ -529,10 +568,27 @@ export class VirtList<T extends Record<string, any>> {
     //
     // 现在每一段只带自己的**残差**（`该段的文档位置 - offset`），残差最大也就
     // 一屏多一点，永远碰不到上限，于是那个天花板整个消失。
+    //
+    // 主轴的职责被抽空之后，这一层改去干另一件事：**当交叉轴的滚动容器**。
+    // 它铺满视口（原来是 height:0 的空壳），交叉轴 `auto`、主轴 `hidden`。
+    // 交叉轴上没有虚拟化、内容是完整的真实 DOM，原生滚动在那条轴上既安全又跟手。
     this._scrollContentEl = document.createElement('div');
+    // 带上类名纯粹为了可读：DevTools 里这一层原来是个匿名 div，看不出它是干什么的。
+    // 库自己的样式一行都不挂在类名上（全是 inline style），所以覆盖它不会影响布局
+    this._scrollContentEl.className = 'virt-list__scroll-content';
+    const crossOverflow = !crossScroll
+      ? 'overflow:hidden;'
+      : horizontal
+        ? 'overflow-x:hidden; overflow-y:auto;'
+        : 'overflow-x:auto; overflow-y:hidden;';
     applyStyle(
       this._scrollContentEl,
-      'position:absolute; top:0; left:0; width:100%; height:0;',
+      // 用 top/right/bottom/left 而不是 inset 简写：jsdom 的 cssstyle 不认 inset，
+      // 单测里读出来会是空串
+      'position:absolute; top:0; right:0; bottom:0; left:0;' +
+        // 主轴方向照样要显式关掉滚动锚定：这一层现在是真正的 scrollport 了，
+        // 浏览器会在内容高度变化时悄悄改它的 scrollTop（且不派发 scroll 事件）
+        ` ${crossOverflow} overflow-anchor:none; touch-action:${touchAction};`,
     );
     this._clientEl.appendChild(this._scrollContentEl);
 
@@ -562,7 +618,13 @@ export class VirtList<T extends Record<string, any>> {
       if (sh) this._stickyHeaderEl.appendChild(sh);
       // 不需要占位块把吸顶区占的滚动空间还回内容流：各段的位置是**算**出来的，
       // stickyHeaderSize 直接计入 header / 列表 / footer 的文档位置
-      this._clientEl.appendChild(this._stickyHeaderEl);
+      //
+      // 挂在滚动层**里面**：表格类用法的吸顶表头必须跟着列一起横移，否则一横滚
+      // 表头就和列错位。想让插槽里的某块横向钉住，在插槽内包一层
+      // `position:sticky; left:0`（冻结列的老办法，实测在 absolute 父级下同样生效），
+      // 前提是插槽根真的跨满了内容宽度、sticky 才有可粘的余量 ——
+      // 插槽默认只有一屏宽，需要的话自己给 stickyHeaderStyle 补 `width:max-content`。
+      flowEl.appendChild(this._stickyHeaderEl);
     }
 
     if (this._options.renderHeader) {
@@ -587,12 +649,13 @@ export class VirtList<T extends Record<string, any>> {
     }
 
     this._listEl = document.createElement('div');
-    if (this._options.listClass) {
-      applyClass(this._listEl, this._options.listClass);
-    }
+    // 库的类名排在前面，使用方的 listClass 跟在后面 —— 不能只写后者：
+    // applyClass 是整体覆盖，那样库的类名会被 listClass 顶掉
+    applyClass(this._listEl, ['virt-list__list', this._options.listClass ?? '']);
 
     // listEl 不撑开滚动空间（height:0），列表项统一由 itemsEl 用 transform 定位
     this._itemHostEl = document.createElement('div');
+    this._itemHostEl.className = 'virt-list__items';
     this._listEl.appendChild(this._itemHostEl);
 
     flowEl.appendChild(this._listEl);
@@ -637,7 +700,9 @@ export class VirtList<T extends Record<string, any>> {
       // 吸底区在账本里占的滚动空间由 maxOffset 自然涵盖（getSlotsTotalSize 已计入）。
       // 与吸顶区不同的是它还不影响任何一段的摆放位置：各段都排在吸顶区之后，
       // 吸底区在下方，`_applyLayout` 用不到它
-      this._clientEl.appendChild(this._stickyFooterEl);
+      //
+      // 同吸顶区，挂在滚动层里（跟着横滚）
+      flowEl.appendChild(this._stickyFooterEl);
     }
 
     this._containerEl.appendChild(this._clientEl);
@@ -779,8 +844,46 @@ export class VirtList<T extends Record<string, any>> {
         onActivity: () => this._scrollbar?.notifyActivity(),
       },
       horizontal,
-      { keyboard: this._options.keyboard },
+      {
+        keyboard: this._options.keyboard,
+        crossEl:
+          this._options.crossScroll !== false ? this._scrollContentEl : null,
+      },
     );
+  }
+
+  /**
+   * 把账本里的视口尺寸校正成滚动层的**真实**可视尺寸。
+   *
+   * 交叉轴出现原生滚动条时，它占的那一条（Windows / Linux 约 15px，macOS 的浮层
+   * 滚动条是 0）不属于可视区，而 ResizeObserver 报的 borderBoxSize 含它。
+   * 不校正的话 maxOffset 少算这么多，滚到底时最后十几像素永远压在横向滚动条底下。
+   *
+   * `clientHeight` / `clientWidth` 天生不含滚动条，正好是要的值。刻意不放进
+   * `_applyLayout`（每帧都在跑，那里读几何量等于每帧强制一次布局）：滚动条的出现
+   * 与消失只跟内容尺寸与容器尺寸有关，跟着 `list` / `force` / `size` 那几趟走就够了。
+   */
+  private _queueCrossViewportSync(): void {
+    if (this._options.crossScroll === false) return;
+    if (this._crossSyncQueued) return;
+    this._crossSyncQueued = true;
+    // 推到微任务里，而不是就地校正：调用点还在 `_patch` 的栈上，而 setClientSize
+    // 会同步再发一次 update —— 就地做就成了 `_patch` 套 `_patch`。
+    // 微任务仍落在同一帧内，用户看不出延迟
+    Promise.resolve().then(() => {
+      this._crossSyncQueued = false;
+      this._syncCrossViewport();
+    });
+  }
+
+  private _syncCrossViewport(): void {
+    if (this._options.crossScroll === false) return;
+    const el = this._scrollContentEl;
+    if (!el) return;
+    const inner = this._options.horizontal ? el.clientWidth : el.clientHeight;
+    // jsdom 里没有布局，一切几何量都是 0 —— 那会把账本里 bindDOM 手工塞进去的
+    // 视口尺寸清成 0，整个渲染区间跟着塌掉。0 一律视为"量不到"
+    if (inner > 0) this._core.setClientSize(inner);
   }
 
   // ==================== 增量 DOM Patch ====================
@@ -791,13 +894,41 @@ export class VirtList<T extends Record<string, any>> {
    * 2. 移除不再可见的项（key 不在新列表中）
    * 3. 对新列表中的每项：从 pool 取或新建 DOM，按顺序 insertBefore
    *
-   * 关键优化：已在 pool 中的项不会重新 renderItem，仅调整 DOM 位置。
-   * 这意味着如果同一 key 对应的数据内容变了（如 grid 的 row children），
-   * 需要先 clearItemPool() 才能获得正确渲染。
+   * 关键优化：已在 pool 中的项不会重新 `renderItem`，仅调整 DOM 位置。
+   *
+   * 代价是「同一个 key 的数据内容变了」时内容会停在挂载那一刻。这一类由
+   * `reason === 'list' | 'force'` 那一趟负责补：见下面的 `dataChanged`，
+   * 它会带最新的 item / index 调 `updateItem`，并重算函数式的 itemStyle /
+   * itemClass。滚动（`range`）与尺寸上报（`size`）不走这一步 —— 那是每帧都在发的，
+   * 在那里重出内容等于把虚拟滚动的优化全还回去。
    */
-  private _patch(renderList: T[], listState: ListState): void {
-    const { itemKey, horizontal, listStyle, itemGap } = this._options;
+  /** 求一项的 class（函数式 itemClass 每次按当下的 item / index 求值） */
+  private _itemClassFor(item: T, index: number): ClassValue {
+    const { itemClass } = this._options;
+    return typeof itemClass === 'function'
+      ? itemClass(item, index)
+      : itemClass ?? '';
+  }
+
+  /** 写一项的 style：itemGap 折算出的内边距 + 用户的 itemStyle */
+  private _applyItemStyle(el: HTMLElement, item: T, index: number): void {
+    const { itemStyle, itemGap } = this._options;
+    const gap = itemGap ?? 0;
+    const baseStyle = gap > 0 ? `padding: ${gap / 2}px 0;` : '';
+    const raw =
+      typeof itemStyle === 'function' ? itemStyle(item, index) : itemStyle ?? '';
+    applyStyle(el, baseStyle + normalizeStyle(raw));
+  }
+
+  private _patch(
+    renderList: T[],
+    listState: ListState,
+    reason: ListUpdateReason,
+  ): void {
+    // itemGap 归 _applyItemStyle 读
+    const { itemKey, horizontal, listStyle } = this._options;
     const { renderBegin } = listState;
+    const dataChanged = reason === 'list' || reason === 'force';
 
     const listStyleCSS = listStyle ? normalizeStyle(listStyle) : '';
 
@@ -815,6 +946,11 @@ export class VirtList<T extends Record<string, any>> {
     this._itemHostEl.style.willChange = 'transform';
     // 区间 / 尺寸变了，各段的文档位置随之改变，统一重新摆一次
     this._applyLayout();
+
+    // 内容或容器尺寸变了，交叉轴的原生滚动条可能刚出现或刚消失，视口随之变化。
+    // 刻意不含 'range'：那是滚动过程中每帧都在发的，而横向滚动条的存废与滚到哪
+    // 没有关系
+    if (dataChanged || reason === 'size') this._queueCrossViewportSync();
 
     this._applyAriaContainer();
 
@@ -869,18 +1005,8 @@ export class VirtList<T extends Record<string, any>> {
         el = document.createElement('div');
         el.dataset.id = key;
 
-        const gap = itemGap ?? 0;
-        const baseStyle = gap > 0 ? `padding: ${gap / 2}px 0;` : '';
-        const rawItemStyle =
-          typeof this._options.itemStyle === 'function'
-            ? this._options.itemStyle(item, renderBegin + i)
-            : this._options.itemStyle ?? '';
-        applyStyle(el, baseStyle + normalizeStyle(rawItemStyle));
-
-        const customClass =
-          typeof this._options.itemClass === 'function'
-            ? this._options.itemClass(item, renderBegin + i)
-            : this._options.itemClass ?? '';
+        this._applyItemStyle(el, item, renderBegin + i);
+        const customClass = this._itemClassFor(item, renderBegin + i);
         if (customClass) applyClass(el, customClass);
 
         const child = this._options.renderItem(item, renderBegin + i, el);
@@ -888,6 +1014,22 @@ export class VirtList<T extends Record<string, any>> {
         this._core.resizeObserver?.observe(el);
         this._options.onItemMounted?.(el);
         this._itemPool.set(key, el);
+      } else if (dataChanged) {
+        // 复用这一项，但数据可能已经不是挂载时那份了（不可变更新会给同一个 key
+        // 换一个新对象），index 也可能变了（头部插入一页历史）。
+        //
+        // 函数式的 itemStyle / itemClass 是 (item, index) 的函数，两个入参都变了
+        // 就必须重算 —— 此前它们只在新建分支求值，复用项会一直挂着旧结果。
+        // 静态值不用管：重算得到的是同一个串，白写一次 DOM 属性。
+        if (typeof this._options.itemStyle === 'function') {
+          this._applyItemStyle(el, item, renderBegin + i);
+        }
+        if (typeof this._options.itemClass === 'function') {
+          // 这里不能用 applyClass：它对空串是空操作，于是「class 从有到无」
+          // 清不掉。item wrapper 上没有库自己加的 class，可以整体覆盖
+          el.className = normalizeClass(this._itemClassFor(item, renderBegin + i));
+        }
+        this._options.updateItem?.(item, renderBegin + i, el);
       }
 
       // 每一轮都要更新：项被复用时它在整个列表里的序号可能已经变了

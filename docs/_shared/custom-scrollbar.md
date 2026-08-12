@@ -130,7 +130,7 @@ DOM 后把内容摆回原位）会触发 `offsetChange` 而不触发 `scroll`—
 
 ## 逃生舱：`clientEl`
 
-`clientEl` 是滚动容器，也是整棵子树里**唯一的 scrollport**。List / Grid / Tree 都有，
+`clientEl` 是滚动容器，也是**主轴**（虚拟化的那条轴）的视口。List / Grid / Tree 都有，
 Vue / React 里从 ref 上取。给的是那些只认 DOM 元素的场合：量它的位置、交给第三方库。
 
 ```ts
@@ -138,9 +138,21 @@ const el = listRef.value.clientEl;   // Vue
 const el = listRef.current.clientEl; // React
 ```
 
-**但别拿它监听原生 `scroll`。** 它是 `overflow: hidden`，`scrollTop` 恒为 0；浏览器
-偶尔为露出获得焦点的元素而静默改动它，那点位移也会被库立刻读走并归零。感知滚动请用
-`scroll` 事件。
+**但别拿它监听原生 `scroll`。** 它在主轴上是 `overflow: hidden`，`scrollTop` 恒为 0；
+浏览器偶尔为露出获得焦点的元素而静默改动它，那点位移也会被库立刻读走并归零。
+感知滚动请用 `scroll` 事件。
+
+**交叉轴**（竖向列表的横向）是另一回事：那条轴归浏览器原生滚动，容器是内层的
+`scrollContentEl`。读写横向滚动位置、或者监听横滚，都在它身上：
+
+```ts
+const cross = listRef.value.scrollContentEl;
+cross.scrollLeft = 200;                      // 横向滚到 200px
+cross.addEventListener('scroll', () => {     // 横滚是真的原生 scroll 事件
+  console.log(cross.scrollLeft);
+});
+cross.style.overflowX = 'hidden';            // 不想要横滚（也可以用 crossScroll 选项）
+```
 
 组件根元素是它的父节点，不是它本身——原生 `scroll` 不冒泡，挂错地方永远收不到。
 

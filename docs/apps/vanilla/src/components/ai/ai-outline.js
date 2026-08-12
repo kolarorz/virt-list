@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
-import { generateTraceLines, KIND_LABEL } from '../../../../_shared/traceData';
+import { generateTraceLines, KIND_LABEL, STATUS_ICON } from '../../../../_shared/traceData';
+import { formatMs } from '../../../../_shared/agentBlocks';
 import { activeSection, buildOutline } from '../../../../_shared/outline';
 
 const COUNT = 3000;
@@ -86,7 +87,7 @@ export function bootstrapAiOutline(root) {
     {
       list,
       itemKey: 'id',
-      estimatedSize: 24,
+      estimatedSize: 26,
       hasMoreTop: false,
       hasMoreBottom: false,
       copyText: (item) =>
@@ -103,6 +104,11 @@ export function bootstrapAiOutline(root) {
         seq.textContent = String(item.seq).padStart(5, ' ');
         head.appendChild(seq);
 
+        const status = document.createElement('span');
+        status.className = `demo-trace-status is-${item.status}`;
+        status.textContent = STATUS_ICON[item.status];
+        head.appendChild(status);
+
         const badge = document.createElement('span');
         badge.className = 'demo-trace-badge';
         badge.textContent = KIND_LABEL[item.kind];
@@ -112,6 +118,13 @@ export function bootstrapAiOutline(root) {
         text.className = 'demo-trace-text';
         text.textContent = item.text;
         head.appendChild(text);
+
+        if (item.ms > 0) {
+          const ms = document.createElement('span');
+          ms.className = 'demo-trace-ms';
+          ms.textContent = formatMs(item.ms);
+          head.appendChild(ms);
+        }
 
         row.appendChild(head);
         return row;

@@ -17,6 +17,31 @@
       >
         停止刷新
       </button>
+      <label>更新方式：</label>
+      <button
+        type="button"
+        class="virt-list-btn"
+        :class="mode === 'replace' ? 'virt-list-btn-primary' : 'virt-list-btn-secondary'"
+        @click="mode = 'replace'"
+      >
+        换新数组
+      </button>
+      <button
+        type="button"
+        class="virt-list-btn"
+        :class="mode === 'mutate' ? 'virt-list-btn-primary' : 'virt-list-btn-secondary'"
+        @click="mode = 'mutate'"
+      >
+        原地修改
+      </button>
+      <button
+        v-if="mode === 'mutate'"
+        type="button"
+        class="virt-list-btn virt-list-btn-warning"
+        @click="manualRefresh"
+      >
+        refreshItems()
+      </button>
       <label>间隔(ms)：</label>
       <input
         v-model.number="interval"
@@ -37,7 +62,12 @@
       />
     </div>
     <div class="demo-stats">
-      总数: {{ list.length }} | 更新轮次: {{ tick }} | 间隔: {{ interval }}ms | 状态: {{ running ? '刷新中' : '已停止' }}
+      总数: {{ list.length }} | 数据已改: {{ dataTick }} 轮 | 间隔: {{ interval }}ms | 状态: {{ running ? '刷新中' : '已停止' }}
+    </div>
+    <div class="demo-stats">
+      {{ mode === 'replace'
+        ? '换新数组：组件识别到 list 换了，把最新数据交给可视区内的每一项，行上的轮次跟着涨'
+        : '原地改字段：引用与长度都没变，组件无从知晓，行上的轮次会停住 —— 点 refreshItems() 才追上' }}
     </div>
     <div class="demo-list-container">
       <VirtList
@@ -50,7 +80,7 @@
           <div class="demo-row-item">
             <span class="demo-row-index">#{{ itemData.index }}</span>
             <span class="demo-row-text">
-              值: <b>{{ itemData.value }}</b>&ensp;更新于: {{ itemData.updatedAt }}
+              值: <b>{{ itemData.value }}</b>&ensp;轮次: <b>{{ itemData.tick }}</b>&ensp;更新于: {{ itemData.updatedAt }}
             </span>
           </div>
         </template>
@@ -67,18 +97,26 @@ interface Row {
   id: number;
   index: number;
   value: number;
+  tick: number;
   updatedAt: string;
 }
 
+type Mode = 'replace' | 'mutate';
+
 function nowText() {
   return new Date().toLocaleTimeString();
+}
+
+function randValue() {
+  return Math.floor(Math.random() * 1000);
 }
 
 function createRows(count: number): Row[] {
   return Array.from({ length: count }, (_, index) => ({
     id: index,
     index,
-    value: Math.floor(Math.random() * 1000),
+    value: randValue(),
+    tick: 0,
     updatedAt: nowText(),
   }));
 }
@@ -86,25 +124,48 @@ function createRows(count: number): Row[] {
 const virtListRef = ref<typeof VirtList | null>(null);
 const interval = ref(1000);
 const rowCount = ref(1000);
-const tick = ref(0);
+const dataTick = ref(0);
 const running = ref(false);
+const mode = ref<Mode>('replace');
+// 大数据量用 shallowRef：ref 会递归代理数组里每个对象的每个属性，十万条的初始化
+// 就要数百毫秒。代价是「原地改某一项的字段」Vue 察觉不到 —— 正是下面 mutate 模式演示的
 const list = shallowRef<Row[]>(createRows(1000));
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/**
- * 只改已有项的字段、不动数组长度。
- *
- * 这种改法组件感知不到（引用没变、长度没变），必须显式 forceUpdate() 才会重绘。
- * 换成 push 一项或整体替换 list 都会被自动识别，不需要这一步。
- */
 function doTick() {
+  dataTick.value += 1;
   const time = nowText();
-  list.value.forEach((row) => {
-    row.value = Math.floor(Math.random() * 1000);
-    row.updatedAt = time;
-  });
-  tick.value += 1;
-  virtListRef.value?.forceUpdate();
+  const t = dataTick.value;
+
+  if (mode.value === 'replace') {
+    // 推荐写法：换一个新数组。组件发现 list 引用变了，会把最新数据交给
+    // 可视区内的每一项，插槽内容随之重渲染 —— 不需要任何手动调用。
+    // 配合 shallowRef 就是「高性能 + 自动更新」两头都要
+    list.value = list.value.map((row) => ({
+      ...row,
+      value: randValue(),
+      tick: t,
+      updatedAt: time,
+    }));
+  } else {
+    // 原地改字段：数组引用没变、长度没变，shallowRef 又不代理数组元素 ——
+    // Vue 和组件都无从知晓，界面会停在上一轮
+    list.value.forEach((row) => {
+      row.value = randValue();
+      row.tick = t;
+      row.updatedAt = time;
+    });
+  }
+}
+
+/**
+ * 手动重建可视区内的项。
+ *
+ * 只有上面那种「谁都察觉不到」的原地修改才需要它。传 keys 可以精确到某几项
+ * （`refreshItems([3, 7])`），不传则重建全部可见项。
+ */
+function manualRefresh() {
+  virtListRef.value?.refreshItems();
 }
 
 function start() {
@@ -132,7 +193,7 @@ function onIntervalChange() {
 function onCountChange() {
   stop();
   list.value = createRows(rowCount.value);
-  tick.value = 0;
+  dataTick.value = 0;
 }
 
 onUnmounted(() => {

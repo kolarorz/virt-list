@@ -4,12 +4,14 @@
  * 抽出来的理由同 chatData：它是给读者看内部状态的辅助信息，不是示例主题本身。
  */
 
-/** update 事件里那个 state，这里只读四个字段 */
+/** update 事件里那个 state，这里只读用得上的几个字段 */
 export interface ListStateLike {
   inViewBegin?: number;
   inViewEnd?: number;
   renderBegin?: number;
   renderEnd?: number;
+  /** 所有项的尺寸总和，除以项数就是平均项高——用来校准 estimatedSize */
+  itemsTotalSize?: number;
 }
 
 /** 加载状态，只读用得上的几个字段 */
@@ -59,6 +61,15 @@ export interface AiStatsInput {
   streaming: boolean;
   /** 视口是否贴底（即是否处于跟随态） */
   atBottom: boolean;
+  /** 生成过程走到第几步（演出脚本的进度），不传则不显示 */
+  step?: { done: number; total: number };
+  /**
+   * 当前渲染区间里的 DOM 节点总数。
+   *
+   * 富消息（代码块、工具卡、来源卡片）让单项的节点数从个位数涨到几十个，
+   * 把这个数字摆出来，读者才能判断「渲染池只有几十项」在自己的内容下意味着什么。
+   */
+  nodes?: number;
   state?: ListStateLike;
   loadState?: LoadStateLike | null;
 }
@@ -73,6 +84,8 @@ export function formatAiStats({
   total,
   streaming,
   atBottom,
+  step,
+  nodes,
   state,
   loadState,
 }: AiStatsInput): string {
@@ -82,6 +95,13 @@ export function formatAiStats({
     atBottom ? '跟随中' : '已脱离跟随',
     `可视区域: ${state?.inViewBegin ?? '-'} - ${state?.inViewEnd ?? '-'}`,
   ];
+
+  if (step) parts.splice(2, 0, `第 ${step.done}/${step.total} 步`);
+
+  // 平均项高只有在量过一些项之后才有意义，未测量的项按预估值计入
+  const avg = state?.itemsTotalSize && total > 0 ? Math.round(state.itemsTotalSize / total) : 0;
+  if (avg > 0) parts.push(`平均项高: ${avg}px`);
+  if (nodes !== undefined && nodes > 0) parts.push(`DOM 节点: ${nodes}`);
 
   if (loadState?.loadingTop) parts.push('加载历史中...');
 

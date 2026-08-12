@@ -66,6 +66,15 @@
   --demo-c-code-bg: #f7f8fa;
   --demo-c-code-text: #3c4453;
   --demo-c-code-border: #e6e8eb;
+  /* 代码里的注释行：不做语法高亮，只把注释压暗，成本为零而可读性提升明显 */
+  --demo-c-code-comment: #8f959e;
+
+  /* ===== diff =====
+   * 底色比 success-soft / danger-soft 更淡：diff 是整行铺底，
+   * 用徽标那一档的浓度会盖过代码本身。
+   */
+  --demo-c-diff-add-bg: rgb(24 160 88 / 10%);
+  --demo-c-diff-del-bg: rgb(224 75 75 / 9%);
 
   /* ===== 滚动条 ===== */
   --demo-c-scrollbar: rgb(31 35 41 / 18%);
@@ -153,6 +162,11 @@ html.dark,
   --demo-c-code-bg: #17171a;
   --demo-c-code-text: #d3d4d8;
   --demo-c-code-border: #2c2d31;
+  --demo-c-code-comment: rgb(235 235 245 / 38%);
+
+  /* ===== diff ===== */
+  --demo-c-diff-add-bg: rgb(45 175 105 / 16%);
+  --demo-c-diff-del-bg: rgb(224 90 90 / 14%);
 
   /* ===== 滚动条 ===== */
   --demo-c-scrollbar: rgb(235 235 245 / 20%);

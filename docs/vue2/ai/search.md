@@ -20,14 +20,15 @@
 
 ```vue
 <template>
-  <VirtList ref="vlRef" :list="list" item-key="id" :estimated-size="80">
+  <VirtList ref="vlRef" :list="list" item-key="id" :estimated-size="140">
     <template #default="{ itemData, index }">
-      <div class="bubble" :class="{ 'is-current': isCurrent(index) }">
-        <template v-for="(part, i) in splitByKeyword(itemData.text)" :key="i">
-          <mark v-if="part.hit">{{ part.text }}</mark>
-          <span v-else>{{ part.text }}</span>
-        </template>
-      </div>
+      <!-- keyword 传下去，正文块内部按命中分段渲染 -->
+      <AgentMessage
+        :message="itemData"
+        :index="index"
+        :keyword="keyword"
+        :current-hit="isCurrent(index)"
+      />
     </template>
   </VirtList>
 </template>
@@ -40,7 +41,7 @@ const cursor = ref(-1);
 const hits = computed(() => {
   if (!keyword.value) return [] as number[];
   return list.value.reduce<number[]>((acc, item, i) => {
-    if (item.text.includes(keyword.value)) acc.push(i);
+    if (blocksToSearchText(item.blocks).includes(keyword.value)) acc.push(i);
     return acc;
   }, []);
 });

@@ -299,6 +299,47 @@ describe('Vue VirtGrid', () => {
     app.unmount();
   });
 
+  /**
+   * 删一项后每行的 _id 不变、装的人变了。DOM 缓存不作废的话插槽内容一动不动，
+   * 界面上就是「删除按钮点了没反应」。
+   */
+  it('删掉中间某项后插槽内容跟着前移', async () => {
+    const list = ref(makeList(9));
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const app = createApp(
+      defineComponent({
+        setup() {
+          return () =>
+            h(
+              VirtGrid as any,
+              {
+                list: list.value,
+                gridItems: 3,
+                itemKey: 'id',
+                estimatedSize: 40,
+              },
+              {
+                default: ({ itemData }: any) =>
+                  h('span', null, `[${itemData.id}]`),
+              },
+            );
+        },
+      }),
+    );
+    app.mount(container);
+    flushResize('client', 200);
+    expect(container.textContent).toContain('[0][1][2]');
+
+    list.value = list.value.filter((item) => item.id !== '1');
+    await nextTick();
+
+    expect(container.textContent).toContain('[0][2][3]');
+    expect(container.textContent).not.toContain('[1]');
+
+    app.unmount();
+  });
+
   it('卸载后清空容器', () => {
     const { app, container } = mount();
 

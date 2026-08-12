@@ -2,6 +2,7 @@
 import {
   useRef,
   useEffect,
+  useLayoutEffect,
   useImperativeHandle,
   forwardRef,
   createElement,
@@ -10,8 +11,6 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { flushSync } from 'react-dom';
 import { VirtTree as VirtTreeVanilla } from '@virt-list/vanilla';
 import type {
   ListState,
@@ -26,6 +25,7 @@ import type {
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/vanilla';
+import { createReactMounter } from './compat.js';
 
 export type { TreeNode, TreeNodeKey, TreeData, TreeFieldNames, TreeNodeData, VirtTreeScrollTarget };
 
@@ -44,6 +44,8 @@ export interface VirtTreeProps {
   scrollbarMinThumbSize?: number;
   /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
   keyboard?: boolean;
+  /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+  crossScroll?: boolean;
   showLine?: boolean;
   itemClass?: string;
   listClass?: string;
@@ -124,12 +126,17 @@ export interface VirtTreeProps {
 
 export interface VirtTreeRef {
   /**
-   * 滚动容器（唯一的 scrollport）。
+   * 滚动容器（主轴视口）。
    *
    * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
    * `onScroll`——挂在这上面的原生 `scroll` 监听收不到有用信息。
    */
   clientEl: HTMLElement;
+  /**
+   * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+   * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+   */
+  scrollContentEl: HTMLElement;
   expandAll: (expanded: boolean) => void;
   expandNode: (key: TreeNodeKey | TreeNodeKey[], expanded: boolean) => void;
   toggleExpand: (node: TreeNode) => void;
@@ -193,23 +200,19 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
   const eventsRef = useRef(props);
   eventsRef.current = props;
 
-  const reactRootsRef = useRef(new Map<string, Root>());
+  const mounterRef = useRef<ReturnType<typeof createReactMounter> | null>(null);
+  if (!mounterRef.current) mounterRef.current = createReactMounter();
+  const mounter = mounterRef.current;
+  const { mountReact } = mounter;
 
-  /** 将 ReactNode 直接渲染到目标 el 中，无额外包裹层 */
-  function mountReact(mountKey: string, node: ReactNode, el: HTMLElement): void {
-    const old = reactRootsRef.current.get(mountKey);
-    if (old) {
-      // 渲染期间同步卸载组件问题
-      queueMicrotask(() => {
-        old.unmount();
-      })
+  /** 在 React 渲染 / 提交阶段内驱动 core，挂载器据此决定 flushSync 的时机 */
+  function inReactPhase(fn: () => void): void {
+    mounter.setReactPhase(true);
+    try {
+      fn();
+    } finally {
+      mounter.setReactPhase(false);
     }
-    const root = createRoot(el);
-    // 生命周期内调用 flushSync 问题
-    queueMicrotask(() => {
-      flushSync(() => root.render(node));
-    })
-    reactRootsRef.current.set(mountKey, root);
   }
 
   useEffect(() => {
@@ -231,6 +234,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
       scrollbarMinThumbSize: props.scrollbarMinThumbSize,
       keyboard: props.keyboard,
+      crossScroll: props.crossScroll,
       showLine: props.showLine,
       itemClass: props.itemClass,
       listClass: props.listClass,
@@ -263,42 +267,42 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
 
     if (p.content) {
       options.renderContent = (node: TreeNode, el: HTMLElement) => {
-        mountReact(`content:${node.key}`, eventsRef.current.content!({ node }), el);
+        mountReact(`content:${node.key}`, () => eventsRef.current.content!({ node }), el);
       };
     }
     if (p.icon) {
       options.renderIcon = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
-        mountReact(`icon:${node.key}`, eventsRef.current.icon!({ node, isExpanded }), el);
+        mountReact(`icon:${node.key}`, () => eventsRef.current.icon!({ node, isExpanded }), el);
       };
     }
     if (p.nodeRender) {
       options.renderNode = (node: TreeNode, isExpanded: boolean, el: HTMLElement) => {
-        mountReact(`node:${node.key}`, eventsRef.current.nodeRender!({ node, isExpanded }), el);
+        mountReact(`node:${node.key}`, () => eventsRef.current.nodeRender!({ node, isExpanded }), el);
       };
     }
     if (p.empty) {
       options.renderEmpty = (el: HTMLElement) => {
-        mountReact('empty', eventsRef.current.empty!(), el);
+        mountReact('empty', () => eventsRef.current.empty!(), el);
       };
     }
     if (p.header) {
       options.renderHeader = (el: HTMLElement) => {
-        mountReact('header', eventsRef.current.header!(), el);
+        mountReact('header', () => eventsRef.current.header!(), el);
       };
     }
     if (p.footer) {
       options.renderFooter = (el: HTMLElement) => {
-        mountReact('footer', eventsRef.current.footer!(), el);
+        mountReact('footer', () => eventsRef.current.footer!(), el);
       };
     }
     if (p.stickyHeader) {
       options.renderStickyHeader = (el: HTMLElement) => {
-        mountReact('stickyHeader', eventsRef.current.stickyHeader!(), el);
+        mountReact('stickyHeader', () => eventsRef.current.stickyHeader!(), el);
       };
     }
     if (p.stickyFooter) {
       options.renderStickyFooter = (el: HTMLElement) => {
-        mountReact('stickyFooter', eventsRef.current.stickyFooter!(), el);
+        mountReact('stickyFooter', () => eventsRef.current.stickyFooter!(), el);
       };
     }
 
@@ -317,23 +321,39 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       update: (renderList, state) => eventsRef.current.onUpdate?.(renderList, state),
     };
 
-    treeRef.current = new VirtTreeVanilla(containerRef.current, options, events);
+    // 构造发生在 effect 里，仍属于 React 的提交阶段
+    inReactPhase(() => {
+      treeRef.current = new VirtTreeVanilla(containerRef.current!, options, events);
+    });
 
     return () => {
       treeRef.current?.destroy();
       treeRef.current = null;
-      reactRootsRef.current.forEach((root) => root.unmount());
-      reactRootsRef.current.clear();
+      mounter.cleanupAllRoots();
     };
     // Only recreate on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const prevListRef = useRef(props.list);
-  if (props.list !== prevListRef.current) {
-    prevListRef.current = props.list;
-    treeRef.current?.setList(props.list);
-  }
+
+  /**
+   * 每次宿主渲染后跟 core 对齐一次。没有 deps 是故意的：已挂载的节点内容不在
+   * React 的 vdom 树上，只能靠这里用最新的渲染 prop 重刷一遍。
+   * setList 同样不能写在 render 函数体里 —— 那是在 React 渲染阶段里驱动 core 重渲染。
+   */
+  useLayoutEffect(() => {
+    const tree = treeRef.current;
+    if (!tree) return;
+
+    inReactPhase(() => {
+      if (props.list !== prevListRef.current) {
+        prevListRef.current = props.list;
+        tree.setList(props.list);
+      }
+      mounter.flushMounts();
+    });
+  });
 
   /*
    * 受控 keys 的同步。
@@ -375,6 +395,7 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
 
   useImperativeHandle(ref, () => ({
     get clientEl() { return treeRef.current!.clientEl; },
+    get scrollContentEl() { return treeRef.current!.scrollContentEl; },
     expandAll: (expanded) => treeRef.current?.expandAll(expanded),
     expandNode: (key, expanded) => treeRef.current?.expandNode(key, expanded),
     toggleExpand: (node) => treeRef.current?.toggleExpand(node),

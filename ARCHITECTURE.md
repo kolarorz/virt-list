@@ -117,11 +117,18 @@ DOM 操作层。负责：
 
 ---
 
-## 滚动模型：偏移量归 JS 掌管
+## 滚动模型：主轴的偏移量归 JS 掌管
 
-容器是 `overflow: hidden`，内容靠 `transform` 移动，滚动条自绘，滚轮 / 键盘 / 触摸
-全部由库接管。**没有原生滚动这条路**——需要原生滚动条的项目请用旧库
+**虚拟化的那条轴**（竖向列表的竖向）上，容器是 `overflow: hidden`，内容靠 `transform`
+移动，滚动条自绘，滚轮 / 键盘 / 触摸全部由库接管。那条轴上**没有原生滚动这条路**——
+需要原生滚动条的项目请用旧库
 [vue-virt-list](https://github.com/kolarorz/vue-virt-list)。
+
+**交叉轴**（竖向列表的横向）反过来：那个方向上没有虚拟化、内容是完整的真实 DOM，
+下面"为什么值得这么做"的两条理由一条都不成立。所以它就是原生滚动，落在内层的
+`scrollContentEl` 上（`overflow-x: auto`），白拿滚动条、拖拽与触摸惯性。
+自绘的主轴滚动条留在外层 `clientEl` 里，横滚时不会跟着跑掉。关掉 `crossScroll`
+即回到两轴全裁切。
 
 ### 为什么值得这么做
 
@@ -211,6 +218,102 @@ _resolvePinned()                  // 每次 ResizeObserver 回调重新求解一
 - "共享"部分（属性定义、事件分发、命令式 API）结构相似但因类型差异并不完全相同
 - 内部共享包增加依赖复杂度，带来的去重收益微乎其微
 - 框架绑定代码足够薄，复制一份完全可控
+
+---
+
+## 为什么 core 持有 DOM 所有权（而不是 headless）
+
+### 决策：core / vanilla 建并复用列表项的 DOM，框架包只把内容挂进去
+
+另一条广为人知的路线是 **headless**：核心只输出"该渲染哪几项、各自在什么位置"，
+DOM 完全交给使用方在框架里写。TanStack Virtual 是这条路线的代表。
+
+值得先说清一件容易搞反的事：**headless 与"纯 JS 内核 + 框架适配"无关**。
+`@tanstack/virtual-core` 同样是框架无关的纯 TS 包，外面挂 react / vue / svelte / solid
+四个适配层 —— 与本项目的分层完全一致。真正的分野是**谁 create 并 diff 列表项的元素**。
+它没有"内容不跟着数据更新"这个问题，不是因为它"基于框架开发"，而是因为项本身就是
+使用方 render 出来的普通节点，在宿主的 vdom 树上，更新是框架的分内事。
+
+我们评估后仍然保留 core 持有 DOM 所有权，代价与收益如下。
+
+### 放弃 headless 的六项理由
+
+1. **同步测量与同步落位**。当前链路是同步的：`_buildDOM()` → `_patch()` →
+   `_syncSlotSizes()` 直接读 `offsetHeight`，首帧即就位；`scrollToIndex` 返回时目标项
+   已经在池子里（见 `vanilla/src/VirtList.ts` 中 `scrollToIndex` 的注释）。headless 下
+   项由框架渲染，最早只能在 `useLayoutEffect` / `nextTick` 里量到尺寸，于是动态高度的
+   首帧必然先按估算值排版再重排，`scrollToIndex` 到远处也退化成"渲染 → 测量 → 修正 →
+   再渲染"的迭代收敛。
+2. **滚动帧率不交给框架调度器**。滚动路径现在同步改 transform，一帧内闭环。headless 下
+   每次区间变化都是 setState → 调度 → 重渲染 → commit；React 18 的并发特性会把它当作
+   可打断的低优先级更新，快速滚动时容易看到空白块，而用 `flushSync` 压回同步等于
+   放弃并发还多付一层开销。
+3. **能力实现一份而不是四份**。吸顶吸底、自绘滚动条、跨虚拟化的选区复制、键盘接管、
+   ARIA、`itemGap`、双向加载的位移补偿都需要"掌握全部渲染项的 DOM 与顺序"，
+   现在集中在 `vanilla` 一份。headless 下这些要么甩给使用方手写，要么四个框架包各写一遍。
+4. **`@virt-list/vanilla` 仍然成立**。headless 的前提是"有框架来渲染"，
+   而无框架场景是这个包存在的理由。走 headless 就必须长期并存两套渲染路径。
+5. **API 保持"一行可用"**。现在是 `<VirtList :list :item-key>` 加插槽；headless 的
+   最小可用例要使用方自己写总高度容器、绝对定位、transform 与测量 ref，
+   吸顶 / 空状态 / 水平模式一旦要自行拼装，文档与支持成本会显著上升。
+6. **不引入测量 ref 的生命周期陷阱**。React StrictMode 的双调用、Vue 卸载时 ref 传 null、
+   节点复用时 ref 回调的顺序，都会往尺寸账本里灌脏数据，且是四个框架各一套坑。
+
+### 代价与对策：`updateItem` 契约
+
+这个选择的代价是明确的：**框架内容挂在 core 建的游离元素上，不在宿主的组件树里，
+宿主的响应式传导到不了它们**。而 `_patch` 对池里已有的 key 不会重新调用 `renderItem`
+（增量 patch 的核心优化），于是"key 没变、数据变了"时内容会停在挂载那一刻 ——
+不可变更新（`list.map(...)`）与 AI 流式输出都属于这一类。
+
+对策是让 core 主动通知，而不是让各框架包自己想办法追：
+
+- `core` 的 `update` 事件带 `reason`（{@link ListUpdateReason}：`list` / `force` /
+  `range` / `size`）。**区分来源是必需的**：`update` 的 8 个触发点里只有 `list` / `force`
+  意味着数据变了，而 `range` 每帧都在发（滚动）、`size` 也很频繁（ResizeObserver）。
+  不区分就等于滚动每一帧把全部可见项的内容重渲染一遍。
+- 列表变更期间的通知一律升级为 `list`（`VirtListCore._notify` 的 `_listChanging` 标志）。
+  必要性在于 `_onListChange` 的"同 key 改内容"分支完全依赖 `_updateRenderRange` 等嵌套
+  调用发通知，而那些点按自己的语境标的是 `range`。
+- `vanilla` 在 `reason` 为 `list` / `force` 时，对复用的项调 `updateItem(item, index, el)`，
+  并重算函数式的 `itemStyle` / `itemClass`（它们是 `(item, index)` 的函数，两个入参都会变）。
+- 四个框架包在插槽路径把 `updateItem` 指向与 `renderItem` 同一个挂载函数 ——
+  挂载器按 mountKey 幂等，重复调用只是让插槽用最新数据重渲染一次，DOM 容器照旧复用。
+  使用方自己接管 `renderItem` 时不注入，更新语义由他决定。
+
+新增 `updateItem` 而不复用 `renderItem`，是因为后者的返回值契约是 `HTMLElement | void`，
+新建分支会 `appendChild`；复用时再调一次，返回元素的实现会重复追加子节点。
+
+比 `refreshItems(keys)` 更轻：那条路是移除并重建 DOM（React 侧的 root 会重挂，
+输入焦点、动画、内部 state 全丢），`updateItem` 是原地更新内容。
+`refreshItems` 因此仍然保留，用于"确实需要重建这一项"的场合。
+
+React 侧另有一条互补通道 `flushMounts()`，两条都要留着：`updateItem` 覆盖
+"命令式 `ref.setList()`，宿主不重渲染"；`flushMounts()` 覆盖"宿主重渲染但 `list`
+引用没变"（流式文本存在宿主自己的 state 里）。两条同时命中也不会渲染两遍 ——
+挂载器在 React 阶段内按元素合并 pending。
+
+### Grid 的两条路径与 mountKey 的取法
+
+Grid 的行 key 是 `_id`（行首扁平索引），**不随行内容变化** —— 删掉中间一项后每行的
+`_id` 没变、装的人整体前移。按能力择一处理：
+
+- **注入了 `updateItem`**（四个框架包的插槽路径）：`_updateRow` 原地更新，行元素与
+  单元格容器全部复用，并补齐 / 收回尾行变动的单元格。
+- **没有**（纯 DOM 用法）：`setList` 里比对成员、把变了的行交给 `refreshItems` 重建。
+  正确但代价是那几行 DOM 换新，所以只作为没有 `updateItem` 时的回退。
+
+单元格的 mountKey 必须按**位置**取（`grid:cell:${listIndex}`），与 VirtList 按数据 key
+相反。依据是容器的复用方式：VirtList 的项元素在 `itemPool` 里按 key 管理，同一个 key
+永远对应同一个元素；而单元格容器只是行元素的第 i 个子节点，纯按位置复用。两者不一致
+就会错位 —— 删掉中间一项后「item-2 的内容」要渲染进「原来 item-1 的容器」，挂载器发现
+记录里那个 key 对应的是别的元素，就会去卸载它、再对当前元素重复挂载。表现是内容正确但
+每次删除都刷一串 `createRoot() on a container that has already been passed` 警告，
+并白白重建一批挂载点（组件内部 state、输入焦点、进行中的动画全丢）。
+
+回归测试：`packages/vanilla/__tests__/UpdateItem.test.ts`（含"滚动 / 尺寸上报不触发
+`updateItem`"这条性能契约、以及无 `updateItem` 时的回退路径）与四个框架包的
+`ItemUpdate.test.ts`（React 两个包直接断言删除后控制台无警告）。
 
 ---
 

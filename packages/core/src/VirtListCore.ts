@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   ListState,
+  ListUpdateReason,
   LoadState,
   SlotId,
   SlotSize,
@@ -246,6 +247,13 @@ export class VirtListCore<T extends Record<string, any>> {
   private _hasListSnapshot = false;
   /** 最近一次列表变更是否为尾部追加（头部未动且变长） */
   private _lastChangeWasAppend = false;
+  /**
+   * 是否正处在一次列表变更中。
+   *
+   * `_notify` 用它把这一趟里的所有通知升级为 `list`——列表变更会经由
+   * `_updateRenderRange` 等嵌套调用发通知，而那些点自报的原因是 `range`。
+   */
+  private _listChanging = false;
   /**
    * 上一次列表变更时的总尺寸。
    *
@@ -637,7 +645,8 @@ export class VirtListCore<T extends Record<string, any>> {
     // 区间由外部任意指定，与上一次没有连续性，直接全量重算 leadingSize
     this._setRenderList();
     this._updateLeadingSize();
-    this._notify();
+    // 区间变了、数据没变：新进入窗口的项自然会走 renderItem，池里已有的项不必重出内容
+    this._notify('range');
   }
 
   /** 重置所有状态（列表清空时调用） */
@@ -679,7 +688,7 @@ export class VirtListCore<T extends Record<string, any>> {
     this._calcListTotalSize();
     this._updateLeadingSize();
     this._updateRange(this.state.inViewBegin);
-    this._notify();
+    this._notify('force');
   }
 
   getState(): ListState {
@@ -773,7 +782,27 @@ export class VirtListCore<T extends Record<string, any>> {
    * `client`（滚动容器）不走这里：它还要连带重算可视区间，只由 RO 与 `bindDOM` 维护。
    */
   setSlotSize(id: SlotId, size: number): void {
-    if (this._writeSlotSize(id, size)) this._notify();
+    if (this._writeSlotSize(id, size)) this._notify('size');
+  }
+
+  /**
+   * 直接写入视口尺寸（滚动轴方向），并连带重算可视区间。
+   *
+   * 上面那句「`client` 不走 `setSlotSize`」的例外就在这里，用途只有一个：
+   * **交叉轴出现原生滚动条时把它占掉的那一条从视口里扣掉**。滚动条占的宽度
+   * Windows / Linux 上约 15px，macOS 的浮层滚动条是 0，而 ResizeObserver 报的
+   * `borderBoxSize` 含它 —— 不扣的话 `maxOffset` 少算一个滚动条的量，
+   * 滚到底时最后十几像素正好压在横向滚动条底下，怎么滚都露不出来。
+   *
+   * DOM 层量到真实视口（滚动层的 `clientHeight` / `clientWidth`，这两个值天生
+   * 不含滚动条）之后调它。值没变是空操作，可以放心反复调。
+   */
+  setClientSize(size: number): void {
+    if (!(size >= 0) || size === this.slotSize.clientSize) return;
+    this.slotSize.clientSize = size;
+    this._onClientResize();
+    // 视口变了，最大偏移量与滑块几何随之变化，得让 DOM 层重摆一次
+    this._notify('size');
   }
 
   /**
@@ -1412,14 +1441,14 @@ export class VirtListCore<T extends Record<string, any>> {
         this._refreshViewEnd();
         // itemsTotalSize 变了，footer 的文档位置随之改变；同时最大偏移量也变了，
         // 通知上层重摆各段并刷新滚动条滑块
-        this._notify();
+        this._notify('size');
         // 首屏项测出真实尺寸后总高度才准，这时才能判断内容是否填满视口。
         // 首屏只回来半屏数据的情况全靠这里续拉，否则会停在半屏不再加载
         this._loader.checkAutoLoad();
       } else if (slotChanged) {
         // 插槽尺寸变了也必须通知，理由见 `_writeSlotSize`。
         // `diff !== 0` 那支已经 `_notify()` 过，这里只补它漏下的那种轮次
-        this._notify();
+        this._notify('size');
       }
 
       // 首次渲染完成后再校准一次区间：首次测量之前 clientSize 是 0，
@@ -1799,11 +1828,21 @@ export class VirtListCore<T extends Record<string, any>> {
     }
 
     this._setRenderList();
-    this._notify();
+    this._notify('range');
   }
 
   /** 列表数据变化后重新计算尺寸和区间 */
   private _onListChange(): void {
+    // 见 `_notify`：这一趟里的每次通知都要让 DOM 层知道"数据变了"
+    this._listChanging = true;
+    try {
+      this._onListChangeInner();
+    } finally {
+      this._listChanging = false;
+    }
+  }
+
+  private _onListChangeInner(): void {
     const newLen = this._props.list.length;
     this._lastChangeWasAppend = false;
 
@@ -1829,7 +1868,7 @@ export class VirtListCore<T extends Record<string, any>> {
       // 顺序不能反：头部插入新增的那段高度此刻还不存在于 DOM 上，浏览器会按旧的
       // 可滚动上限把 scrollTop 裁掉。这一次通知用的还是旧渲染切片，但同一个同步
       // 任务里后面会修正，中间态不会被绘制出来
-      this._notify();
+      this._notify('list');
 
       this._writeOffset(this._syncedOffset + shiftSize, 'adjust');
       // 与 _resolvePinned 同理：写完立刻把 _syncedOffset 同步到裁剪后的真实值，
@@ -1860,7 +1899,7 @@ export class VirtListCore<T extends Record<string, any>> {
       // leadingSize 刚被全量校正，再通知一次让上层拿到正确的位移量；
       // 列表内容也确实变了（旧代码正是靠手动 forceUpdate 兜住这一步）
       this._setRenderList();
-      this._notify();
+      this._notify('list');
 
       if (shiftCount > 0) {
         // 头部插入项的尺寸此刻多半还是估算值，补偿量因此不准，差额要靠锚点在
@@ -2000,8 +2039,23 @@ export class VirtListCore<T extends Record<string, any>> {
     this._hasListSnapshot = true;
   }
 
-  /** 通知上层渲染列表已更新 */
-  private _notify(): void {
+  /**
+   * 通知上层渲染列表已更新。
+   *
+   * `reason` 必传：DOM 层要靠它区分「数据变了」和「只是滚动/尺寸变了」——
+   * 前者才需要让池里已有的项重新出内容。漏标或标错会直接变成性能问题
+   * （每帧重渲染全部可见项）或正确性问题（数据变了内容不刷新），
+   * 所以这里不给默认值，每个调用点都必须显式说明自己是哪一类。
+   */
+  private _notify(reason: ListUpdateReason): void {
+    // 列表变更过程中发出的通知一律算 `list`，哪怕它是从 `_updateRenderRange`
+    // 这类"区间"路径冒出来的。
+    //
+    // 必须这么做：`_onListChange` 的两条分支里，只有"头部增删"那条会自己
+    // `_notify`，而"同 key 改内容"那条（不可变更新的常态）完全依赖嵌套调用
+    // 的通知 —— 那些点按自己的语境标的是 `range`，DOM 层照此不会刷新内容，
+    // 数据变了页面却不动。反过来滚动与尺寸路径不经过这个标志位，仍是精确的。
+    const effective: ListUpdateReason = this._listChanging ? 'list' : reason;
     // leadingSize 失效时先补一次全量重算。
     //
     // 上层拿它当渲染块的位移量（itemsEl 的 transform），用陈旧值会让这一块内容整体偏移，
@@ -2013,6 +2067,6 @@ export class VirtListCore<T extends Record<string, any>> {
     // 而 DOM 层读的是 state.leadingSize，走不到那里。
     if (this._leadingSizeDirty) this._updateLeadingSize();
 
-    this._events.update?.(this._renderList, this.state);
+    this._events.update?.(this._renderList, this.state, effective);
   }
 }

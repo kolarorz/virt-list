@@ -1,25 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
 import { generateAiPage, type AiMessage } from '../../../../_shared/aiData';
+import { blocksToSearchText } from '../../../../_shared/agentBlocks';
+import AgentMessage from './parts/AgentMessage';
 
 const COUNT = 600;
-
-/** 把文本按关键词切成命中/非命中的片段 */
-function splitByKeyword(text: string, keyword: string) {
-  if (!keyword) return [{ text, hit: false }];
-
-  const parts: { text: string; hit: boolean }[] = [];
-  let from = 0;
-  for (;;) {
-    const at = text.indexOf(keyword, from);
-    if (at === -1) break;
-    if (at > from) parts.push({ text: text.slice(from, at), hit: false });
-    parts.push({ text: keyword, hit: true });
-    from = at + keyword.length;
-  }
-  if (from < text.length) parts.push({ text: text.slice(from), hit: false });
-  return parts;
-}
 
 export default function AiSearch() {
   const vlRef = useRef<VirtListRef<AiMessage>>(null);
@@ -28,16 +13,18 @@ export default function AiSearch() {
   const [keyword, setKeyword] = useState('');
   const [cursor, setCursor] = useState(-1);
   const [range, setRange] = useState({ begin: 0, end: 0 });
+  const [expandedBlocks, setExpandedBlocks] = useState<ReadonlySet<string>>(() => new Set());
 
   /**
    * 命中位置来自**数据**，不是 DOM。
    *
    * 浏览器的页内查找只能看到当前渲染的那几十项，600 条里绝大多数没有对应的 DOM。
+   * 搜的是正文块的文本——和界面上画黄底的是同一份文本，两边不会打架。
    */
   const hits = useMemo(() => {
     if (!keyword) return [] as number[];
     return list.reduce<number[]>((acc, item, i) => {
-      if (item.text.includes(keyword)) acc.push(i);
+      if (blocksToSearchText(item.blocks).includes(keyword)) acc.push(i);
       return acc;
     }, []);
   }, [list, keyword]);
@@ -53,6 +40,15 @@ export default function AiSearch() {
     },
     [hits],
   );
+
+  const toggleBlock = useCallback((key: string) => {
+    setExpandedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   // 输入防抖：几千条数据下全量 includes 配合防抖完全够用
   useEffect(() => {
@@ -103,29 +99,20 @@ export default function AiSearch() {
           ref={vlRef}
           list={list}
           itemKey="id"
-          estimatedSize={80}
+          estimatedSize={140}
           onUpdate={(_, state) => setRange({ begin: state.renderBegin, end: state.renderEnd })}
         >
-          {({ itemData, index }) => {
-            const isCurrent = cursor >= 0 && hits[cursor] === index;
-            return (
-              <div className={`demo-chat-message demo-ai-row${itemData.role === 'user' ? ' is-user' : ''}`}>
-                {/* 高亮直接跟着 keyword 走：响应式框架下不需要手动清渲染池 */}
-                <div className={`demo-chat-bubble${isCurrent ? ' is-current-hit' : ''}`}>
-                  <span className="demo-ai-index">#{index} </span>
-                  {splitByKeyword(itemData.text, keyword).map((part, i) =>
-                    part.hit ? (
-                      <mark key={i} className={`demo-hit${isCurrent ? ' is-current' : ''}`}>
-                        {part.text}
-                      </mark>
-                    ) : (
-                      <span key={i}>{part.text}</span>
-                    ),
-                  )}
-                </div>
-              </div>
-            );
-          }}
+          {({ itemData, index }) => (
+            /* keyword 传下去，正文块内部按命中分段渲染 */
+            <AgentMessage
+              message={itemData}
+              index={index}
+              keyword={keyword}
+              currentHit={cursor >= 0 && hits[cursor] === index}
+              expanded={expandedBlocks}
+              onToggleBlock={toggleBlock}
+            />
+          )}
         </VirtList>
       </div>
     </div>

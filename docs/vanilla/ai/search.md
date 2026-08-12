@@ -18,7 +18,7 @@
 ```js
 // 1. 在数据里找命中位置
 const hits = list.reduce((acc, item, i) => {
-  if (item.text.includes(keyword)) acc.push(i);
+  if (blocksToSearchText(item.blocks).includes(keyword)) acc.push(i);
   return acc;
 }, []);
 

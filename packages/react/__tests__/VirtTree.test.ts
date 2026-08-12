@@ -41,19 +41,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/**
+ * 尺寸上报会驱动 core 重新渲染项，而每项内容各自在一个 React root 里，
+ * 所以这是一次真正的 React 更新，得包在 act 里（否则 React 会提示
+ * "An update to Root inside a test was not wrapped in act(...)"）。
+ * 回调是同步的，act 也就同步跑完，不必 await。
+ */
 function flushResize(id: string, size: number) {
   const target = document.createElement('div');
   target.dataset.id = id;
-  roCallback?.(
-    [
-      {
-        target,
-        borderBoxSize: [{ blockSize: size, inlineSize: size }],
-        contentRect: { height: size, width: size },
-      } as unknown as ResizeObserverEntry,
-    ],
-    {} as ResizeObserver,
-  );
+  act(() => {
+    roCallback?.(
+      [
+        {
+          target,
+          borderBoxSize: [{ blockSize: size, inlineSize: size }],
+          contentRect: { height: size, width: size },
+        } as unknown as ResizeObserverEntry,
+      ],
+      {} as ResizeObserver,
+    );
+  });
 }
 
 async function mount(props: Record<string, unknown> = {}) {

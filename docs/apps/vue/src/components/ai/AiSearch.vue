@@ -12,21 +12,18 @@
     </div>
     <div class="demo-stats">{{ statsText }}</div>
     <div class="demo-list-container">
-      <VirtList ref="vlRef" :list="list" item-key="id" :estimated-size="80" @update="onUpdate">
+      <VirtList ref="vlRef" :list="list" item-key="id" :estimated-size="140" @update="onUpdate">
         <template #default="{ itemData, index }">
-          <div class="demo-chat-message demo-ai-row" :class="{ 'is-user': itemData.role === 'user' }">
-            <div class="demo-chat-bubble" :class="{ 'is-current-hit': isCurrent(index) }">
-              <span class="demo-ai-index">#{{ index }} </span>
-              <!--
-                高亮直接跟着 keyword 走：响应式框架下不需要手动清渲染池，
-                关键词变了这一段会自己重新算
-              -->
-              <template v-for="(part, i) in splitByKeyword(itemData.text)" :key="i">
-                <mark v-if="part.hit" class="demo-hit" :class="{ 'is-current': isCurrent(index) }">{{ part.text }}</mark>
-                <span v-else>{{ part.text }}</span>
-              </template>
-            </div>
-          </div>
+          <!--
+            高亮直接跟着 keyword 走：响应式框架下不需要手动清渲染池，
+            关键词变了命中分段会自己重新算
+          -->
+          <AgentMessage
+            :message="itemData"
+            :index="index"
+            :keyword="keyword"
+            :current-hit="isCurrent(index)"
+          />
         </template>
       </VirtList>
     </div>
@@ -37,6 +34,8 @@
 import { computed, ref, watch } from 'vue';
 import { VirtList } from '@virt-list/vue';
 import { generateAiPage, type AiMessage } from '../../../../_shared/aiData';
+import { blocksToSearchText } from '../../../../_shared/agentBlocks';
+import AgentMessage from './parts/AgentMessage.vue';
 
 const COUNT = 600;
 
@@ -51,12 +50,13 @@ const listState = ref<any>(null);
  * 命中位置来自**数据**，不是 DOM。
  *
  * 浏览器的页内查找只能看到当前渲染的那几十项，600 条里绝大多数没有对应的 DOM。
+ * 搜的是正文块的文本——和界面上画黄底的地方是同一份文本，两边不会打架。
  */
 const hits = computed(() => {
   const kw = keyword.value;
   if (!kw) return [] as number[];
   return list.value.reduce<number[]>((acc, item, i) => {
-    if (item.text.includes(kw)) acc.push(i);
+    if (blocksToSearchText(item.blocks).includes(kw)) acc.push(i);
     return acc;
   }, []);
 });
@@ -77,24 +77,6 @@ const statsText = computed(() =>
 
 const isCurrent = (index: number) =>
   cursor.value >= 0 && hits.value[cursor.value] === index;
-
-/** 把文本按关键词切成命中/非命中的片段，供模板渲染 */
-function splitByKeyword(text: string) {
-  const kw = keyword.value;
-  if (!kw) return [{ text, hit: false }];
-
-  const parts: { text: string; hit: boolean }[] = [];
-  let from = 0;
-  for (;;) {
-    const at = text.indexOf(kw, from);
-    if (at === -1) break;
-    if (at > from) parts.push({ text: text.slice(from, at), hit: false });
-    parts.push({ text: kw, hit: true });
-    from = at + kw.length;
-  }
-  if (from < text.length) parts.push({ text: text.slice(from), hit: false });
-  return parts;
-}
 
 function jumpTo(next: number) {
   if (hits.value.length === 0) return;

@@ -22,13 +22,14 @@ const vl = new VirtList(
   {
     list,
     itemKey: 'id',
-    estimatedSize: 24,
+    estimatedSize: 26,
     initialPosition: 'bottom',
     stickyBottom: true,
     hasMoreTop: false,
     hasMoreBottom: false,
     copyText: (item) =>
-      `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}`,
+      `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}` +
+      (item.ms > 0 ? `  (${toolStatusLabel(item.status)} ${formatMs(item.ms)})` : ''),
     renderItem: (item) => { /* ... */ },
   },
   { scroll: (e) => { atBottom = e.atEnd; } },

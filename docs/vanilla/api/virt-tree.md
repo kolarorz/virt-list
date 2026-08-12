@@ -35,6 +35,7 @@ const tree = new VirtTree(container, options, events);
 | scrollbarAutoHideDelay          | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                                  | `number`                     | `1200`    | -                            |
 | scrollbarMinThumbSize           | 滑块的最小长度（px）                                                          | `number`                     | `20`      | -                            |
 | keyboard                        | 是否接管键盘（方向键 / PageUp-Down / Space / Home-End）                       | `boolean`                    | `true`    | -                            |
+| crossScroll                     | 交叉轴（横向）是否允许原生滚动，关掉即两轴全裁切                              | `boolean`                    | `true`    | -                            |
 | `[expand]` expandedKeys         | 初始展开的节点 `key` 集合                                                     | `TreeNodeKey[]`              | `[]`      | -                            |
 | `[expand]` defaultExpandAll     | 是否默认展开节点                                                              | `boolean`                    | `false`   | -                            |
 | `[expand]` expandOnClickNode    | 点击节点是否展开（仅在 selectable=false & checkOnClickNode=false 时生效；`renderNode` 接管整行后不生效） | `boolean` | `false` | -                            |

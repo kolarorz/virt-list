@@ -1,25 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
 import {
   createTraceLine,
   generateTraceLines,
   KIND_LABEL,
+  STATUS_ICON,
   type TraceLine,
 } from '../../../../_shared/traceData';
+import { activeSection, buildOutline } from '../../../../_shared/outline';
+import { formatMs, toolStatusLabel } from '../../../../_shared/agentBlocks';
+import AgentOutput from './parts/AgentOutput';
 
 const TICK = 120;
 const LINES_PER_TICK = 3;
 const BURST = 10000;
 
+// TraceStatus 是 ToolStatus 的子集，可以直接查表
 const copyText = (item: TraceLine) =>
-  `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}`;
+  `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}` +
+  (item.ms > 0 ? `  (${toolStatusLabel(item.status)} ${formatMs(item.ms)})` : '');
 
 export default function AiTrace() {
   const vlRef = useRef<VirtListRef<TraceLine>>(null);
   const [list, setList] = useState<TraceLine[]>(() => generateTraceLines(60));
   const [running, setRunning] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
-  const [range, setRange] = useState({ begin: 0, end: 0 });
+  const [range, setRange] = useState({ begin: 0, end: 0, inView: 0 });
   const [lastAppendMs, setLastAppendMs] = useState(0);
   /** 展开的行 id 集合。存 id 而不是改 list，避免为了一个布尔量重建整个数组 */
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
@@ -33,10 +39,22 @@ export default function AiTrace() {
    * 日志的到达是突发的，逐行 setState 会把开销全花在重复的区间计算上，
    * 而这些计算在同一帧内的结果是等价的。
    */
-  const append = useCallback((count: number) => {
+  const append = useCallback((count: number, running = false) => {
     const batch = Array.from({ length: count }, () => createTraceLine(seqRef.current++));
+    // 执行中的话，末尾这行还没跑完，标成「执行中」
+    const last = batch[batch.length - 1];
+    if (running && last) last.status = 'running';
+
     const started = performance.now();
-    setList((prev) => prev.concat(batch));
+    setList((prev) => {
+      // 上一批末尾那行还标着「执行中」，先落终态。React 下这意味着换一个对象，
+      // 原地改属性不会触发重渲染
+      const prevLast = prev[prev.length - 1];
+      const head = prevLast?.status === 'running'
+        ? [...prev.slice(0, -1), { ...prevLast, status: 'ok' as const }]
+        : prev;
+      return head.concat(batch);
+    });
     setLastAppendMs(performance.now() - started);
   }, []);
 
@@ -45,8 +63,14 @@ export default function AiTrace() {
       clearInterval(timerRef.current);
       timerRef.current = null;
       setRunning(false);
+      setList((prev) => {
+        const last = prev[prev.length - 1];
+        return last?.status === 'running'
+          ? [...prev.slice(0, -1), { ...last, status: 'ok' as const }]
+          : prev;
+      });
     } else {
-      timerRef.current = window.setInterval(() => append(LINES_PER_TICK), TICK);
+      timerRef.current = window.setInterval(() => append(LINES_PER_TICK, true), TICK);
       setRunning(true);
     }
   }, [append]);
@@ -79,6 +103,14 @@ export default function AiTrace() {
     if (timerRef.current !== null) clearInterval(timerRef.current);
   }, []);
 
+  /**
+   * 阶段划分从数据里读出来（思考行开启一个新阶段），和语义滚动条示例用的是同一个函数。
+   * 用 useMemo 挂在 list 上：滚动过程中只做一次 O(段数) 的查找，不重新分段。
+   */
+  const sections = useMemo(() => buildOutline(list), [list]);
+  const current = activeSection(sections, range.inView);
+  const currentSection = sections[current];
+
   return (
     <div className="demo-panel">
       <div className="demo-stats">
@@ -95,14 +127,28 @@ export default function AiTrace() {
           ref={vlRef}
           list={list}
           itemKey="id"
-          estimatedSize={24}
+          estimatedSize={26}
           initialPosition="bottom"
           stickyBottom
           hasMoreTop={false}
           hasMoreBottom={false}
           copyText={copyText}
           onScroll={(e) => setAtBottom(e.atEnd)}
-          onUpdate={(_, state) => setRange({ begin: state.renderBegin, end: state.renderEnd })}
+          onUpdate={(_, state) =>
+            setRange({ begin: state.renderBegin, end: state.renderEnd, inView: state.inViewBegin })
+          }
+          /* 当前阶段悬浮在顶部：滚到哪一段，这里就显示那一段的标题 */
+          renderStickyHeader={() => (
+            <div className="demo-trace-stage">
+              <span className="demo-trace-stage-index">
+                阶段 {sections.length === 0 ? 0 : current + 1}/{sections.length}
+              </span>
+              <span className="demo-trace-stage-title">{currentSection?.title ?? '等待执行'}</span>
+              {currentSection && currentSection.errors > 0 && (
+                <span className="demo-trace-stage-errors">{currentSection.errors} 个错误</span>
+              )}
+            </div>
+          )}
         >
           {({ itemData }) => {
             const isOpen = expanded.has(itemData.id);
@@ -116,11 +162,20 @@ export default function AiTrace() {
                     {itemData.detail ? (isOpen ? '▾' : '▸') : ' '}
                   </span>
                   <span className="demo-trace-seq">{String(itemData.seq).padStart(5, ' ')}</span>
+                  <span className={`demo-trace-status is-${itemData.status}`}>
+                    {STATUS_ICON[itemData.status]}
+                  </span>
                   <span className="demo-trace-badge">{KIND_LABEL[itemData.kind]}</span>
                   <span className="demo-trace-text">{itemData.text}</span>
+                  {itemData.ms > 0 && (
+                    <span className="demo-trace-ms">{formatMs(itemData.ms)}</span>
+                  )}
                 </div>
+                {/* 展开后是终端回显或一段 diff，和消息里的工具卡走同一套渲染 */}
                 {itemData.detail && isOpen && (
-                  <pre className="demo-trace-detail">{itemData.detail}</pre>
+                  <div className="demo-trace-output">
+                    <AgentOutput text={itemData.detail} kind={itemData.outputKind} />
+                  </div>
                 )}
               </div>
             );

@@ -2,6 +2,7 @@
 import {
   useRef,
   useEffect,
+  useLayoutEffect,
   useImperativeHandle,
   forwardRef,
   createElement,
@@ -10,8 +11,6 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { flushSync } from 'react-dom';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
 import type {
   ListState,
@@ -19,6 +18,7 @@ import type {
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
+import { createReactMounter } from './compat.js';
 
 export interface VirtGridProps<T extends Record<string, any> = Record<string, any>> {
   list: T[];
@@ -34,6 +34,8 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
   scrollbarMinThumbSize?: number;
   /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
   keyboard?: boolean;
+  /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+  crossScroll?: boolean;
   itemStyle?: StyleValue;
   children?: (props: { itemData: T; rowIndex: number; listIndex: number }) => ReactNode;
   renderItem?: (item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void;
@@ -64,12 +66,17 @@ export interface VirtGridProps<T extends Record<string, any> = Record<string, an
 
 export interface VirtGridRef {
   /**
-   * 滚动容器（唯一的 scrollport）。
+   * 滚动容器（主轴视口）。
    *
    * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
    * `onScroll`——挂在这上面的原生 `scroll` 监听收不到有用信息。
    */
   clientEl: HTMLElement;
+  /**
+   * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+   * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+   */
+  scrollContentEl: HTMLElement;
   setList: (list: Record<string, any>[]) => void;
   setGridItems: (n: number) => void;
   scrollToIndex: (i: number, options?: VirtScrollOptions) => void;
@@ -102,20 +109,50 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
   const gridRef = useRef<VirtGridVanilla<any> | null>(null);
   const eventsRef = useRef(props);
   eventsRef.current = props;
-  const reactRootsRef = useRef(new Map<string, Root>());
+  const mounterRef = useRef<ReturnType<typeof createReactMounter> | null>(null);
+  if (!mounterRef.current) mounterRef.current = createReactMounter();
+  const mounter = mounterRef.current;
+  const { mountReact } = mounter;
 
-  function mountReact(mountKey: string, node: ReactNode, el: HTMLElement): void {
-    const old = reactRootsRef.current.get(mountKey);
-    if (old) {
-      queueMicrotask(() => {
-        old.unmount();
-      });
+  /** 在 React 渲染 / 提交阶段内驱动 core，挂载器据此决定 flushSync 的时机 */
+  function inReactPhase(fn: () => void): void {
+    mounter.setReactPhase(true);
+    try {
+      fn();
+    } finally {
+      mounter.setReactPhase(false);
     }
-    const root = createRoot(el);
-    queueMicrotask(() => {
-      flushSync(() => root.render(node));
-    });
-    reactRootsRef.current.set(mountKey, root);
+  }
+
+  /**
+   * 挂载/更新一个单元格的内容，同时充当 `renderItem` 与 `updateItem`。
+   *
+   * `flushMounts()` 在这里不够用：它用的是挂载那一刻捕获的 `item`，而 React
+   * 侧的更新都是不可变的 —— 同一个 key 换了新对象，旧闭包再刷也是旧数据。
+   *
+   * **mountKey 用位置（listIndex）而不是数据 key**，与 VirtList 相反。
+   * 依据是容器的复用方式：VirtList 的项元素在 itemPool 里按 key 管理，同一个 key
+   * 永远对应同一个元素；而单元格容器只是行元素的第 i 个子节点，纯按位置复用
+   * （见 vanilla VirtGrid 的 `_updateRow`）。两者不一致就会错位 —— 删掉中间一项后
+   * 「item-2 的内容」要渲染进「原来 item-1 的那个容器」，挂载器发现记录里
+   * `grid:item:2` 对应的是别的元素，就会去卸载它、再对当前元素重复 `createRoot`，
+   * 于是刷一串 "createRoot() on a container that has already been passed" 警告，
+   * 每次删除都白白重建一批 root（组件内部 state 与动画全丢）。
+   *
+   * `listIndex` = 行首扁平索引 + 单元格序号，正是这个格子的位置，不随内容变化。
+   */
+  function mountCell(
+    item: any,
+    rowIndex: number,
+    listIndex: number,
+    el: HTMLElement,
+  ): void {
+    if (!eventsRef.current.children) return;
+    mountReact(
+      `grid:cell:${listIndex}`,
+      () => eventsRef.current.children!({ itemData: item, rowIndex, listIndex }),
+      el,
+    );
   }
 
   useEffect(() => {
@@ -131,64 +168,73 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         eventsRef.current.onUpdate?.(renderList, state),
     } as any;
 
-    gridRef.current = new VirtGridVanilla(
-      containerRef.current,
-      {
-        list: props.list,
-        gridItems: props.gridItems,
-        itemKey: props.itemKey,
-        estimatedSize: props.estimatedSize ?? 50,
-        itemGap: props.itemGap,
-        fixedSize: props.fixedSize,
-        buffer: props.buffer ?? 2,
-        scrollDuration: props.scrollDuration,
-        smoothMaxDistance: props.smoothMaxDistance,
-        scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
-        scrollbarMinThumbSize: props.scrollbarMinThumbSize,
-        keyboard: props.keyboard,
-        itemStyle: props.itemStyle,
-        renderItem: props.renderItem ?? ((item: any, rowIndex: number, listIndex: number, el: HTMLElement) => {
-          if (eventsRef.current.children) {
-            mountReact(
-              `grid:item:${String(item?.[props.itemKey] ?? listIndex)}`,
-              eventsRef.current.children({ itemData: item, rowIndex, listIndex }),
-              el,
-            );
-          }
-        }),
-        renderStickyHeader: props.renderStickyHeader,
-        renderStickyFooter: props.renderStickyFooter,
-        renderHeader: props.renderHeader,
-        renderFooter: props.renderFooter,
-        renderEmpty: props.renderEmpty,
-        stickyHeaderStyle: props.stickyHeaderStyle,
-      },
-      events,
-    );
+    const options = {
+      list: props.list,
+      gridItems: props.gridItems,
+      itemKey: props.itemKey,
+      estimatedSize: props.estimatedSize ?? 50,
+      itemGap: props.itemGap,
+      fixedSize: props.fixedSize,
+      buffer: props.buffer ?? 2,
+      scrollDuration: props.scrollDuration,
+      smoothMaxDistance: props.smoothMaxDistance,
+      scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
+      scrollbarMinThumbSize: props.scrollbarMinThumbSize,
+      keyboard: props.keyboard,
+      crossScroll: props.crossScroll,
+      itemStyle: props.itemStyle,
+      renderItem: props.renderItem ?? mountCell,
+      updateItem: typeof props.renderItem === 'function' ? undefined : mountCell,
+      renderStickyHeader: props.renderStickyHeader,
+      renderStickyFooter: props.renderStickyFooter,
+      renderHeader: props.renderHeader,
+      renderFooter: props.renderFooter,
+      renderEmpty: props.renderEmpty,
+      stickyHeaderStyle: props.stickyHeaderStyle,
+    };
+
+    // 构造发生在 effect 里，仍属于 React 的提交阶段
+    inReactPhase(() => {
+      gridRef.current = new VirtGridVanilla(containerRef.current!, options, events);
+    });
 
     return () => {
       gridRef.current?.destroy();
       gridRef.current = null;
-      reactRootsRef.current.forEach((root) => root.unmount());
-      reactRootsRef.current.clear();
+      mounter.cleanupAllRoots();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const prevListRef = useRef(props.list);
-  if (props.list !== prevListRef.current) {
-    prevListRef.current = props.list;
-    gridRef.current?.setList(props.list);
-  }
-
   const prevGridItemsRef = useRef(props.gridItems);
-  if (props.gridItems !== prevGridItemsRef.current) {
-    prevGridItemsRef.current = props.gridItems;
-    if (props.gridItems > 0) gridRef.current?.setGridItems(props.gridItems);
-  }
+
+  /**
+   * 每次宿主渲染后跟 core 对齐一次。没有 deps 是故意的：已挂载的单元格内容不在
+   * React 的 vdom 树上，只能靠这里用最新的渲染 prop 重刷一遍。
+   * setList / setGridItems 同样不能写在 render 函数体里 —— 那是在 React 渲染阶段里
+   * 驱动 core 重渲染。
+   */
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    inReactPhase(() => {
+      if (props.list !== prevListRef.current) {
+        prevListRef.current = props.list;
+        grid.setList(props.list);
+      }
+      if (props.gridItems !== prevGridItemsRef.current) {
+        prevGridItemsRef.current = props.gridItems;
+        if (props.gridItems > 0) grid.setGridItems(props.gridItems);
+      }
+      mounter.flushMounts();
+    });
+  });
 
   useImperativeHandle(ref, () => ({
     get clientEl() { return gridRef.current!.clientEl; },
+    get scrollContentEl() { return gridRef.current!.scrollContentEl; },
     setList: (list) => gridRef.current?.setList(list),
     setGridItems: (n) => gridRef.current?.setGridItems(n),
     scrollToIndex: (i, opts) => gridRef.current?.scrollToIndex(i, opts),

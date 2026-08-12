@@ -43,6 +43,33 @@ const template = `
   </div>
 `;
 
+function removeNode(list, node) {
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i];
+    if (row.id === node.data.id) {
+      list.splice(i, 1);
+      return true;
+    }
+    if (row.children?.length && removeNode(row.children, node)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function insertNode(list, node, prevNode, parentNode) {
+  const raw = node.data;
+  const target = parentNode
+    ? (parentNode.data.children ??= [])
+    : list;
+  if (prevNode) {
+    const idx = target.findIndex((n) => n.id === prevNode.data.id);
+    target.splice(idx + 1, 0, raw);
+  } else {
+    target.unshift(raw);
+  }
+}
+
 export function bootstrapTreeDragArea(root) {
   root.innerHTML = template;
 
@@ -75,9 +102,13 @@ export function bootstrapTreeDragArea(root) {
       dragend: (data) => {
         if (!data) {
           console.log('dragend', 'fail', 'cancelled');
-        } else {
-          console.log('dragend', 'success', data);
+          return;
         }
+        console.log('dragend', 'success', data);
+        // 落点只是算出来的结果，得自己搬数据再 setList，树才会真的换位
+        removeNode(treeData, data.node);
+        insertNode(treeData, data.node, data.prevNode, data.parentNode);
+        tree.setList([...treeData]);
       },
     },
   );

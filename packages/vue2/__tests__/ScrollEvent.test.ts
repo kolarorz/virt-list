@@ -134,5 +134,10 @@ describe('Vue2: clientEl 逃生舱', () => {
     const clientEl = api().clientEl as HTMLElement;
     expect(clientEl).toBeTruthy();
     expect(clientEl.dataset.id).toBe('client');
+
+    // 交叉轴的 scrollport 是它的子节点：横向滚动位置在那上面读写
+    const cross = api().scrollContentEl as HTMLElement;
+    expect(cross.parentElement).toBe(clientEl);
+    expect(cross.style.overflowX).toBe('auto');
   });
 });

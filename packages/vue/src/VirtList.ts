@@ -6,10 +6,7 @@ import {
   ref,
   watch,
   h,
-  Fragment,
-  render as vueRender,
   type PropType,
-  type VNode,
 } from 'vue';
 import { VirtList as VirtListVanilla } from '@virt-list/vanilla';
 import type {
@@ -24,6 +21,7 @@ import type {
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
+import { createSlotMounter } from './compat.js';
 
 // ======================== Types ========================
 
@@ -71,6 +69,16 @@ export interface UseVirtListReturn<T extends Record<string, any>> {
   getItemPosByIndex: (
     index: number,
   ) => { top: number; current: number; bottom: number };
+  /**
+   * 重建指定的项（不传则重建全部可见项，等价于 forceUpdate）。
+   *
+   * 通常不需要：数据变更（`list` 换新）已经会自动把最新数据交给可见项。
+   * 它是给「既不换数组引用、也不改长度、又不在框架响应式里」那种原地修改用的
+   * 出口 —— 例如 Vue 里用 shallowRef 存列表后直接改某一项的字段。
+   *
+   * 与 forceUpdate 的差别是范围：这个只动指定的几项，其余项的 DOM 原样保留。
+   */
+  refreshItems: (keys?: Array<string | number>) => void;
   forceUpdate: () => void;
   setList: (list: T[]) => void;
   getLoadState: () => LoadState;
@@ -134,6 +142,7 @@ export function useVirtList<T extends Record<string, any>>(
     getItemSize: (k) => getVL().core.getItemSize(k),
     deleteItemSize: (k) => getVL().core.deleteItemSize(k),
     getItemPosByIndex: (i) => getVL().core.getItemPosByIndex(i),
+    refreshItems: (keys?: Array<string | number>) => vl?.refreshItems(keys),
     forceUpdate: () => vl?.forceUpdate(),
     setList: (l) => vl?.setList(l),
     getLoadState: () => getVL().getLoadState(),
@@ -151,7 +160,7 @@ export const VirtList = defineComponent({
      * 声明 emits.scroll 确实会拦掉「落到根元素的原生 scroll」，但那个事件不存在：
      * 1. 根元素是没有 overflow 的 wrapper（见下面 render），`overflow: visible`
      *    的元素不构成 scrollport，永远不派发 scroll；
-     * 2. 唯一的 scrollport 是 clientEl（`overflow: hidden` 仍是 scrollport，
+     * 2. 主轴的 scrollport 是 clientEl（`overflow: hidden` 仍是 scrollport，
      *    focus / scrollIntoView 会让浏览器静默改它的 scrollTop），而它是根元素的
      *    子节点，原生 scroll **不冒泡**，到不了根元素；
      * 3. 就算能到，那个事件也早被库自己消费了——InputController._onNativeScroll
@@ -208,6 +217,8 @@ export const VirtList = defineComponent({
     scrollbarMinThumbSize: { type: Number, default: undefined },
     /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
     keyboard: { type: Boolean, default: true },
+    /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+    crossScroll: { type: Boolean, default: true },
     listStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: '' },
     listClass: { type: [String, Array, Object] as PropType<ClassValue>, default: '' },
     itemStyle: { type: [String, Object, Array, Function] as PropType<StyleValue | ((item: any, index: number) => StyleValue)>, default: '' },
@@ -226,17 +237,27 @@ export const VirtList = defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     let vl: VirtListVanilla<any> | null = null;
 
-    const _slotContainers = new Map<string, HTMLElement>();
-    /** 将 VNode 直接渲染到目标 el 中，无额外包裹层 */
-    function _mountSlot(mountKey: string, vNodes: VNode[], el: HTMLElement): void {
-      const old = _slotContainers.get(mountKey);
-      if (old && old !== el) vueRender(null, old);
-      vueRender(h(Fragment, null, vNodes), el);
-      _slotContainers.set(mountKey, el);
-    }
-    function _cleanupSlots() {
-      _slotContainers.forEach((el) => vueRender(null, el));
-      _slotContainers.clear();
+    const { mountSlot, cleanupSlots } = createSlotMounter();
+
+    /**
+     * 挂载/更新一项的插槽内容。
+     *
+     * 同时充当 `renderItem` 与 `updateItem`：`mountSlot` 按 mountKey 幂等，
+     * 重复调用只是给 SlotRenderer 换一个新的 slotFn，于是插槽用最新的
+     * itemData / index 重渲染一次，DOM 容器本身照旧复用。
+     *
+     * 为什么 `updateItem` 是必需的：Vue 的依赖收集只能覆盖「原地改响应式属性」
+     * （`item.text += 'x'`）。不可变替换（`list = list.map(...)`）给同一个 key
+     * 换了新对象，而闭包里捕获的还是挂载那一刻的旧对象 —— 那个对象再也不会变，
+     * 于是任何 render effect 都不会重跑。
+     */
+    function mountItem(item: any, index: number, el: HTMLElement): void {
+      if (!slots.default) return;
+      mountSlot(
+        `item:${item[props.itemKey]}`,
+        () => slots.default!({ itemData: item, index }),
+        el,
+      );
     }
 
     function buildOptions(): VirtListDOMOptions<any> {
@@ -264,6 +285,7 @@ export const VirtList = defineComponent({
         scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: props.scrollbarMinThumbSize,
         keyboard: props.keyboard,
+        crossScroll: props.crossScroll,
         renderControl: props.renderControl as any,
         copyText: props.copyText as any,
         copySeparator: props.copySeparator,
@@ -279,33 +301,38 @@ export const VirtList = defineComponent({
         stickyHeaderStyle: props.stickyHeaderStyle,
         stickyFooterClass: props.stickyFooterClass,
         stickyFooterStyle: props.stickyFooterStyle,
-        renderItem: props.renderItem ?? ((item: any, index: number, el: HTMLElement) => {
-          if (slots.default) {
-            _mountSlot(`item:${item[props.itemKey]}`, slots.default({ itemData: item, index }), el);
-          }
-        }),
+        renderItem: props.renderItem ?? mountItem,
+        // 插槽路径才注入：用户自己接管 renderItem 时，怎么更新也由他决定
+        // （原地更新的语义只有他知道，我们无脑重跑他的 renderItem 会重复追加节点）
+        updateItem: typeof props.renderItem === 'function' ? undefined : mountItem,
       };
 
       // header / footer 拿到 loadState：加载提示条（"加载中" / "没有更早的消息了"）
       // 直接在插槽里按状态渲染，不必自己维护 loading 变量
       if (slots.header) {
         opts.renderHeader = (el: HTMLElement, loadState) => {
-          _mountSlot('header', slots.header!({ loadState }), el);
+          mountSlot('header', () => slots.header!({ loadState }), el);
         };
       }
       if (slots.footer) {
         opts.renderFooter = (el: HTMLElement, loadState) => {
-          _mountSlot('footer', slots.footer!({ loadState }), el);
+          mountSlot('footer', () => slots.footer!({ loadState }), el);
         };
       }
       if (slots.stickyHeader) {
-        opts.renderStickyHeader = (el: HTMLElement) => { _mountSlot('stickyHeader', slots.stickyHeader!({}), el); };
+        opts.renderStickyHeader = (el: HTMLElement) => {
+          mountSlot('stickyHeader', () => slots.stickyHeader!({}), el);
+        };
       }
       if (slots.stickyFooter) {
-        opts.renderStickyFooter = (el: HTMLElement) => { _mountSlot('stickyFooter', slots.stickyFooter!({}), el); };
+        opts.renderStickyFooter = (el: HTMLElement) => {
+          mountSlot('stickyFooter', () => slots.stickyFooter!({}), el);
+        };
       }
       if (slots.empty) {
-        opts.renderEmpty = (el: HTMLElement) => { _mountSlot('empty', slots.empty!({}), el); };
+        opts.renderEmpty = (el: HTMLElement) => {
+          mountSlot('empty', () => slots.empty!({}), el);
+        };
       }
 
       return opts;
@@ -331,7 +358,7 @@ export const VirtList = defineComponent({
     onBeforeUnmount(() => {
       vl?.destroy();
       vl = null;
-      _cleanupSlots();
+      cleanupSlots();
     });
 
     // 只盯 length 会漏掉「长度不变但结构变了」的场景：双向分页一次删一页又加一页，
@@ -352,6 +379,7 @@ export const VirtList = defineComponent({
 
     const api = {
       clientEl: undefined as unknown as HTMLElement,
+      scrollContentEl: undefined as unknown as HTMLElement,
       state: undefined as unknown as ListState,
       slotSize: undefined as unknown as SlotSize,
       sizesMap: undefined as unknown as Map<string, number>,
@@ -379,6 +407,7 @@ export const VirtList = defineComponent({
       getItemSize: (itemKey: string) => vl!.core.getItemSize(itemKey),
       deleteItemSize: (itemKey: string) => vl!.core.deleteItemSize(itemKey),
       getItemPosByIndex: (index: number) => vl!.core.getItemPosByIndex(index),
+      refreshItems: (keys?: Array<string | number>) => vl?.refreshItems(keys),
       forceUpdate: () => {
         vl?.forceUpdate();
       },
@@ -387,13 +416,21 @@ export const VirtList = defineComponent({
     };
 
     /**
-     * 滚动容器（唯一的 scrollport）。
+     * 滚动容器（主轴视口）。
      *
      * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
      * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
      */
     Object.defineProperty(api, 'clientEl', {
       get: () => vl?.clientEl,
+      enumerable: true,
+    });
+    /**
+     * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+     * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+     */
+    Object.defineProperty(api, 'scrollContentEl', {
+      get: () => vl?.scrollContentEl,
       enumerable: true,
     });
     Object.defineProperty(api, 'state', {

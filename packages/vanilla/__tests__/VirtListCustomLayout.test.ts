@@ -111,10 +111,43 @@ describe('transform 定位的 DOM 布局', () => {
 
     expect(clientEl.style.overflow).toBe('hidden');
     expect(clientEl.tabIndex).toBe(0);
-    // 触摸滚动改由 InputController 接管，必须先关掉浏览器的默认手势。
+    // 主轴的触摸滚动由 InputController 接管，必须先关掉浏览器在这条轴上的默认手势；
+    // 交叉轴（这里是横向）反过来要放行，那条轴归原生滚动。
     // 读 style 属性而不是 style.touchAction：jsdom 不认识 touch-action，
     // 会把它从 cssText 里悄悄丢掉，但属性字符串本身是原样送进浏览器的
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pan-x');
+  });
+
+  it('crossScroll: false 时回到两轴全裁切', () => {
+    const { vl, clientEl } = mount({ crossScroll: false } as any);
+
     expect(clientEl.getAttribute('style')).toContain('touch-action:none');
+    expect(vl.scrollContentEl.getAttribute('style')).toContain(
+      'overflow:hidden',
+    );
+    expect(vl.scrollContentEl.style.overflowX).toBe('');
+  });
+
+  it('交叉轴的滚动落在 scrollContentEl 上，主轴仍是 hidden', () => {
+    const { vl, clientEl } = mount();
+
+    // 外层只负责裁切，横滚交给内层——自绘滚动条挂在外层，横滚时才不会被推出视口
+    expect(clientEl.style.overflow).toBe('hidden');
+    expect(vl.scrollContentEl.style.overflowX).toBe('auto');
+    expect(vl.scrollContentEl.style.overflowY).toBe('hidden');
+    // 它铺满视口（原来是 height:0 的空壳），否则撑不起一个 scrollport
+    expect(vl.scrollContentEl.style.position).toBe('absolute');
+    expect(vl.scrollContentEl.style.bottom).toBe('0px');
+    // 主轴上它自己不平移，位移全在各段身上
+    expect(vl.scrollContentEl.style.transform).toBe('');
+  });
+
+  it('横向列表把交叉轴换成竖向', () => {
+    const { vl, clientEl } = mount({ horizontal: true } as any);
+
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pan-y');
+    expect(vl.scrollContentEl.style.overflowY).toBe('auto');
+    expect(vl.scrollContentEl.style.overflowX).toBe('hidden');
   });
 
   it('没有任何元素的几何尺寸随列表长度增长', () => {
@@ -204,10 +237,12 @@ describe('transform 定位的 DOM 布局', () => {
     const stickyEl = vl.clientEl.querySelector<HTMLElement>(
       '[data-id="stickyHeader"]',
     )!;
-    // position:sticky 的粘附由原生滚动驱动，overflow:hidden 下永不触发
+    // 主轴上 position:sticky 的粘附由原生滚动驱动，overflow:hidden 下永不触发
     expect(stickyEl.style.position).toBe('absolute');
-    // 它必须是视口的直接子节点，否则会跟着内容一起被 transform 带走
-    expect(stickyEl.parentElement).toBe(vl.clientEl);
+    // 它挂在交叉轴的滚动层里：主轴上不会被各段的 transform 带走（那些 transform
+    // 在兄弟节点身上），交叉轴上则跟着列一起横移，表头才不会与列错位
+    expect(stickyEl.parentElement).toBe(vl.scrollContentEl);
+    expect(stickyEl.style.transform).toBe('');
 
     roCallback?.([sizeEntry('stickyHeader', 36)], {} as ResizeObserver);
     vl.forceUpdate();

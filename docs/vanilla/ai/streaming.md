@@ -6,7 +6,7 @@ AI 回答是逐 token 流入的：**同一条消息**的高度在几秒内会变
 <PlaygroundHost framework="vanilla" example-id="ai-streaming" />
 
 ::: tip 对照着试
-点「提问」看跟随；生成中向上滚，状态行会变成「已脱离跟随」；
+发送一个问题看跟随；生成中向上滚，状态行会变成「已脱离跟随」；
 再手动滚回底部，跟随恢复。这三个动作正是下面表格里的三行。
 :::
 
@@ -15,24 +15,42 @@ AI 回答是逐 token 流入的：**同一条消息**的高度在几秒内会变
 ## Vanilla 写法
 
 DOM 层对**已在渲染池中的 key 不会重新执行 `renderItem`**（只调整位置），
-所以流式更新必须直接改那个文本节点——这恰好也是开销最小的做法：
+所以流式更新要自己找到那一项、就地把变化画上去。富消息的做法是**只重建最后一个块**：
 
 ```js
 const container = document.querySelector('#list');
 
+/** 给每个块的元素写上 data-block，就是为了这里能定位到它 */
+function syncLastBlock(msg) {
+  const body = container.querySelector(`[data-id="${msg.id}"] .agent-body`);
+  // 找不到说明这条此刻在视口外：数据已经是全文，滚回来时 renderItem 会重建
+  if (!body) return;
+
+  const i = msg.blocks.length - 1;
+  const fresh = renderBlock(msg.blocks[i], i);
+  const old = body.querySelector(`[data-block="${i}"]`);
+  if (old) body.replaceChild(fresh, old);
+  else body.appendChild(fresh);      // 新块入场，一次高度跳变
+}
+
 function appendChunk(msg, chunk) {
   // 1. 数据里写全文：项滚出视口被回收后，滚回来时按它重新渲染
-  msg.text += chunk;
+  appendToBlock(msg.blocks[msg.blocks.length - 1], chunk);
 
-  // 2. DOM 里就地更新那一个节点。不调 setList：列表结构没变，
+  // 2. 就地重画那一个块。不调 setList：列表结构没变，
   //    高度变化由 ResizeObserver 自动上报，贴底跟随随之生效
-  const el = container.querySelector(`[data-id="${msg.id}"] .msg-text`);
-  if (el) el.textContent = msg.text;
+  syncLastBlock(msg);
 }
 ```
 
 `data-id` 是 DOM 层给每一项加的属性，值就是该项的 `itemKey`，
 可以直接用它定位到具体某一项的元素。
+
+::: tip 这里的取舍
+框架版能做到只更新一个文本节点，手写 DOM 退到「一个块」——因为一片新文本可能让
+Markdown 多出一行，逐节点比对不值得。换来的是完全不需要 diff 机制，
+而重建范围仍然局限在一个块内：消息的其他块、列表里其他项一个节点都不动。
+:::
 
 完整配置：
 
@@ -42,7 +60,7 @@ const vl = new VirtList(
   {
     list,
     itemKey: 'id',
-    estimatedSize: 80,
+    estimatedSize: 200,
     initialPosition: 'bottom',
     stickyBottom: true,
     hasMoreBottom: false,
@@ -53,15 +71,8 @@ const vl = new VirtList(
       vl.setList(list);
       return hasMore;
     },
-    renderItem: (item) => {
-      const row = document.createElement('div');
-      const text = document.createElement('span');
-      text.className = 'msg-text';
-      // 读的是数据里的全文，因此离屏期间生成的内容不会丢
-      text.textContent = item.text;
-      row.appendChild(text);
-      return row;
-    },
+    // 读的是数据里的 blocks，因此离屏期间生成的内容、展开过的工具卡都不会丢
+    renderItem: (item) => createAgentMessage(item),
   },
   {
     // atEnd 用来决定「回到底部」按钮要不要亮

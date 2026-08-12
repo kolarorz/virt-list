@@ -24,7 +24,7 @@ const vl = new VirtList(container, {
   itemKey: 'id',
   estimatedSize: 80,
   // 给出即开启；不给则完全不挂 copy 监听，行为与从前一致
-  copyText: (item) => `${item.role === 'user' ? '我' : 'AI'}：${item.text}`,
+  copyText: (item) => `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`,
   // 各项之间的分隔符，默认换行
   copySeparator: '\n\n',
   renderItem: (item) => { /* ... */ },
@@ -38,7 +38,7 @@ const vl = new VirtList(container, {
 ## 让渲染与复制共用一个格式化函数
 
 ```js
-const format = (item) => `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+const format = (item) => `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
 
 const vl = new VirtList(container, {
   // ...

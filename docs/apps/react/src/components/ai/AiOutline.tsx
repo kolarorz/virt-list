@@ -1,7 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
-import { generateTraceLines, KIND_LABEL, type TraceLine } from '../../../../_shared/traceData';
+import {
+  generateTraceLines,
+  KIND_LABEL,
+  STATUS_ICON,
+  type TraceLine,
+} from '../../../../_shared/traceData';
 import { activeSection, buildOutline, type OutlineSection } from '../../../../_shared/outline';
+import { formatMs } from '../../../../_shared/agentBlocks';
 
 const COUNT = 3000;
 
@@ -45,7 +51,7 @@ export default function AiOutline() {
             ref={vlRef}
             list={list}
             itemKey="id"
-            estimatedSize={24}
+            estimatedSize={26}
             hasMoreTop={false}
             hasMoreBottom={false}
             copyText={copyText}
@@ -58,8 +64,12 @@ export default function AiOutline() {
               <div className={`demo-trace-line kind-${itemData.kind}`}>
                 <div className="demo-trace-head">
                   <span className="demo-trace-seq">{String(itemData.seq).padStart(5, ' ')}</span>
+                  <span className={`demo-trace-status is-${itemData.status}`}>
+                    {STATUS_ICON[itemData.status]}
+                  </span>
                   <span className="demo-trace-badge">{KIND_LABEL[itemData.kind]}</span>
                   <span className="demo-trace-text">{itemData.text}</span>
+                  {itemData.ms > 0 && <span className="demo-trace-ms">{formatMs(itemData.ms)}</span>}
                 </div>
               </div>
             )}

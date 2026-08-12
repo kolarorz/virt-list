@@ -70,6 +70,14 @@ export interface InputControllerOptions {
    * 一次按键会既滚一段又移动一格。滚轮 / 触摸不受这个开关影响。
    */
   keyboard?: boolean;
+  /**
+   * 交叉轴的滚动层（`VirtList.scrollContentEl`），没有交叉轴滚动时传 `null`。
+   *
+   * 需要它的原因是 `preventDefault` 没有"只拦一条轴"的粒度：为主轴拦下一次滚轮，
+   * 同一个事件里的交叉轴分量也一起没了 —— 斜向的触摸板手势实测就卡住不横移。
+   * 所以交叉轴索性也由这里代劳，直接写它的 `scrollLeft` / `scrollTop`。
+   */
+  crossEl?: HTMLElement | null;
 }
 
 export class InputController {
@@ -77,6 +85,7 @@ export class InputController {
   private _host: InputHost;
   private _horizontal: boolean;
   private _keyboard: boolean;
+  private _crossEl: HTMLElement | null;
   private _scheduler: FrameScheduler = createFrameScheduler();
 
   /** 本帧累计但尚未应用的位移 */
@@ -84,6 +93,8 @@ export class InputController {
 
   /** 触摸：上一个接触点在滚动轴上的坐标 */
   private _touchLast = 0;
+  /** 触摸：上一个接触点在**交叉轴**上的坐标 */
+  private _touchLastCross = 0;
   /** 触摸：最近的位置采样，用于松手时估算初速 */
   private _samples: { pos: number; time: number }[] = [];
   private _inertiaRafId: number | null = null;
@@ -98,6 +109,7 @@ export class InputController {
     this._host = host;
     this._horizontal = horizontal;
     this._keyboard = options.keyboard !== false;
+    this._crossEl = options.crossEl ?? null;
 
     // passive: false —— 到不了边界时要 preventDefault，否则页面会跟着一起滚
     el.addEventListener('wheel', this._onWheel, { passive: false });
@@ -109,6 +121,23 @@ export class InputController {
     el.addEventListener('touchend', this._onTouchEnd);
     el.addEventListener('touchcancel', this._onTouchEnd);
     el.addEventListener('scroll', this._onNativeScroll);
+    // scroll 事件不冒泡，滚动层那一层得自己挂。它现在是离内容最近的 scrollport，
+    // 浏览器为露出焦点元素而静默滚动的就是它
+    this._crossEl?.addEventListener('scroll', this._onCrossScroll);
+  }
+
+  /**
+   * 把交叉轴的位移交给滚动层，返回它是否真的动了。
+   *
+   * 没动意味着那条轴已经到头，这一次输入就该让给外层可滚动祖先（滚动链）。
+   */
+  private _scrollCross(delta: number): boolean {
+    const el = this._crossEl;
+    if (!el || delta === 0) return false;
+    const key = this._horizontal ? 'scrollTop' : 'scrollLeft';
+    const before = el[key];
+    el[key] = before + delta;
+    return el[key] !== before;
   }
 
   /** 把位移累计到本帧，一帧只应用一次 */
@@ -137,12 +166,17 @@ export class InputController {
     if (e.ctrlKey) return;
 
     // 横向列表要同时认 deltaX（触摸板横扫、shift + 滚轮）与 deltaY（普通滚轮），
-    // 取绝对值大的那个轴即可覆盖三种输入设备
-    const raw = this._horizontal
-      ? Math.abs(e.deltaX) >= Math.abs(e.deltaY)
-        ? e.deltaX
-        : e.deltaY
-      : e.deltaY;
+    // 取绝对值大的那个轴即可覆盖三种输入设备；剩下的那个分量归交叉轴
+    let raw: number;
+    let rawCross: number;
+    if (this._horizontal) {
+      const xWins = Math.abs(e.deltaX) >= Math.abs(e.deltaY);
+      raw = xWins ? e.deltaX : e.deltaY;
+      rawCross = xWins ? e.deltaY : e.deltaX;
+    } else {
+      raw = e.deltaY;
+      rawCross = e.deltaX;
+    }
 
     const factor =
       e.deltaMode === 1
@@ -152,9 +186,19 @@ export class InputController {
           : 1;
     const delta = raw * factor;
 
-    // 已经到边界还继续朝外滚：不拦截，把事件让给外层可滚动祖先（滚动链）。
-    // 拦下来的话，嵌在页面里的列表滚到底之后整个页面就再也滚不动了
-    if (this._wouldOverscroll(delta)) return;
+    // 交叉轴由我们代劳，而不是"不 preventDefault 让浏览器自己滚"：
+    // 一次事件里两条轴的处置只能二选一，让给浏览器就等于主轴也一起放走。
+    // 顺序上先滚交叉轴，主轴到边界要早退时它已经生效了
+    const crossMoved = this._scrollCross(rawCross * factor);
+
+    // 主轴已经到边界还继续朝外滚：不拦截，把事件让给外层可滚动祖先（滚动链）。
+    // 拦下来的话，嵌在页面里的列表滚到底之后整个页面就再也滚不动了。
+    // 但交叉轴刚吃下这次滚动时不能放走 —— 否则「竖向到底 + 横向还没到头」的
+    // 斜向手势会一边横滚一边把整个页面带着滚
+    if (this._wouldOverscroll(delta)) {
+      if (crossMoved) e.preventDefault();
+      return;
+    }
 
     e.preventDefault();
     this._stopInertia();
@@ -215,12 +259,17 @@ export class InputController {
     return this._horizontal ? t.clientX : t.clientY;
   }
 
+  private _crossAxisOf(t: Touch): number {
+    return this._horizontal ? t.clientY : t.clientX;
+  }
+
   private _onTouchStart = (e: TouchEvent): void => {
     const t = e.touches[0];
     if (!t) return;
     // 手指落下先刹住惯性，这是所有原生滚动容器的行为
     this._stopInertia();
     this._touchLast = this._axisOf(t);
+    this._touchLastCross = this._crossAxisOf(t);
     this._samples = [{ pos: this._touchLast, time: e.timeStamp }];
   };
 
@@ -233,6 +282,10 @@ export class InputController {
     const delta = this._touchLast - pos;
     this._touchLast = pos;
 
+    const posCross = this._crossAxisOf(t);
+    const deltaCross = this._touchLastCross - posCross;
+    this._touchLastCross = posCross;
+
     this._samples.push({ pos, time: e.timeStamp });
     // 只留最近一小段，早于窗口的采样对初速没有意义
     while (
@@ -242,7 +295,12 @@ export class InputController {
       this._samples.shift();
     }
 
+    // 主轴到头（含纯横扫这种 delta 为 0 的情形）就整件事都不拦，让浏览器
+    // 原生 pan 接手交叉轴 —— 那条路有橡皮筋和惯性，比我们手写的强。
+    // touch-action 已经把交叉轴放行了（见 `_buildDOM` 的 touchAction）
     if (this._wouldOverscroll(delta)) return;
+    // 主轴要拦，那这次手势里的交叉轴分量也只能由我们代劳（同滚轮）
+    this._scrollCross(deltaCross);
     e.preventDefault();
     this._accumulate(delta);
   };
@@ -318,13 +376,27 @@ export class InputController {
    * 再折算进虚拟偏移量 —— 顺带让使用方代码里的 scrollIntoView 照常生效。
    */
   private _onNativeScroll = (): void => {
+    this._absorbDrift(this._el);
+  };
+
+  /**
+   * 滚动层的同一份工作。
+   *
+   * 它现在是离内容最近的 scrollport，焦点相关的静默滚动落在它身上而不是 clientEl。
+   * 只归零**主轴**：交叉轴的 scrollLeft 是用户真实的滚动位置，归零了就等于横滚不了。
+   */
+  private _onCrossScroll = (): void => {
+    if (this._crossEl) this._absorbDrift(this._crossEl);
+  };
+
+  private _absorbDrift(el: HTMLElement): void {
     const key = this._horizontal ? 'scrollLeft' : 'scrollTop';
-    const drift = this._el[key];
+    const drift = el[key];
     if (!drift) return;
 
-    this._el[key] = 0;
+    el[key] = 0;
     this._host.scrollTo(this._host.getOffset() + drift);
-  };
+  }
 
   destroy(): void {
     this._stopInertia();
@@ -338,5 +410,7 @@ export class InputController {
     el.removeEventListener('touchend', this._onTouchEnd);
     el.removeEventListener('touchcancel', this._onTouchEnd);
     el.removeEventListener('scroll', this._onNativeScroll);
+    this._crossEl?.removeEventListener('scroll', this._onCrossScroll);
+    this._crossEl = null;
   }
 }

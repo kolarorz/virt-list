@@ -41,19 +41,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/**
+ * 尺寸上报会驱动 core 重新渲染项，而每项内容各自在一个 React root 里，
+ * 所以这是一次真正的 React 更新，得包在 act 里（否则 React 会提示
+ * "An update to Root inside a test was not wrapped in act(...)"）。
+ * 回调是同步的，act 也就同步跑完，不必 await。
+ */
 function flushResize(id: string, size: number) {
   const target = document.createElement('div');
   target.dataset.id = id;
-  roCallback?.(
-    [
-      {
-        target,
-        borderBoxSize: [{ blockSize: size, inlineSize: size }],
-        contentRect: { height: size, width: size },
-      } as unknown as ResizeObserverEntry,
-    ],
-    {} as ResizeObserver,
-  );
+  act(() => {
+    roCallback?.(
+      [
+        {
+          target,
+          borderBoxSize: [{ blockSize: size, inlineSize: size }],
+          contentRect: { height: size, width: size },
+        } as unknown as ResizeObserverEntry,
+      ],
+      {} as ResizeObserver,
+    );
+  });
 }
 
 /** 行高 40px、视口 200px、每行 3 列 */
@@ -177,6 +185,43 @@ describe('React VirtGrid', () => {
     await render(makeList(3));
 
     expect(rowIds(container)).toEqual(['0']);
+
+    await unmount(root);
+  });
+
+  /**
+   * 删一项后每行的 _id 不变、装的人变了。DOM 缓存不作废的话单元格内容一动不动
+   * （flushMounts 重刷时用的还是旧闭包里的 itemData），界面上就是
+   * 「删除按钮点了没反应」。
+   */
+  it('删掉中间某项后单元格内容跟着前移', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const render = async (list: Item[]) => {
+      await act(async () => {
+        root.render(
+          createElement(VirtGrid as any, {
+            list,
+            gridItems: 3,
+            itemKey: 'id',
+            estimatedSize: 40,
+            children: ({ itemData }: any) =>
+              createElement('span', null, `[${itemData.id}]`),
+          }),
+        );
+      });
+    };
+
+    await render(makeList(9));
+    flushResize('client', 200);
+    await act(async () => {});
+    expect(container.textContent).toContain('[0][1][2]');
+
+    await render(makeList(9).filter((item) => item.id !== '1'));
+
+    expect(container.textContent).toContain('[0][2][3]');
+    expect(container.textContent).not.toContain('[1]');
 
     await unmount(root);
   });

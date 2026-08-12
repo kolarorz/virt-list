@@ -1,11 +1,48 @@
 import { useRef, useMemo } from 'react';
-import { VirtTree, type VirtTreeRef } from '@virt-list/react-legacy';
+import { VirtTree, type VirtTreeRef, type TreeNode } from '@virt-list/react-legacy';
 import TreeDragAreaItem from './items/TreeDragAreaItem';
 import TreeEmpty from './items/TreeEmpty';
 
+interface TreeRow {
+  id: string;
+  title: string;
+  children?: TreeRow[];
+}
+
+function removeNode(list: TreeRow[], node: TreeNode): boolean {
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i]!;
+    if (row.id === node.data.id) {
+      list.splice(i, 1);
+      return true;
+    }
+    if (row.children?.length && removeNode(row.children, node)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function insertNode(
+  list: TreeRow[],
+  node: TreeNode,
+  prevNode: TreeNode | undefined,
+  parentNode: TreeNode | undefined,
+) {
+  const raw = node.data as TreeRow;
+  const pdata = parentNode?.data as TreeRow | undefined;
+  const target = pdata ? (pdata.children ??= []) : list;
+  if (prevNode) {
+    const idx = target.findIndex((n) => n.id === prevNode.data.id);
+    target.splice(idx + 1, 0, raw);
+  } else {
+    target.unshift(raw);
+  }
+}
+
 export default function TreeDragArea() {
   const treeRef = useRef<VirtTreeRef>(null);
-  const treeData = useMemo(
+  const treeData = useMemo<TreeRow[]>(
     () => [
       {
         id: 'role',
@@ -66,6 +103,11 @@ export default function TreeDragArea() {
           }}
           onDragend={(data) => {
             console.log('tree dragend', data);
+            // 落点只是算出来的结果，得自己搬数据再 setList，树才会真的换位
+            if (!data) return;
+            removeNode(treeData, data.node);
+            insertNode(treeData, data.node, data.prevNode, data.parentNode);
+            treeRef.current?.setList([...treeData]);
           }}
         />
       </div>

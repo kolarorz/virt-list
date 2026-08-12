@@ -7,7 +7,7 @@
           ref="vlRef"
           :list="list"
           item-key="id"
-          :estimated-size="24"
+          :estimated-size="26"
           :has-more-top="false"
           :has-more-bottom="false"
           :copy-text="copyText"
@@ -17,8 +17,12 @@
             <div class="demo-trace-line" :class="`kind-${itemData.kind}`">
               <div class="demo-trace-head">
                 <span class="demo-trace-seq">{{ String(itemData.seq).padStart(5, ' ') }}</span>
+                <span class="demo-trace-status" :class="`is-${itemData.status}`">
+                  {{ statusIcon(itemData.status) }}
+                </span>
                 <span class="demo-trace-badge">{{ kindLabel(itemData.kind) }}</span>
                 <span class="demo-trace-text">{{ itemData.text }}</span>
+                <span v-if="itemData.ms > 0" class="demo-trace-ms">{{ formatMs(itemData.ms) }}</span>
               </div>
             </div>
           </template>
@@ -56,10 +60,13 @@ import { VirtList } from '@virt-list/vue';
 import {
   generateTraceLines,
   KIND_LABEL,
+  STATUS_ICON,
   type TraceKind,
   type TraceLine,
+  type TraceStatus,
 } from '../../../../_shared/traceData';
 import { activeSection, buildOutline, type OutlineSection } from '../../../../_shared/outline';
+import { formatMs } from '../../../../_shared/agentBlocks';
 
 const COUNT = 3000;
 
@@ -71,7 +78,9 @@ const listState = ref<any>(null);
 /** 分段是纯数据计算，列表不变就不用重算 */
 const sections = computed(() => buildOutline(list.value));
 
+/** 插槽参数是无类型的，收窄一次再查表 */
 const kindLabel = (kind: string) => KIND_LABEL[kind as TraceKind] ?? kind;
+const statusIcon = (status: string) => STATUS_ICON[status as TraceStatus] ?? '';
 
 const copyText = (item: TraceLine) =>
   `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}`;

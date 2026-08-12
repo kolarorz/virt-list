@@ -138,17 +138,25 @@ describe('VirtList DOM 结构', () => {
       },
     });
 
-    // 参与滚动的三段按序挂在这一层里，各自绝对定位、各自带残差 transform
+    // 五段按序挂在滚动层里。header / list / footer 各自带残差 transform；
+    // 吸顶 / 吸底不带，它们靠 top:0 / bottom:0 钉在视口上（主轴），
+    // 但**跟着交叉轴横滚**，所以也在这一层里
     const flow = Array.from(vl.scrollContentEl.children).map(
       (el) => (el as HTMLElement).dataset.id ?? 'list',
     );
-    expect(flow).toEqual(['header', 'list', 'footer']);
+    expect(flow).toEqual([
+      'stickyHeader',
+      'header',
+      'list',
+      'footer',
+      'stickyFooter',
+    ]);
 
-    // 吸顶 / 吸底是视口的直接子节点，不随内容位移
+    // clientEl 里只剩不参与任何滚动的东西：自绘滚动条（+ 空状态）
     const pinned = Array.from(vl.clientEl.children)
       .map((el) => (el as HTMLElement).dataset.id)
       .filter(Boolean);
-    expect(pinned).toEqual(['stickyHeader', 'stickyFooter']);
+    expect(pinned).toEqual([]);
   });
 
   it('插槽渲染函数返回元素时自动挂载', () => {
@@ -229,8 +237,18 @@ describe('VirtList DOM 结构', () => {
       listStyle: { paddingLeft: '8px' },
     });
 
-    expect(vl.listEl.className).toBe('my-list');
+    // 库自己的类名在前、使用方的在后：listClass 是追加，不该把库的类名顶掉
+    expect(vl.listEl.className).toBe('virt-list__list my-list');
     expect(vl.listEl.getAttribute('style')).toContain('padding-left:8px;');
+  });
+
+  it('三层容器都带类名（DevTools 里认得出谁是谁）', () => {
+    const { vl } = mount();
+
+    expect(vl.clientEl.className).toBe('virt-list__client');
+    expect(vl.scrollContentEl.className).toBe('virt-list__scroll-content');
+    expect(vl.listEl.className).toBe('virt-list__list');
+    expect(vl.itemsEl.className).toBe('virt-list__items');
   });
 
   it('插槽元素被交给观察器（尺寸变化要反映到滚动计算里）', () => {

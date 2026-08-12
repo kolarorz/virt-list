@@ -6,10 +6,7 @@ import {
   ref,
   watch,
   h,
-  Fragment,
-  render as vueRender,
   type PropType,
-  type VNode,
 } from 'vue';
 import { VirtGrid as VirtGridVanilla } from '@virt-list/vanilla';
 import type {
@@ -18,6 +15,7 @@ import type {
   VirtScrollEvent,
   VirtScrollOptions,
 } from '@virt-list/core';
+import { createSlotMounter } from './compat.js';
 
 /**
  * Vue 虚拟网格组件。
@@ -51,6 +49,8 @@ export const VirtGrid = defineComponent({
     scrollbarMinThumbSize: { type: Number, default: undefined },
     /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
     keyboard: { type: Boolean, default: true },
+    /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+    crossScroll: { type: Boolean, default: true },
     itemStyle: { type: [String, Object, Array] as PropType<StyleValue>, default: undefined },
     renderItem: { type: Function as PropType<(item: any, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement | void>, default: undefined },
     renderStickyHeader: { type: Function as PropType<(el: HTMLElement) => HTMLElement | void>, default: undefined },
@@ -63,23 +63,32 @@ export const VirtGrid = defineComponent({
   setup(props, { emit, expose, slots }) {
     const containerRef = ref<HTMLElement | null>(null);
     let grid: VirtGridVanilla<any> | null = null;
-    const mountContainers = new Map<string, HTMLElement>();
+    const { mountSlot, cleanupSlots } = createSlotMounter();
 
-    function mountVNode(
-      mountKey: string,
-      node: VNode | VNode[],
+    /**
+     * 挂载/更新一个单元格的插槽内容，同时充当 renderItem 与 updateItem
+     * （见 VirtList 的同名函数）。
+     *
+     * **mountKey 用位置（listIndex）而不是数据 key**，与 VirtList 相反。
+     * 依据是容器的复用方式：VirtList 的项元素在 itemPool 里按 key 管理，
+     * 而单元格容器只是行元素的第 i 个子节点、纯按位置复用（见 vanilla VirtGrid
+     * 的 `_updateRow`）。用数据 key 会在删掉中间项后错位 —— 内容要进别的容器，
+     * 挂载器于是先把旧容器的内容卸掉再挂当前这个，白白重建一批挂载点。
+     *
+     * `listIndex` = 行首扁平索引 + 单元格序号，正是这个格子的位置，不随内容变化。
+     */
+    function mountCell(
+      item: any,
+      rowIndex: number,
+      listIndex: number,
       el: HTMLElement,
     ): void {
-      const old = mountContainers.get(mountKey);
-      if (old && old !== el) vueRender(null, old);
-      const nodes = Array.isArray(node) ? node : [node];
-      vueRender(h(Fragment, null, nodes), el);
-      mountContainers.set(mountKey, el);
-    }
-
-    function cleanupVNodeMounts(): void {
-      mountContainers.forEach((el) => vueRender(null, el));
-      mountContainers.clear();
+      if (!slots.default) return;
+      mountSlot(
+        `grid:cell:${listIndex}`,
+        () => slots.default!({ itemData: item, rowIndex, listIndex }),
+        el,
+      );
     }
 
     onMounted(() => {
@@ -95,20 +104,14 @@ export const VirtGrid = defineComponent({
           fixedSize: props.fixedSize,
           buffer: props.buffer,
           itemStyle: props.itemStyle,
-          renderItem: props.renderItem ?? ((item, rowIndex, listIndex, el) => {
-            if (slots.default) {
-              mountVNode(
-                `grid:item:${String(item?.[props.itemKey] ?? listIndex)}`,
-                slots.default({ itemData: item, rowIndex, listIndex }) as VNode[],
-                el,
-              );
-            }
-          }),
+          renderItem: props.renderItem ?? mountCell,
+          updateItem: typeof props.renderItem === 'function' ? undefined : mountCell,
           scrollDuration: props.scrollDuration,
           smoothMaxDistance: props.smoothMaxDistance,
           scrollbarAutoHideDelay: props.scrollbarAutoHideDelay,
           scrollbarMinThumbSize: props.scrollbarMinThumbSize,
           keyboard: props.keyboard,
+          crossScroll: props.crossScroll,
           renderStickyHeader: props.renderStickyHeader,
           renderStickyFooter: props.renderStickyFooter,
           renderHeader: props.renderHeader,
@@ -130,7 +133,7 @@ export const VirtGrid = defineComponent({
     onBeforeUnmount(() => {
       grid?.destroy();
       grid = null;
-      cleanupVNodeMounts();
+      cleanupSlots();
     });
 
     watch(() => props.list, (newList) => {
@@ -163,13 +166,21 @@ export const VirtGrid = defineComponent({
     };
 
     /**
-     * 滚动容器（唯一的 scrollport）。
+     * 滚动容器（主轴视口）。
      *
      * 逃生舱：给只认 DOM 元素的场合用（量位置、交给第三方库）。感知滚动请用
      * `scroll` 事件——挂在这上面的原生 `scroll` 监听收不到有用信息。
      */
     Object.defineProperty(api, 'clientEl', {
       get: () => grid?.clientEl,
+      enumerable: true,
+    });
+    /**
+     * 交叉轴（竖向列表的横向）的滚动容器。那条轴归浏览器原生滚动：
+     * 读写它的 `scrollLeft` 就是读写横向滚动位置，横滚也是真的原生 `scroll` 事件。
+     */
+    Object.defineProperty(api, 'scrollContentEl', {
+      get: () => grid?.scrollContentEl,
       enumerable: true,
     });
 

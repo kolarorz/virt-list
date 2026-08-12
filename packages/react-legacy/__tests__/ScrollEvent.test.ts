@@ -150,5 +150,10 @@ describe('React 17: clientEl 逃生舱', () => {
     const clientEl = instRef.current.clientEl as HTMLElement;
     expect(clientEl).toBeTruthy();
     expect(clientEl.dataset.id).toBe('client');
+
+    // 交叉轴的 scrollport 是它的子节点：横向滚动位置在那上面读写
+    const cross = instRef.current.scrollContentEl as HTMLElement;
+    expect(cross.parentElement).toBe(clientEl);
+    expect(cross.style.overflowX).toBe('auto');
   });
 });

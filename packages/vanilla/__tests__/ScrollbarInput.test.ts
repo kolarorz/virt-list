@@ -216,6 +216,100 @@ describe('滚轮', () => {
   });
 });
 
+/**
+ * 交叉轴（竖向列表的横向）由**我们**写滚动层的 scrollLeft，而不是"不拦事件、
+ * 让浏览器自己滚"。
+ *
+ * 原因是 preventDefault 没有"只拦一条轴"的粒度：为主轴拦下一次滚轮，同一个事件里的
+ * 横向分量也一起没了。真实 Chrome 里实测过：斜向手势下 scrollLeft 一动不动。
+ */
+describe('交叉轴滚动', () => {
+  it('纯横向滚轮：主轴不动，滚动层横滚，事件仍被拦下', () => {
+    const { vl, clientEl } = mount();
+    const e = wheel(clientEl, { deltaX: 120, deltaY: 0 });
+
+    expect(vl.core.getOffset()).toBe(0);
+    expect(vl.scrollContentEl.scrollLeft).toBe(120);
+    // 不拦的话页面会跟着一起横滚
+    expect(e.defaultPrevented).toBe(true);
+  });
+
+  it('斜向滚轮：两条轴同时走', () => {
+    const { vl, clientEl } = mount();
+    wheel(clientEl, { deltaX: 60, deltaY: 100 });
+
+    expect(vl.core.getOffset()).toBe(100);
+    // 这一条是回归的重点：曾经 preventDefault 把横向分量一起吃掉了
+    expect(vl.scrollContentEl.scrollLeft).toBe(60);
+  });
+
+  it('行模式的横向分量同样折算成像素', () => {
+    const { vl } = mount();
+    wheel(vl.clientEl, { deltaX: 3, deltaY: 0, deltaMode: 1 });
+    expect(vl.scrollContentEl.scrollLeft).toBe(120);
+  });
+
+  it('两条轴都到头才放行给外层（滚动链）', () => {
+    const { vl, clientEl } = mount();
+    // jsdom 没有布局，scrollLeft 写多少是多少、永不夹取，得自己造一个到头的滚动层
+    const cross = vl.scrollContentEl;
+    Object.defineProperty(cross, 'scrollLeft', {
+      configurable: true,
+      get: () => 0,
+      set: () => {},
+    });
+
+    vl.scrollToOffset(MAX_OFFSET);
+    const e = wheel(clientEl, { deltaX: 120, deltaY: 120 });
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('主轴到头但交叉轴还能滚时不放行', () => {
+    const { vl, clientEl } = mount();
+    vl.scrollToOffset(MAX_OFFSET);
+
+    const e = wheel(clientEl, { deltaX: 120, deltaY: 120 });
+    // 横向还有余量，放行就等于一边横滚一边把整个页面带着滚
+    expect(e.defaultPrevented).toBe(true);
+    expect(vl.scrollContentEl.scrollLeft).toBe(120);
+  });
+
+  it('横向列表的交叉轴是竖向', () => {
+    const { vl, clientEl } = mount({ horizontal: true });
+    // 横向列表里 deltaX 归主轴，剩下的 deltaY 归交叉轴
+    wheel(clientEl, { deltaX: 100, deltaY: 30 });
+
+    expect(vl.core.getOffset()).toBe(100);
+    expect(vl.scrollContentEl.scrollTop).toBe(30);
+    expect(vl.scrollContentEl.scrollLeft).toBe(0);
+  });
+
+  it('crossScroll: false 时一步都不碰滚动层', () => {
+    const { vl, clientEl } = mount({ crossScroll: false } as any);
+    wheel(clientEl, { deltaX: 120, deltaY: 100 });
+
+    expect(vl.core.getOffset()).toBe(100);
+    expect(vl.scrollContentEl.scrollLeft).toBe(0);
+  });
+
+  it('滚动层的静默滚动只归零主轴，横向位置不动', () => {
+    const { vl } = mount();
+    const cross = vl.scrollContentEl;
+
+    // 浏览器为露出焦点元素而偷偷滚的是这一层（它离内容最近），
+    // 而 scroll 事件不冒泡，必须挂在它身上才收得到
+    cross.scrollLeft = 200;
+    cross.scrollTop = 50;
+    cross.dispatchEvent(new Event('scroll'));
+
+    // 主轴的那 50px 折算进虚拟偏移量，元素自己归零
+    expect(cross.scrollTop).toBe(0);
+    expect(vl.core.getOffset()).toBe(50);
+    // 横向的 200px 是用户真实的滚动位置，归零就等于横滚不了
+    expect(cross.scrollLeft).toBe(200);
+  });
+});
+
 describe('边界事件与自动续拉', () => {
   /**
    * 用户输入必须触发 toTop / toBottom。

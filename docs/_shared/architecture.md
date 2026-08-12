@@ -64,19 +64,23 @@ vanilla 层构建的滚动容器结构：
 
 ```
 container（用户提供的挂载点）
-└─ clientEl（overflow: hidden，视口；滚动位置由 JS 掌管）
-   ├─ scrollContentEl（height: 0，自身不平移，仅作各段的定位参照）
-   │  ├─ headerEl（参与滚动的头部）      ← transform 残差
-   │  ├─ listEl（height: 0）
-   │  │  └─ itemsEl                     ← transform 残差
-   │  │     ├─ item[renderBegin]
+└─ clientEl          .virt-list__client（overflow: hidden，主轴视口；主轴滚动位置由 JS 掌管）
+   ├─ scrollContentEl .virt-list__scroll-content（铺满视口；**交叉轴**的原生滚动容器）
+   │  ├─ stickyHeaderEl  [data-id=stickyHeader]（position: absolute; top: 0，吸顶区域）
+   │  ├─ headerEl        [data-id=header]（参与滚动的头部）  ← transform 残差
+   │  ├─ listEl          .virt-list__list（height: 0）
+   │  │  └─ itemsEl      .virt-list__items                  ← transform 残差
+   │  │     ├─ item[renderBegin]      [data-id=<itemKey>]
    │  │     ├─ item[renderBegin + 1]
    │  │     └─ ...
-   │  └─ footerEl（参与滚动的底部）      ← transform 残差
-   ├─ stickyHeaderEl（position: absolute; top: 0，吸顶区域）
-   ├─ stickyFooterEl（position: absolute; bottom: 0，吸底区域）
-   └─ scrollbarEl └─ thumbEl（自绘滚动条）
+   │  ├─ footerEl        [data-id=footer]（参与滚动的底部）  ← transform 残差
+   │  └─ stickyFooterEl  [data-id=stickyFooter]（position: absolute; bottom: 0，吸底区域）
+   └─ scrollbarEl .virt-scrollbar └─ thumbEl（自绘滚动条，留在滚动层外面）
 ```
+
+四层容器都带类名，`data-id` 则用在插槽与列表项上——DevTools 里照着这张表就能认出每一层是谁。
+**库自己的样式一行都不挂在这些类名上**（布局全是 inline style），所以拿它们写自己的
+CSS 是安全的，覆盖不掉库的布局；反过来也别指望改这些类名能改布局。
 
 - **没有任何元素的几何尺寸与列表长度相关**。不存在撑出滚动空间的占位元素，也不存在
   `leadingSize` 那么高的占位块（`leadingSize` 是渲染块的 `transform` 位移量，不是谁的高度），
@@ -87,8 +91,18 @@ container（用户提供的挂载点）
 - 吸顶 / 吸底区**不占内容流**（相对视口绝对定位），但都**占滚动空间**：两者都计入
   `getSlotsTotalSize()`，因而参与总尺寸与最大偏移量的计算。吸顶区还是内容坐标系的
   起点，其余各段都从它之后排起
-- `position: sticky` 的粘附由原生滚动驱动，`overflow: hidden` 下永远不触发，
-  所以吸顶 / 吸底改用相对视口的绝对定位
+- `position: sticky` 的粘附由原生滚动驱动，主轴上 `overflow: hidden` 永远不触发，
+  所以吸顶 / 吸底在主轴上改用相对视口的绝对定位
+- **两条轴的滚动归属不同**。主轴（虚拟化的那条）归 JS：那条轴上只有一屏 DOM，
+  让浏览器抢先在合成器线程上滚过去就会露出没有内容的地方。交叉轴（竖向列表的横向）
+  没有这个问题 —— 那个方向上内容是完整的真实 DOM，于是交给浏览器原生滚动，
+  落在 `scrollContentEl` 上（`overflow-x: auto`）。由此带来两条摆放上的硬约束：
+  - 自绘滚动条与空状态必须留在 `clientEl` 里。放进滚动层的话，横滚 400px
+    就把整条滚动条推出视口了（实测如此）
+  - 吸顶 / 吸底反过来要放**进**滚动层，表头才会跟着列一起横移。想把插槽里的某块
+    横向钉住，在插槽内包一层 `position: sticky; left: 0`（表格冻结列的老办法，
+    在这种 absolute 父级下同样生效），前提是插槽根跨满了内容宽度、sticky 才有可粘的余量
+- 关掉 `crossScroll` 即回到两轴全裁切
 
 ## 增量 DOM Patch
 

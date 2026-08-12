@@ -3,7 +3,11 @@ import {
   createTraceLine,
   generateTraceLines,
   KIND_LABEL,
+  STATUS_ICON,
 } from '../../../../_shared/traceData';
+import { activeSection, buildOutline } from '../../../../_shared/outline';
+import { formatMs, toolStatusLabel } from '../../../../_shared/agentBlocks';
+import { renderOutput } from './parts/agent-message';
 
 /** 每一拍追加的行数与间隔，模拟 Agent 持续输出 */
 const TICK = 120;
@@ -43,6 +47,8 @@ export function bootstrapAiTrace(root) {
   let listState = null;
   /** 上一拍的追加耗时，用来体现高频追加的开销 */
   let lastAppendMs = 0;
+  /** 阶段划分，只在 list 变化时重算；滚动时只做一次 O(段数) 的查找 */
+  let sections = buildOutline(list);
 
   let virtList;
 
@@ -57,6 +63,7 @@ export function bootstrapAiTrace(root) {
 
     runBtn.textContent = timer !== null ? '暂停执行' : '开始执行';
     jumpBtn.disabled = atBottom;
+    paintStage();
   }
 
   /**
@@ -67,11 +74,23 @@ export function bootstrapAiTrace(root) {
    * 所以用户往上翻看某段历史时，下面刷得再快也不会把视口拽走。
    */
   function append(count) {
+    // 上一批末尾那行还标着「执行中」，先落终态并就地重画那一行
+    const prev = list[list.length - 1];
+    if (prev?.status === 'running') {
+      prev.status = 'ok';
+      virtList.refreshItems([prev.id]);
+    }
+
     const batch = Array.from({ length: count }, () => createTraceLine(seq++));
+    // 执行中的话，末尾这行还没跑完，标成「执行中」
+    const last = batch[batch.length - 1];
+    if (timer !== null && last) last.status = 'running';
+
     const started = performance.now();
     list = list.concat(batch);
     virtList.setList(list);
     lastAppendMs = performance.now() - started;
+    sections = buildOutline(list);
     refreshUI();
   }
 
@@ -79,6 +98,11 @@ export function bootstrapAiTrace(root) {
     if (timer !== null) {
       clearInterval(timer);
       timer = null;
+      const last = list[list.length - 1];
+      if (last?.status === 'running') {
+        last.status = 'ok';
+        virtList.refreshItems([last.id]);
+      }
     } else {
       timer = setInterval(() => append(LINES_PER_TICK), TICK);
     }
@@ -88,7 +112,7 @@ export function bootstrapAiTrace(root) {
   /** 就地切换某一行的详情，不动列表结构 */
   function toggleDetail(item, rowEl) {
     item.expanded = !item.expanded;
-    const detailEl = rowEl.querySelector('.demo-trace-detail');
+    const detailEl = rowEl.querySelector('.demo-trace-output');
     const caretEl = rowEl.querySelector('.demo-trace-caret');
     if (detailEl) detailEl.hidden = !item.expanded;
     if (caretEl) caretEl.textContent = item.expanded ? '▾' : '▸';
@@ -96,12 +120,41 @@ export function bootstrapAiTrace(root) {
     // 视口位置由待维持目标自动修正——展开视口上方的行不会把内容顶走
   }
 
+  /** 把当前阶段画到 sticky 头上：滚到哪一段就显示那一段的标题 */
+  function paintStage() {
+    const el = stageEl;
+    if (!el) return;
+
+    const at = activeSection(sections, listState?.inViewBegin ?? 0);
+    const section = sections[at];
+    el.innerHTML = '';
+
+    const index = document.createElement('span');
+    index.className = 'demo-trace-stage-index';
+    index.textContent = `阶段 ${sections.length === 0 ? 0 : at + 1}/${sections.length}`;
+    el.appendChild(index);
+
+    const title = document.createElement('span');
+    title.className = 'demo-trace-stage-title';
+    title.textContent = section?.title ?? '等待执行';
+    el.appendChild(title);
+
+    if (section && section.errors > 0) {
+      const errors = document.createElement('span');
+      errors.className = 'demo-trace-stage-errors';
+      errors.textContent = `${section.errors} 个错误`;
+      el.appendChild(errors);
+    }
+  }
+
+  let stageEl = null;
+
   virtList = new VirtList(
     container,
     {
       list,
       itemKey: 'id',
-      estimatedSize: 24,
+      estimatedSize: 26,
       initialPosition: 'bottom',
       /** 日志视图的 tail follow 就是这一个配置 */
       stickyBottom: true,
@@ -109,7 +162,13 @@ export function bootstrapAiTrace(root) {
       hasMoreBottom: false,
       /** 让日志可以整段复制，中间未渲染的行由数据补齐 */
       copyText: (item) =>
-        `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}`,
+        `[${KIND_LABEL[item.kind]}] ${String(item.seq).padStart(5, ' ')}  ${item.text}` +
+        (item.ms > 0 ? `  (${toolStatusLabel(item.status)} ${formatMs(item.ms)})` : ''),
+      renderStickyHeader: (el) => {
+        el.className = 'demo-trace-stage';
+        stageEl = el;
+        paintStage();
+      },
       renderItem: (item) => {
         const row = document.createElement('div');
         row.className = `demo-trace-line kind-${item.kind}`;
@@ -127,6 +186,11 @@ export function bootstrapAiTrace(root) {
         seqEl.textContent = String(item.seq).padStart(5, ' ');
         head.appendChild(seqEl);
 
+        const status = document.createElement('span');
+        status.className = `demo-trace-status is-${item.status}`;
+        status.textContent = STATUS_ICON[item.status];
+        head.appendChild(status);
+
         const badge = document.createElement('span');
         badge.className = 'demo-trace-badge';
         badge.textContent = KIND_LABEL[item.kind];
@@ -137,18 +201,26 @@ export function bootstrapAiTrace(root) {
         text.textContent = item.text;
         head.appendChild(text);
 
+        if (item.ms > 0) {
+          const ms = document.createElement('span');
+          ms.className = 'demo-trace-ms';
+          ms.textContent = formatMs(item.ms);
+          head.appendChild(ms);
+        }
+
         row.appendChild(head);
 
         if (item.detail) {
           head.classList.add('is-clickable');
           head.addEventListener('click', () => toggleDetail(item, row));
 
-          const detail = document.createElement('pre');
-          detail.className = 'demo-trace-detail';
-          detail.textContent = item.detail;
+          // 展开后是终端回显或一段 diff，和消息里的工具卡走同一个渲染函数
+          const output = document.createElement('div');
+          output.className = 'demo-trace-output';
+          output.appendChild(renderOutput(item.detail, item.outputKind));
           // 展开状态存在数据里，所以行被回收再重建时不会丢
-          detail.hidden = !item.expanded;
-          row.appendChild(detail);
+          output.hidden = !item.expanded;
+          row.appendChild(output);
         }
 
         return row;
@@ -171,6 +243,7 @@ export function bootstrapAiTrace(root) {
   clearBtn.addEventListener('click', () => {
     list = [];
     seq = 0;
+    sections = buildOutline(list);
     virtList.reset();
     virtList.setList(list);
     refreshUI();

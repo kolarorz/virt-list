@@ -55,7 +55,9 @@ describe('refreshItems', () => {
     return out;
   }
 
-  it('前提：同 key 改数据后不会自动重渲染', () => {
+  // 这个前提只在「没给 updateItem」时成立 —— 给了就会自动更新，见 UpdateItem.test.ts。
+  // 四个框架包的插槽路径都注入了 updateItem，所以组件使用方看到的是自动更新
+  it('前提：没有 updateItem 时，同 key 改数据后不会自动重渲染', () => {
     const key = [...rendered().keys()][0]!;
     list[Number(key)]!.label = '改过了';
 

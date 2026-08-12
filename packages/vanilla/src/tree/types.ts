@@ -132,6 +132,8 @@ export interface VirtTreeDOMOptions {
   scrollbarMinThumbSize?: number;
   /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
   keyboard?: boolean;
+  /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+  crossScroll?: boolean;
   /** 是否显示连接线 */
   showLine?: boolean;
   /** 节点行的自定义 class */

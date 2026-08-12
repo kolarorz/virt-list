@@ -58,7 +58,7 @@ export function bootstrapGridBasic(root) {
         if (idx > -1) {
           list.splice(idx, 1);
           grid.setList(list);
-          status.textContent = `已删除 item ${index}，剩余 ${list.length} 项`;
+          status.textContent = `已删除 item ${listIndex}，剩余 ${list.length} 项`;
         }
       });
       return cell;

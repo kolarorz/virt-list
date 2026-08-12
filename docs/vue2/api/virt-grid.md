@@ -9,6 +9,7 @@
 | `gridItems`    | 每行展示个数      | `number`                                                                             | <font color="#f00">是</font> |
 | `default` 插槽 | 插槽              | `#default="{ itemData, rowIndex, listIndex }"`                                       | 推荐                         |
 | `renderItem`   | 低阶 DOM 渲染回调 | `(item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement \| void` | 可选                      |
+| `updateItem`   | 配合自定义 `renderItem` 使用：数据变更时**原地更新**已渲染的单元格（滚动与尺寸上报不触发）。走默认插槽 / children 时组件已自动接好 | `(item: T, rowIndex: number, listIndex: number, el: HTMLElement) => void` | 可选                      |
 
 ### 插槽 / renderItem 参数说明
 

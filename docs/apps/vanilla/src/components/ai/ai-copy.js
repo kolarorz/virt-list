@@ -1,5 +1,7 @@
 import { VirtList } from '@virt-list/vanilla';
 import { generateAiPage } from '../../../../_shared/aiData';
+import { blocksToMarkdown } from '../../../../_shared/agentBlocks';
+import { createAgentMessage, syncBlock } from './parts/agent-message';
 
 const COUNT = 400;
 
@@ -29,16 +31,34 @@ export function bootstrapAiCopy(root) {
 
   const list = generateAiPage(1, COUNT);
 
-  /** 复制成一段可读的对话记录，而不是干巴巴的正文拼接 */
+  /**
+   * 一条消息复制出来是什么。
+   *
+   * 富消息不能按屏幕上看到的那几行来复制——工具卡默认折叠、思考过程收起、
+   * 代码块有自己的边框。这里输出 Markdown：代码带围栏、工具调用带状态，
+   * 粘到编辑器里就是一份能直接读的对话记录。
+   */
   const copyText = (item) =>
-    `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+    `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
+
+  /** 折叠状态存在数据里，改完就地重画那一个块 */
+  function ctxOf(item) {
+    return {
+      onToggle: (blockIndex) => {
+        const block = item.blocks[blockIndex];
+        if (!block || !('expanded' in block)) return;
+        block.expanded = !block.expanded;
+        syncBlock(container, item, blockIndex, ctxOf(item));
+      },
+    };
+  }
 
   const virtList = new VirtList(
     container,
     {
       list,
       itemKey: 'id',
-      estimatedSize: 80,
+      estimatedSize: 140,
       /**
        * 给出 copyText 即开启跨虚拟化复制。
        *
@@ -48,16 +68,7 @@ export function bootstrapAiCopy(root) {
       copyText,
       copySeparator: '\n\n',
       renderItem: (item) => {
-        const row = document.createElement('div');
-        row.className =
-          item.role === 'user'
-            ? 'demo-chat-message demo-ai-row is-user'
-            : 'demo-chat-message demo-ai-row';
-        const bubble = document.createElement('div');
-        bubble.className = 'demo-chat-bubble';
-        bubble.textContent = copyText(item);
-        row.appendChild(bubble);
-        return row;
+        return createAgentMessage(item, ctxOf(item));
       },
     },
     {

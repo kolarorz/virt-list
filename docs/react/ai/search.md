@@ -26,7 +26,7 @@ const [cursor, setCursor] = useState(-1);
 const hits = useMemo(() => {
   if (!keyword) return [] as number[];
   return list.reduce<number[]>((acc, item, i) => {
-    if (item.text.includes(keyword)) acc.push(i);
+    if (blocksToSearchText(item.blocks).includes(keyword)) acc.push(i);
     return acc;
   }, []);
 }, [list, keyword]);
@@ -42,17 +42,18 @@ const jumpTo = useCallback(
 );
 
 return (
-  <VirtList<AiMessage> ref={vlRef} list={list} itemKey="id" estimatedSize={80}>
-    {({ itemData, index }) => {
-      const isCurrent = cursor >= 0 && hits[cursor] === index;
-      return (
-        <div className={isCurrent ? 'bubble is-current' : 'bubble'}>
-          {splitByKeyword(itemData.text, keyword).map((part, i) =>
-            part.hit ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>,
-          )}
-        </div>
-      );
-    }}
+  <VirtList<AiMessage> ref={vlRef} list={list} itemKey="id" estimatedSize={140}>
+    {({ itemData, index }) => (
+      /* keyword 传下去，正文块内部按命中分段渲染 */
+      <AgentMessage
+        message={itemData}
+        index={index}
+        keyword={keyword}
+        currentHit={cursor >= 0 && hits[cursor] === index}
+        expanded={expandedBlocks}
+        onToggleBlock={toggleBlock}
+      />
+    )}
   </VirtList>
 );
 ```

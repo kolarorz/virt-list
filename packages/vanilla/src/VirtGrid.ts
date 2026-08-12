@@ -3,6 +3,7 @@ import { VirtList } from './VirtList.js';
 import { normalizeStyle } from './utils.js';
 import type {
   ListState,
+  ListUpdateReason,
   StyleValue,
   VirtListEvents,
   VirtScrollEvent,
@@ -37,6 +38,8 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   scrollbarMinThumbSize?: number;
   /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
   keyboard?: boolean;
+  /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
+  crossScroll?: boolean;
   /** 行的自定义 style */
   itemStyle?: StyleValue;
   /** 单元格渲染函数（可返回 HTMLElement，或直接渲染到传入 el） */
@@ -46,6 +49,21 @@ export interface VirtGridOptions<T extends Record<string, any>> {
     listIndex: number,
     el: HTMLElement,
   ) => HTMLElement | void;
+  /**
+   * 单元格的**原地更新**函数，数据变更（`setList`）时按最新数据回调。
+   *
+   * 行的 `_id` 是起始扁平索引，不随行内容变化，而虚拟列表对池里已有的 key
+   * 不会重新 `renderItem` —— 没有这个回调，同一行里换了内容的单元格会停在
+   * 挂载那一刻。滚动与尺寸上报不会触发它。
+   *
+   * `el` 是该单元格首次挂载时的容器，应当复用而不是重建。
+   */
+  updateItem?: (
+    item: T,
+    rowIndex: number,
+    listIndex: number,
+    el: HTMLElement,
+  ) => void;
   renderStickyHeader?: (el: HTMLElement) => HTMLElement | void;
   renderStickyFooter?: (el: HTMLElement) => HTMLElement | void;
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
@@ -62,7 +80,11 @@ export interface VirtGridEvents<T extends Record<string, any> = Record<string, a
   toTop?: (item: GridRow<T>) => void;
   toBottom?: (item: GridRow<T>) => void;
   itemResize?: (id: string, newSize: number) => void;
-  update?: (renderList: GridRow<T>[], state: ListState) => void;
+  update?: (
+    renderList: GridRow<T>[],
+    state: ListState,
+    reason: ListUpdateReason,
+  ) => void;
 }
 
 /**
@@ -81,9 +103,12 @@ export interface GridRow<T> {
  * 原理：将扁平的 list 按 gridItems 分组为 GridRow[]（每行包含 gridItems 个子项），
  * 然后交给 VirtList 进行虚拟滚动。每行的 renderItem 内部调用外部 renderItem 渲染各个单元格。
  *
- * 注意：GridRow 的 _id 是扁平数组的起始索引。当 gridItems 变化时，
- * 新旧行的 _id 可能重叠（如 gridItems=2 的 row[0,2,4...] 和 gridItems=3 的 row[0,3,6...]）。
- * 因此 setGridItems 时必须先 clearItemPool，否则 pool 中的旧 DOM 会被错误复用。
+ * 注意：GridRow 的 _id 是扁平数组的起始索引，**不随行内容变化**，而 VirtList 对
+ * 已在池中的 key 不会重新 renderItem。两条写入路径因此各有对策：
+ * - `setGridItems` 整体 `clearItemPool`：新旧行的 _id 会重叠（gridItems=2 的
+ *   row[0,2,4...] 与 gridItems=3 的 row[0,3,6...]），行的成员完全对不上，只能重建；
+ * - `setList` 走 `updateItem`（见 `_updateRow`）：行元素与单元格都复用，只把最新
+ *   数据交给已有单元格，并补齐/收回尾行变动的那几个。
  */
 export class VirtGrid<T extends Record<string, any>> {
   private _options: VirtGridOptions<T>;
@@ -105,7 +130,8 @@ export class VirtGrid<T extends Record<string, any>> {
       toTop: (item) => events?.toTop?.(item),
       toBottom: (item) => events?.toBottom?.(item),
       itemResize: (id, size) => events?.itemResize?.(id, size),
-      update: (renderList, state) => events?.update?.(renderList, state),
+      update: (renderList, state, reason) =>
+        events?.update?.(renderList, state, reason),
     };
 
     this._virtListDOM = new VirtList<GridRow<T>>(
@@ -122,19 +148,15 @@ export class VirtGrid<T extends Record<string, any>> {
         scrollbarAutoHideDelay: options.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: options.scrollbarMinThumbSize,
         keyboard: options.keyboard,
+        crossScroll: options.crossScroll,
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {
-            const mountEl = document.createElement('div');
-            const cellEl = this._options.renderItem(
-              rowData.children[i]!,
-              rowIndex,
-              rowData._id + i,
-              mountEl,
-            );
-            el.appendChild(cellEl ?? mountEl);
+            this._mountCell(rowData, rowIndex, i, el);
           }
         },
+        updateItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) =>
+          this._updateRow(rowData, rowIndex, el),
         renderStickyHeader: options.renderStickyHeader,
         renderStickyFooter: options.renderStickyFooter,
         renderHeader: options.renderHeader,
@@ -144,6 +166,62 @@ export class VirtGrid<T extends Record<string, any>> {
       },
       listEvents,
     );
+  }
+
+  /** 建出一个单元格并挂到行元素末尾 */
+  private _mountCell(
+    rowData: GridRow<T>,
+    rowIndex: number,
+    cellIndex: number,
+    rowEl: HTMLElement,
+  ): void {
+    const mountEl = document.createElement('div');
+    const cellEl = this._options.renderItem(
+      rowData.children[cellIndex]!,
+      rowIndex,
+      rowData._id + cellIndex,
+      mountEl,
+    );
+    rowEl.appendChild(cellEl ?? mountEl);
+  }
+
+  /**
+   * 数据变更后就地更新一行，复用已有的单元格元素。
+   *
+   * 两件事：
+   * 1. **对齐单元格个数**。行的 `_id` 是起始扁平索引、不随内容变化，而尾行的
+   *    成员数会变（gridItems=3 时 4 项的尾行有 1 个单元格，追加到 5 项就是 2 个）。
+   *    行元素被复用、`renderItem` 又不会重跑，缺的单元格于是永远不出现 —— 这里补建。
+   * 2. **把最新数据交给已有的单元格**（`updateItem`），不重建 DOM。
+   *
+   * 单元格容器纯按位置复用（第 i 个子节点装第 i 个成员），框架层的 mountKey
+   * 因此也必须按位置取 —— 见各框架包 VirtGrid 里 `mountCell` 的注释。
+   */
+  private _updateRow(
+    rowData: GridRow<T>,
+    rowIndex: number,
+    rowEl: HTMLElement,
+  ): void {
+    // 没有 updateItem 时这一行的正确性由 setList 里的作废重建负责，
+    // 在这里补建单元格只是白做一遍（整行随后会被重建）
+    if (!this._options.updateItem) return;
+
+    const cells = rowData.children;
+
+    // 收回多出来的单元格（列表变短时的尾行）。框架层挂在这些元素上的内容
+    // 由各自的挂载器按 isConnected 兜底回收
+    while (rowEl.children.length > cells.length) {
+      rowEl.lastElementChild!.remove();
+    }
+
+    for (let i = 0; i < cells.length; i++) {
+      const existing = rowEl.children[i];
+      if (existing instanceof HTMLElement) {
+        this._options.updateItem?.(cells[i]!, rowIndex, rowData._id + i, existing);
+      } else {
+        this._mountCell(rowData, rowIndex, i, rowEl);
+      }
+    }
   }
 
   /** 将扁平 list 按 gridItems 分组为 GridRow[] */
@@ -163,11 +241,54 @@ export class VirtGrid<T extends Record<string, any>> {
     this._gridList = result;
   }
 
-  /** 更新数据源 */
+  /**
+   * 更新数据源。
+   *
+   * 行的 key 是 `_id`（行首扁平索引），删掉中间一项后每行的 `_id` 没变、装的人变了，
+   * 而虚拟列表对池里已有的 key 不会重新 `renderItem` —— 不处理的话界面上就是
+   * 「删除点了没反应」。两条路径按能力择一：
+   *
+   * - **给了 `updateItem`**（四个框架包的插槽路径都会注入）：交给 `_updateRow`
+   *   原地更新，行元素与单元格容器全部复用。这条路更好 —— 重建会让框架挂在
+   *   单元格上的内容连根拔起，组件内部 state、输入焦点、进行中的动画全丢。
+   *   成员比对也一并省了。
+   * - **没给**（纯 DOM 用法）：只能作废成员变了的那几行，让它们按新数据重建。
+   *   不作废就不会有任何一环去改这些行的 DOM。
+   */
   setList(list: T[]): void {
+    const prevRows = this._gridList;
     this._options.list = list;
     this._updateGridList();
+
+    const staleRowIds: number[] = [];
+    if (!this._options.updateItem) {
+      const prevById = new Map<number, GridRow<T>>();
+      for (const row of prevRows) prevById.set(row._id, row);
+      for (const row of this._gridList) {
+        if (!this._sameMembers(prevById.get(row._id), row)) staleRowIds.push(row._id);
+      }
+    }
+
     this._virtListDOM.setList(this._gridList);
+    // setList 之后再作废：refreshItems 会立刻按新数据重渲染这几行，
+    // 反过来做的话重渲染读到的还是旧 list
+    if (staleRowIds.length > 0) this._virtListDOM.refreshItems(staleRowIds);
+  }
+
+  /**
+   * 两行装的是不是同一批项（按 itemKey 比，先走对象同一性快路径）。
+   * 只在没有 `updateItem`、必须靠作废重建的那条路径上用得到。
+   */
+  private _sameMembers(prev: GridRow<T> | undefined, next: GridRow<T>): boolean {
+    if (!prev || prev.children.length !== next.children.length) return false;
+    const { itemKey } = this._options;
+    for (let i = 0; i < prev.children.length; i++) {
+      const a = prev.children[i]!;
+      const b = next.children[i]!;
+      if (a === b) continue;
+      if (String(a[itemKey]) !== String(b[itemKey])) return false;
+    }
+    return true;
   }
 
   /**
@@ -217,9 +338,17 @@ export class VirtGrid<T extends Record<string, any>> {
     this._virtListDOM.scrollToOffset(offset, options);
   }
 
-  /** 滚动容器（唯一的 scrollport），与 `VirtList.clientEl` 一致 */
+  /** 滚动容器（主轴视口），与 `VirtList.clientEl` 一致 */
   get clientEl(): HTMLElement {
     return this._virtListDOM.clientEl;
+  }
+
+  /**
+   * 交叉轴（横向）的滚动容器，与 `VirtList.scrollContentEl` 一致。
+   * 读写它的 `scrollLeft` 就是读写横向滚动位置
+   */
+  get scrollContentEl(): HTMLElement {
+    return this._virtListDOM.scrollContentEl;
   }
 
   /** 底层虚拟列表的计算内核（与 VirtList.core 一致，供进阶用法与测试使用） */

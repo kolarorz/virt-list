@@ -44,22 +44,31 @@ return (
     ref={vlRef}
     list={list}
     itemKey="id"
-    estimatedSize={24}
+    estimatedSize={26}
     initialPosition="bottom"
     stickyBottom
     hasMoreTop={false}
     hasMoreBottom={false}
     copyText={copyText}
     onScroll={(e) => setAtBottom(e.atEnd)}
+    /* 当前阶段悬浮在顶部：滚到哪一段就显示那一段的标题 */
+    renderStickyHeader={() => (
+      <div className="stage">{currentSection?.title ?? '等待执行'}</div>
+    )}
   >
     {({ itemData }) => {
       const isOpen = expanded.has(itemData.id);
       return (
         <div className={`line kind-${itemData.kind}`}>
           <div onClick={itemData.detail ? () => toggle(itemData.id) : undefined}>
+            <span className={`status is-${itemData.status}`}>{STATUS_ICON[itemData.status]}</span>
             {itemData.text}
+            {itemData.ms > 0 && <span className="ms">{formatMs(itemData.ms)}</span>}
           </div>
-          {itemData.detail && isOpen && <pre>{itemData.detail}</pre>}
+          {/* 展开后是终端回显或一段 diff，和消息里的工具卡共用一个渲染组件 */}
+          {itemData.detail && isOpen && (
+            <AgentOutput text={itemData.detail} kind={itemData.outputKind} />
+          )}
         </div>
       );
     }}

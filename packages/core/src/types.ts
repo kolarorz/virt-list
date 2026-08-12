@@ -307,6 +307,21 @@ export type RequiredOptions<T extends Record<string, any>> = Required<
 >;
 
 /**
+ * 渲染列表更新的原因，随 `update` 事件一起给出。
+ *
+ * DOM 层据此决定「已在渲染池里的项要不要重新出内容」。这个区分是必需的：
+ * `update` 的触发点里只有 `list` / `force` 两类意味着数据变了，而 `range`
+ * 每帧都在发（滚动），`size` 也很频繁（ResizeObserver 上报）。不区分就等于
+ * 滚动每一帧都把全部可见项的内容重渲染一遍。
+ *
+ * - `list`：数据源变了（`setList` 引起的列表变更）
+ * - `force`：显式要求全量刷新（`forceUpdate`）
+ * - `range`：渲染区间变了，数据没变（滚动、`manualRender`）
+ * - `size`：尺寸账本变了（列表项或插槽的实测尺寸上报）
+ */
+export type ListUpdateReason = 'list' | 'force' | 'range' | 'size';
+
+/**
  * 虚拟列表事件回调。
  */
 export interface VirtListEvents<T extends Record<string, any>> {
@@ -316,8 +331,17 @@ export interface VirtListEvents<T extends Record<string, any>> {
   toBottom?: (item: T) => void;
   /** 某项尺寸变化时触发 */
   itemResize?: (id: string, newSize: number) => void;
-  /** 渲染列表（可视区间）更新时触发 */
-  update?: (renderList: T[], state: ListState) => void;
+  /**
+   * 渲染列表（可视区间）更新时触发。
+   *
+   * 第三个参数是本次更新的原因，见 {@link ListUpdateReason}。它是后加的可选参数，
+   * 只关心「更新了」的监听方按两参写即可。
+   */
+  update?: (
+    renderList: T[],
+    state: ListState,
+    reason: ListUpdateReason,
+  ) => void;
   /** 加载状态变化时触发（loading / hasMore / pendingNew） */
   loadStateChange?: (state: LoadState) => void;
   /**
@@ -374,6 +398,24 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
    * - 返回 void：可直接操作第三个参数 el（item wrapper），减少一层 DOM 嵌套
    */
   renderItem: (item: T, index: number, el: HTMLElement) => HTMLElement | void;
+  /**
+   * 已在渲染池里的项**原地更新**内容。
+   *
+   * 增量 patch 对池里已有的 key 不会重新调用 `renderItem`（只调位置），于是
+   * 「key 没变、数据变了」时内容会停在挂载那一刻 —— 典型场景是不可变更新
+   * （`list.map(it => it.id === id ? {...it, text} : it)`）和 AI 流式输出。
+   * 给出这个回调，数据变更引起的 patch 就会带着**最新的 item 和 index** 回调它。
+   *
+   * 与 `renderItem` 的分工：
+   * - 只在数据变更（`setList` / `forceUpdate`）时调用，滚动与尺寸上报都不会触发，
+   *   否则等于每帧重渲染全部可见项；
+   * - `el` 是这一项首次挂载时那个 wrapper，DOM 结构应当复用而不是重建；
+   * - 返回值被忽略（不像 `renderItem` 会 `appendChild`）—— 重复追加子节点是
+   *   直接复用 `renderItem` 时最容易踩的坑。
+   *
+   * 不给的话行为与从前一致：内容不刷新，需要时自己调 `refreshItems(keys)`。
+   */
+  updateItem?: (item: T, index: number, el: HTMLElement) => void;
   /**
    * 列表头部渲染函数（参与滚动）。
    * 同 renderItem，可返回元素或直接操作 el。
@@ -437,6 +479,18 @@ export interface VirtListDOMOptions<T extends Record<string, any>>
    * 会既滚一段又移动一格。滚轮 / 触摸不受这个开关影响。
    */
   keyboard?: boolean;
+  /**
+   * 交叉轴（竖向列表的横向、横向列表的竖向）是否允许滚动。默认 `true`。
+   *
+   * 主轴的滚动位置归 JS 掌管，是因为那条轴上只有一屏 DOM，浏览器抢先在合成器
+   * 线程上滚过去就会露出没有内容的地方。**交叉轴不存在这个问题**：那个方向上
+   * 内容是完整的真实 DOM，交给浏览器原生滚动最跟手，也白拿滚动条、拖拽、
+   * 触摸惯性。所以它落在内层的 `scrollContentEl` 上（`overflow: auto`），
+   * 自绘滚动条留在外层 `clientEl` 里，横滚时不会跟着跑掉。
+   *
+   * 关掉它就回到「两轴全裁切」：超出容器的内容看不见也滚不到。
+   */
+  crossScroll?: boolean;
 }
 
 /** 虚拟列表选项的默认值 */

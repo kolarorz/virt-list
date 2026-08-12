@@ -6,15 +6,13 @@
         ref="vlRef"
         :list="list"
         item-key="id"
-        :estimated-size="80"
+        :estimated-size="140"
         :copy-text="enabled ? copyText : undefined"
         :copy-separator="SEPARATOR"
         @update="onUpdate"
       >
         <template #default="{ itemData }">
-          <div class="demo-chat-message demo-ai-row" :class="{ 'is-user': itemData.role === 'user' }">
-            <div class="demo-chat-bubble">{{ copyText(itemData) }}</div>
-          </div>
+          <AgentMessage :message="itemData" />
         </template>
       </VirtList>
     </div>
@@ -33,6 +31,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 import { generateAiPage, type AiMessage } from '../../../../_shared/aiData';
+import { blocksToMarkdown } from '../../../../_shared/agentBlocks';
+import AgentMessage from './parts/AgentMessage.vue';
 
 const COUNT = 400;
 /** 必须绑定而不是写成属性字面量：模板里的 "\n\n" 是反斜杠加 n，不是换行 */
@@ -45,9 +45,15 @@ const enabled = ref(true);
 const result = ref('');
 const listState = ref<any>(null);
 
-/** 复制成一段可读的对话记录；渲染也用它，保证复制到的与看到的一致 */
+/**
+ * 一条消息复制出来是什么。
+ *
+ * 富消息不能按屏幕上看到的那几行来复制——工具卡默认折叠、思考过程收起、
+ * 代码块有自己的边框。这里输出 Markdown：代码带围栏、工具调用带状态，
+ * 粘到编辑器里就是一份能直接读的对话记录。
+ */
 const copyText = (item: AiMessage) =>
-  `${item.role === 'user' ? '我' : 'AI'}：${item.text}`;
+  `${item.role === 'user' ? '我' : 'AI'}：${blocksToMarkdown(item.blocks)}`;
 
 const statsText = computed(() => {
   const s = listState.value;

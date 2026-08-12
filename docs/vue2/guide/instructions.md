@@ -22,5 +22,21 @@
 
 ## shallowRef
 
-无论是使用VirtList还是使用VirtGrid，一旦使用了shallowRef，就需要使用提供的forceUpdate方法来更新list长度变化。对于item内容变化，需要自行使用renderKey来进行相应更新。
-具体demo请参考: https://kolarorz.github.io/vue-virt-list/examples/huge-data/
+大数据量下推荐 `shallowRef`：它不会递归代理数组内部对象，初始化开销小得多。
+
+配合**换新数组**的写法，自动更新照样生效——`.value` 被替换会触发组件重渲染，
+组件随即把最新数据交给可视区内的每一项，长度变化与内容变化都不需要手动调用：
+
+```js
+const list = shallowRef(rows);
+
+// 增删、换内容都走这一种写法
+list.value = list.value.map((it) => (it.id === id ? { ...it, name: 'new' } : it));
+list.value = [...list.value, newRow];
+```
+
+只有**原地改某一项的字段**（`list.value[0].name = 'x'`）才需要手动干预——`shallowRef`
+不代理数组元素，引用与长度也都没变，谁都察觉不到。这时用 `refreshItems([key])`
+指明刷哪几项，比 `forceUpdate()`（重建全部可见项）开销小得多。
+
+可运行的对比示例见「示例 → 列表 → 响应式更新」。

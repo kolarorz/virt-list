@@ -452,6 +452,9 @@ html.dark .virt-tree-all-drag-area,
   border: 1px dashed var(--virt-tree-color-allow-drag-area-bd);
   border-radius: var(--virt-tree-node-radius);
   background-color: var(--virt-tree-color-allow-drag-area-bg);
+  /* 纯视觉提示，必须让命中测试穿透：落点判定走 elementFromPoint，这块区域覆盖在
+     行上方，一旦参与命中就会顶掉 .virt-tree-item，同级拖拽从此拿不到落点。 */
+  pointer-events: none;
 }
 
 /* ===================================================================

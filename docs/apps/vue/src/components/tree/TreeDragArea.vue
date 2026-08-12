@@ -2,6 +2,7 @@
   <div class="tree-demo">
     <div class="virt-tree-wrapper">
       <VirtTree
+        ref="treeRef"
         :list="treeData"
         :field-names="{ key: 'id' }"
         draggable
@@ -27,9 +28,18 @@
 import { ref } from 'vue';
 import { VirtTree } from '@virt-list/vue';
 import type { TreeNode } from '@virt-list/vue';
+import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeEmpty from './items/TreeEmpty.vue';
 
-const treeData = ref([
+interface TreeRow {
+  id: string;
+  title: string;
+  children?: TreeRow[];
+}
+
+const treeRef = ref<VirtTreeRef | null>(null);
+
+const treeData = ref<TreeRow[]>([
   {
     id: 'role',
     title: '角色',
@@ -65,11 +75,53 @@ const treeData = ref([
   { id: 'drag-3', title: '测试', children: [] },
 ]);
 
+function removeNode(list: TreeRow[], node: { data: TreeRow }): boolean {
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i]!;
+    if (row.id === node.data.id) {
+      list.splice(i, 1);
+      return true;
+    }
+    if (row.children?.length && removeNode(row.children, node)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function insertNode(
+  list: TreeRow[],
+  node: { data: TreeRow },
+  prevNode: { data: TreeRow } | undefined,
+  parentNode: { data: TreeRow } | undefined,
+) {
+  const raw = node.data;
+  const target = parentNode
+    ? (parentNode.data.children ??= [])
+    : list;
+  if (prevNode) {
+    const idx = target.findIndex((n) => n.id === prevNode.data.id);
+    target.splice(idx + 1, 0, raw);
+  } else {
+    target.unshift(raw);
+  }
+}
+
 function onDragStart(data: { sourceNode: TreeNode }) {
   console.log('dragstart', data);
 }
 
 function onDragEnd(data: unknown) {
   console.log('dragend', data);
+  // 落点只是算出来的结果，得自己搬数据再 setList，树才会真的换位
+  if (!data) return;
+  const d = data as {
+    node: { data: TreeRow };
+    prevNode?: { data: TreeRow };
+    parentNode?: { data: TreeRow };
+  };
+  removeNode(treeData.value, d.node);
+  insertNode(treeData.value, d.node, d.prevNode, d.parentNode);
+  treeRef.value?.setList([...treeData.value]);
 }
 </script>

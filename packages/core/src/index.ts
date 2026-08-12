@@ -10,6 +10,7 @@ export type {
   StyleValue,
   StyleObject,
   ListState,
+  ListUpdateReason,
   LoadState,
   LoadDirection,
   SlotId,

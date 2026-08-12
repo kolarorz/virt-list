@@ -1,5 +1,7 @@
 import { VirtList } from '@virt-list/vanilla';
 import { generateAiPage } from '../../../../_shared/aiData';
+import { blocksToSearchText } from '../../../../_shared/agentBlocks';
+import { createAgentMessage, syncBlock } from './parts/agent-message';
 
 const COUNT = 600;
 
@@ -46,7 +48,8 @@ export function bootstrapAiSearch(root) {
     keyword = next.trim();
     hits = keyword
       ? list.reduce((acc, item, i) => {
-          if (item.text.includes(keyword)) acc.push(i);
+    // 搜的是正文块的文本——和界面上画黄底的是同一份文本，两边不会打架
+          if (blocksToSearchText(item.blocks).includes(keyword)) acc.push(i);
           return acc;
         }, [])
       : [];
@@ -102,31 +105,19 @@ export function bootstrapAiSearch(root) {
     nextBtn.disabled = hits.length === 0;
   }
 
-  /** 把命中的关键词包成 mark，当前命中额外加一个 class */
-  function renderText(text, isCurrent) {
-    const frag = document.createDocumentFragment();
-    if (!keyword) {
-      frag.appendChild(document.createTextNode(text));
-      return frag;
-    }
-
-    let from = 0;
-    for (;;) {
-      const at = text.indexOf(keyword, from);
-      if (at === -1) break;
-      if (at > from) {
-        frag.appendChild(document.createTextNode(text.slice(from, at)));
-      }
-      const mark = document.createElement('mark');
-      mark.className = isCurrent ? 'demo-hit is-current' : 'demo-hit';
-      mark.textContent = keyword;
-      frag.appendChild(mark);
-      from = at + keyword.length;
-    }
-    if (from < text.length) {
-      frag.appendChild(document.createTextNode(text.slice(from)));
-    }
-    return frag;
+  /** 渲染一条消息时要带的上下文：搜索态 + 折叠回调 */
+  function ctxOf(item, index) {
+    return {
+      index,
+      keyword,
+      currentHit: cursor >= 0 && hits[cursor] === index,
+      onToggle: (blockIndex) => {
+        const block = item.blocks[blockIndex];
+        if (!block || !('expanded' in block)) return;
+        block.expanded = !block.expanded;
+        syncBlock(container, item, blockIndex, ctxOf(item, index));
+      },
+    };
   }
 
   virtList = new VirtList(
@@ -134,34 +125,14 @@ export function bootstrapAiSearch(root) {
     {
       list,
       itemKey: 'id',
-      estimatedSize: 80,
+      estimatedSize: 140,
       /**
        * 补上列表语义：DOM 里只有视口附近那十几项，屏幕阅读器会以为总共就这么多。
        * 开启后每项都带上它在 600 条数据里的真实位置与总数。
        */
       aria: true,
       ariaLabel: '会话消息',
-      renderItem: (item, index) => {
-        const row = document.createElement('div');
-        row.className =
-          item.role === 'user'
-            ? 'demo-chat-message demo-ai-row is-user'
-            : 'demo-chat-message demo-ai-row';
-
-        const bubble = document.createElement('div');
-        bubble.className = 'demo-chat-bubble';
-        const isCurrent = cursor >= 0 && hits[cursor] === index;
-        if (isCurrent) bubble.classList.add('is-current-hit');
-
-        const label = document.createElement('span');
-        label.className = 'demo-ai-index';
-        label.textContent = `#${index} `;
-        bubble.appendChild(label);
-        bubble.appendChild(renderText(item.text, isCurrent));
-
-        row.appendChild(bubble);
-        return row;
-      },
+      renderItem: (item, index) => createAgentMessage(item, ctxOf(item, index)),
     },
     {
       update: (_, state) => {

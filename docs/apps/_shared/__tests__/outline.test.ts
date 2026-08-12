@@ -2,8 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { activeSection, buildOutline, MAX_SECTIONS } from '../outline';
 import { generateTraceLines, type TraceLine } from '../traceData';
 
+/** 分段只看 kind，其余字段给出合法初值即可 */
 function line(seq: number, kind: TraceLine['kind']): TraceLine {
-  return { id: seq, seq, kind, text: `${kind}-${seq}`, expanded: false };
+  return {
+    id: seq,
+    seq,
+    kind,
+    text: `${kind}-${seq}`,
+    tool: '',
+    status: kind === 'error' ? 'error' : 'ok',
+    ms: 0,
+    outputKind: 'text',
+    expanded: false,
+  };
 }
 
 describe('语义分段', () => {

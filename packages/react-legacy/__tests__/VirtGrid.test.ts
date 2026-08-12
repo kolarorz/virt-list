@@ -174,6 +174,42 @@ describe('React-legacy VirtGrid', () => {
     unmount(container);
   });
 
+  /**
+   * 删一项后每行的 _id 不变、装的人变了。DOM 缓存不作废的话单元格内容一动不动
+   * （flushMounts 重刷时用的还是旧闭包里的 itemData），界面上就是
+   * 「删除按钮点了没反应」。
+   */
+  it('删掉中间某项后单元格内容跟着前移', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const render = (list: Item[]) => {
+      act(() => {
+        ReactDOM.render(
+          createElement(VirtGrid as any, {
+            list,
+            gridItems: 3,
+            itemKey: 'id',
+            estimatedSize: 40,
+            children: ({ itemData }: any) =>
+              createElement('span', null, `[${itemData.id}]`),
+          }),
+          container,
+        );
+      });
+    };
+
+    render(makeList(9));
+    flushResize('client', 200);
+    expect(container.textContent).toContain('[0][1][2]');
+
+    render(makeList(9).filter((item) => item.id !== '1'));
+
+    expect(container.textContent).toContain('[0][2][3]');
+    expect(container.textContent).not.toContain('[1]');
+
+    unmount(container);
+  });
+
   it('gridItems 变化后按新列数重排', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

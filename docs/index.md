@@ -4,8 +4,8 @@ layout: home
 
 hero:
   name: 'virt-list'
-  text: '列表有多长，DOM 都只有一屏'
-  tagline: 轻量、跨框架，行高由内容决定。三十万行与三十行，滚动开销一样。
+  text: '为流式对话而生的虚拟滚动'
+  tagline: 列表 / 网格 / 树形三种形态，五个框架共享同一内核。行高由内容决定，三百万行与三十行，滚动开销一样。
   actions:
     - theme: brand
       text: 快速开始

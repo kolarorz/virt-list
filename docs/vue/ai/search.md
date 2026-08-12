@@ -20,14 +20,15 @@
 
 ```vue
 <template>
-  <VirtList ref="vlRef" :list="list" item-key="id" :estimated-size="80">
+  <VirtList ref="vlRef" :list="list" item-key="id" :estimated-size="140">
     <template #default="{ itemData, index }">
-      <div class="bubble" :class="{ 'is-current': isCurrent(index) }">
-        <template v-for="(part, i) in splitByKeyword(itemData.text)" :key="i">
-          <mark v-if="part.hit">{{ part.text }}</mark>
-          <span v-else>{{ part.text }}</span>
-        </template>
-      </div>
+      <!-- keyword 传下去，正文块内部按命中分段渲染 -->
+      <AgentMessage
+        :message="itemData"
+        :index="index"
+        :keyword="keyword"
+        :current-hit="isCurrent(index)"
+      />
     </template>
   </VirtList>
 </template>
@@ -36,11 +37,16 @@
 const keyword = ref('');
 const cursor = ref(-1);
 
-/** 命中位置来自数据，不是 DOM */
+/**
+ * 命中位置来自数据，不是 DOM。
+ *
+ * 搜的是正文块的文本——和界面上画黄底的是同一份文本，
+ * 否则会出现「说命中了却找不到高亮」（命中算进了代码块，高亮只画在正文上）。
+ */
 const hits = computed(() => {
   if (!keyword.value) return [] as number[];
   return list.value.reduce<number[]>((acc, item, i) => {
-    if (item.text.includes(keyword.value)) acc.push(i);
+    if (blocksToSearchText(item.blocks).includes(keyword.value)) acc.push(i);
     return acc;
   }, []);
 });

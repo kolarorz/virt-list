@@ -413,4 +413,43 @@ describe('VirtTree 同层级拖放的落点计算', () => {
 
     expect(dragend.mock.calls[0]![0]).toBeUndefined();
   });
+
+  // 上面的用例都在全折叠的树上跑，绕过了「hover 目标已展开」这条分支。
+  // demo 开着 default-expand-all，顶层节点全是展开态，于是撞上下面两个回归。
+  describe('hover 目标处于展开态', () => {
+    /** 展开第 3 个根节点，它仍与被拖的节点 '1' 同为 level 1 同父 */
+    function setupWithExpandedSibling(events: VirtTreeDOMEvents) {
+      const mounted = setupSameLevel(events);
+      mounted.tree.expandNode('3', true);
+      fakeGeometry(mounted.container, mounted.tree['_virtListDOM'].clientEl);
+      return mounted;
+    }
+
+    it('悬停在已展开兄弟节点的下半部分时，插到它整棵子树之后', () => {
+      const dragend = vi.fn();
+      const { container } = setupWithExpandedSibling({ dragend });
+
+      startDrag(container, '1');
+      // 第 3 行(已展开的 '3')的下半部分：ratio 0.625 > 0.33 → 落在其后
+      mouseMove(50, 3 * ROW + 20);
+      mouseUp();
+
+      const payload = dragend.mock.calls[0]![0]!;
+      expect(payload).toBeDefined();
+      expect(payload.node.key).toBe('1');
+      expect(payload.prevNode?.key).toBe('3');
+      expect(payload.parentNode).toBeUndefined();
+    });
+
+    it('悬停在已展开兄弟节点的下半部分时仍画出指示线', () => {
+      const { container } = setupWithExpandedSibling({});
+
+      startDrag(container, '1');
+      mouseMove(50, 3 * ROW + 20);
+
+      expect(
+        container.querySelector('.virt-tree-drag-line-same-level'),
+      ).toBeTruthy();
+    });
+  });
 });
