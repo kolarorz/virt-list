@@ -3,6 +3,7 @@ import { faker } from '@faker-js/faker';
 import { VirtGrid as VirtGridRoot, type VirtGridRef } from '@virt-list/react';
 import { GridItem } from './GridItem';
 
+// demo:fold 示例数据构造：generateData()
 function generateData(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     id: faker.string.nanoid(),
@@ -11,6 +12,7 @@ function generateData(count: number) {
     name: faker.person.firstName(),
   }));
 }
+// /demo:fold
 
 export default function VirtGrid() {
   const [list, setList] = useState(() => generateData(1000));

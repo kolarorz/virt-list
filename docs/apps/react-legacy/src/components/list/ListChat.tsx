@@ -5,6 +5,7 @@ const PAGE_SIZE = 40;
 
 let uid = 0;
 
+// demo:fold 示例数据构造：Item、CHAT_MSGS、generatePage()
 interface Item {
   id: number;
   index: number;
@@ -33,6 +34,7 @@ function generatePage(page: number, pageSize: number): Item[] {
     };
   });
 }
+// /demo:fold
 
 function asyncGeneratePage(page: number, pageSize: number): Promise<Item[]> {
   return new Promise((resolve) => setTimeout(() => resolve(generatePage(page, pageSize)), 800));

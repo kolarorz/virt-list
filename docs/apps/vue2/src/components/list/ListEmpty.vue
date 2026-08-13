@@ -36,6 +36,7 @@ import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 import Item from '../Item.vue';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、ListItem
 const SENTENCES = [
   '虚拟列表是一种高性能的列表渲染方案，只渲染可视区域内的元素。',
   '通过动态计算每个元素的位置和大小，可以高效地处理海量数据。',
@@ -63,6 +64,7 @@ function generateList(count: number, startIndex = 0) {
 }
 
 type ListItem = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref('总数: 0');
 const isEmpty = ref(true);

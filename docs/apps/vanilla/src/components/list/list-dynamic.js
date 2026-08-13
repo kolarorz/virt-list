@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：generateList()
 function generateList(count) {
   const texts = [
     '短文本。',
@@ -14,6 +15,7 @@ function generateList(count) {
     text: texts[i % texts.length],
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

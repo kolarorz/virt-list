@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：generateUsers()、generateProducts()
 function generateUsers(count) {
   const departments = ['工程部', '设计部', '产品部', '市场部', '运营部'];
   return Array.from({ length: count }, (_, i) => ({
@@ -22,6 +23,7 @@ function generateProducts(count) {
     stock: Math.floor(Math.random() * 500),
   }));
 }
+// /demo:fold
 
 function createUserItem(user) {
   const el = document.createElement('div');

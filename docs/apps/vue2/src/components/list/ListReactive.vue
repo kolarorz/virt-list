@@ -111,6 +111,7 @@ function randValue() {
   return Math.floor(Math.random() * 1000);
 }
 
+// demo:fold 示例数据构造：createRows()
 function createRows(count: number): Row[] {
   return Array.from({ length: count }, (_, index) => ({
     id: index,
@@ -120,6 +121,7 @@ function createRows(count: number): Row[] {
     updatedAt: nowText(),
   }));
 }
+// /demo:fold
 
 const virtListRef = ref<typeof VirtList | null>(null);
 const interval = ref(1000);

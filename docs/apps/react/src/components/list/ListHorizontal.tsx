@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react';
 
+// demo:fold 示例数据构造：WIDTHS、Item、generateList()
 const WIDTHS = [76, 92, 108, 124, 148];
 
 interface Item {
@@ -14,6 +15,7 @@ function generateList(count: number): Item[] {
     width: WIDTHS[Math.floor(Math.random() * WIDTHS.length)],
   }));
 }
+// /demo:fold
 
 export default function Horizontal() {
   const list = useMemo(() => generateList(1000), []);

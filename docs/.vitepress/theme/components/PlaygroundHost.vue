@@ -31,6 +31,10 @@ const eventLog = ref<string[]>([]);
 
 let started = false;
 let currentApp: MicroApp | null = null;
+/** currentApp 当前承载的框架。与 framework 相同时切示例可以只走 update。 */
+let mountedFramework: FrameworkKind | null = null;
+/** 递增序号：异步挂载/更新期间又来了新的切换，旧的那次结果一律作废。 */
+let loadSeq = 0;
 let qiankunApi: null | {
   start: typeof import('qiankun').start;
   loadMicroApp: typeof import('qiankun').loadMicroApp;
@@ -67,9 +71,25 @@ const appendLog = (message: string) => {
   eventLog.value = [message, ...eventLog.value].slice(0, 8);
 };
 
+/**
+ * 传给子应用的 props。mount 与 update 必须**同构**：
+ * single-spa 的 parcel.update 是「整体替换 customProps」而不是合并
+ * （single-spa.dev.js: `parcel.customProps = customProps`），
+ * 少传 container 会让子应用的 getContainer 退化到全局 getElementById，
+ * 少传 onEvent 则事件日志在 update 之后静音。
+ */
+const buildProps = () => ({
+  framework: framework.value,
+  exampleId: exampleId.value,
+  container: containerRef.value as HTMLElement,
+  onEvent: (payload: { framework: FrameworkKind; message: string }) =>
+    appendLog(`[${payload.framework}] ${payload.message}`),
+});
+
 const mountApp = async () => {
   if (!containerRef.value) return;
 
+  const seq = ++loadSeq;
   isLoading.value = true;
   loadError.value = '';
 
@@ -86,45 +106,84 @@ const mountApp = async () => {
     if (currentApp) {
       await currentApp.unmount();
       currentApp = null;
+      mountedFramework = null;
     }
+
+    // 期间又切了一次：容器归属已经不是我们了，别再往里挂。
+    if (seq !== loadSeq) return;
 
     containerRef.value.innerHTML = '';
 
+    const target = framework.value;
     currentApp = qiankunApi.loadMicroApp({
-      name: appNames[framework.value],
-      entry: appEntries[framework.value],
+      name: appNames[target],
+      entry: appEntries[target],
       container: containerRef.value,
-      props: {
-        framework: framework.value,
-        exampleId: exampleId.value,
-        onEvent: (payload: { framework: FrameworkKind; message: string }) =>
-          appendLog(`[${payload.framework}] ${payload.message}`),
-      },
+      props: buildProps(),
     });
 
     await currentApp.mountPromise;
+    if (seq !== loadSeq) return;
+    mountedFramework = target;
     isMounted.value = true;
   } catch (error) {
+    if (seq !== loadSeq) return;
     const message = error instanceof Error ? error.message : '微应用加载失败';
     loadError.value = message;
     isMounted.value = false;
   } finally {
-    isLoading.value = false;
+    if (seq === loadSeq) isLoading.value = false;
   }
+};
+
+/**
+ * 同框架换示例走子应用的 update 生命周期。
+ *
+ * 省掉的是整个沙箱重建：qiankun 用 eval 执行子应用脚本，绕过浏览器的字节码缓存，
+ * 重新 loadMicroApp 意味着 2MB+ 的 bundle 每次都要重新 parse + compile。
+ * 五个子应用的 update 都实现成幂等的 render(props)，可以直接复用。
+ *
+ * - `ok`：已更新到位。
+ * - `stale`：期间又切了一次，有更新的一轮在处理，调用方什么都不该做。
+ * - `unsupported`：子应用没有 update 生命周期，或 update 抛错，需要整体重挂。
+ */
+type UpdateOutcome = 'ok' | 'stale' | 'unsupported';
+
+const updateApp = async (): Promise<UpdateOutcome> => {
+  if (!currentApp || typeof currentApp.update !== 'function') return 'unsupported';
+
+  const seq = ++loadSeq;
+  loadError.value = '';
+  try {
+    await currentApp.update(buildProps());
+  } catch {
+    return seq === loadSeq ? 'unsupported' : 'stale';
+  }
+  return seq === loadSeq ? 'ok' : 'stale';
 };
 
 onMounted(async () => {
   await mountApp();
 });
 
-watch([framework, exampleId], async () => {
+watch([framework, exampleId], async ([nextFramework]) => {
+  if (currentApp && mountedFramework === nextFramework) {
+    const outcome = await updateApp();
+    if (outcome === 'ok') {
+      isMounted.value = true;
+      return;
+    }
+    if (outcome === 'stale') return;
+  }
   await mountApp();
 });
 
 onBeforeUnmount(async () => {
+  loadSeq++;
   if (currentApp) {
     await currentApp.unmount();
     currentApp = null;
+    mountedFramework = null;
   }
 });
 </script>

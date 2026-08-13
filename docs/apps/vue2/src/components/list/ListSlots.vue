@@ -51,6 +51,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '插槽示例展示了 stickyHeader、header、footer、stickyFooter 四种插槽的使用方法。',
   '短行。',
@@ -69,6 +70,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref(`总数: ${1000} | 含 Sticky/Header/Footer 插槽`);
 const list = ref<Item[]>(generateList(1000));

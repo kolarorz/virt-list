@@ -88,6 +88,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
 
+// demo:fold 示例数据构造：COLUMNS、generateList()、Item
 const COLUMNS = [
   { key: 'id' as const, title: 'ID', width: 60 },
   { key: 'name' as const, title: '姓名', width: 100 },
@@ -113,6 +114,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref('');
 const list = ref<Item[]>(generateList(100));

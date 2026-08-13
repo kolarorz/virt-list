@@ -2116,6 +2116,60 @@ html.dark .demo-block__pre .shiki span,
   text-decoration: var(--shiki-dark-text-decoration, inherit) !important;
 }
 
+/* -------------------------------------------------------------------
+ * 折叠区间（源码里用 demo:fold 标记，见 _shared/demoFold.ts）
+ *
+ * 造数据、演示用工具栏这类与库无关的脚手架默认收起，点摘要展开。
+ * toggle 用 block 撑出摘要自己那一行 —— 区间末尾的换行被收进了 body，
+ * 折叠时它跟着一起隐藏，换行得由 toggle 提供。
+ * ------------------------------------------------------------------- */
+
+/* 选择器要压过上面那条给所有 .shiki span 刷 --shiki-dark 的 !important 规则。
+   那条是 (0,3,2)，所以这里必须凑到四个 class —— 少一个 .demo-fold 就会在暗色下
+   被刷成 shiki 的前景色。颜色本身用跟着主题切换的变量，不必再写一份暗色变体 */
+.demo-block__pre .shiki .demo-fold > span.demo-fold__toggle {
+  display: block;
+  width: fit-content;
+  margin: 2px 0;
+  padding: 1px 8px 1px 4px;
+  border: 1px dashed var(--demo-c-border);
+  border-radius: var(--demo-radius-sm);
+  color: var(--demo-c-text-3) !important;
+  font-size: var(--demo-fs-sm);
+  line-height: 1.6;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color var(--demo-duration-fast) var(--demo-ease),
+    color var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-block__pre .shiki .demo-fold > span.demo-fold__toggle::before {
+  content: '▸';
+  display: inline-block;
+  width: 1.1em;
+  text-align: center;
+  transition: transform var(--demo-duration-fast) var(--demo-ease);
+}
+
+.demo-block__pre .shiki .demo-fold[data-open='true'] > span.demo-fold__toggle::before {
+  transform: rotate(90deg);
+}
+
+.demo-block__pre .shiki .demo-fold > span.demo-fold__toggle:hover {
+  border-color: var(--demo-c-brand-1);
+  color: var(--demo-c-brand-text) !important;
+}
+
+.demo-block__pre .shiki .demo-fold > span.demo-fold__toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--demo-c-brand-ring);
+}
+
+.demo-block__pre .shiki .demo-fold[data-open='false'] > span.demo-fold__body {
+  display: none;
+}
+
 /* ===================================================================
  * 12. 无障碍：降低动效
  * =================================================================== */

@@ -72,6 +72,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '平滑滚动通过 behavior: "smooth" 开启，不传参数时保持瞬时跳转。',
   '这一行比较短。',
@@ -90,6 +91,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const virtListRef = ref<typeof VirtList | null>(null);
 const list = ref<Item[]>(generateList(2000));

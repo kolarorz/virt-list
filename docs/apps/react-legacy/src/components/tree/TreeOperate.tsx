@@ -2,6 +2,7 @@ import { useRef, useState, useMemo } from 'react';
 import { VirtTree, type VirtTreeRef } from '@virt-list/react-legacy';
 import TreeEmpty from './items/TreeEmpty';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -16,6 +17,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 export default function TreeOperate() {
   const treeRef = useRef<VirtTreeRef>(null);

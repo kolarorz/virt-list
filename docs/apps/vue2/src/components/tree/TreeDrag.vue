@@ -31,6 +31,7 @@ import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeDragItem from './items/TreeDragItem.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
 
+// demo:fold 示例数据构造：generateTreeData()、TreeRow
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -47,6 +48,7 @@ function generateTreeData() {
 }
 
 type TreeRow = ReturnType<typeof generateTreeData>[number];
+// /demo:fold
 
 function removeNode(list: TreeRow[], node: { data: { id: string } }): boolean {
   for (let i = 0; i < list.length; i++) {

@@ -28,6 +28,7 @@ import { ref } from 'vue';
 import { VirtTree } from '@virt-list/vue';
 import TreeEmpty from './items/TreeEmpty.vue';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   const data = Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -48,6 +49,7 @@ function generateTreeData() {
   }
   return data;
 }
+// /demo:fold
 
 const showLine = ref(true);
 const lineKey = ref(0);

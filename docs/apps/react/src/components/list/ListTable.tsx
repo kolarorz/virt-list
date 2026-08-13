@@ -1,6 +1,7 @@
 import { useState, useMemo, type CSSProperties } from 'react';
 import { VirtList } from '@virt-list/react';
 
+// demo:fold 示例数据构造：Row、generateList()
 interface Row {
   id: number;
   name: string;
@@ -18,6 +19,7 @@ function generateList(count: number): Row[] {
     action: '操作',
   }));
 }
+// /demo:fold
 
 const stickyLeft: CSSProperties = {
   position: 'sticky',

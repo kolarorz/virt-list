@@ -1,6 +1,7 @@
 import { VirtTree } from '@virt-list/vanilla';
 import '@virt-list/vanilla/src/tree/tree.css';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -22,6 +23,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="tree-demo">

@@ -138,6 +138,28 @@ const SIZE_SAMPLE_TARGET = 32;
  */
 const SIZE_MISMATCH_RATIO = 2;
 
+/**
+ * 通知原因的强弱次序，供事务合并时取最强的那个（见 `VirtListCore._coalesce`）。
+ *
+ * 「强」的判据是 DOM 层为它多做多少事：`range` 只需重摆位置，`size` 还要重新校正
+ * 交叉轴视口，`force` / `list` 则要让每个可见项按最新数据重出内容。
+ */
+const REASON_RANK: Record<ListUpdateReason, number> = {
+  range: 0,
+  size: 1,
+  force: 2,
+  list: 3,
+};
+
+/** 取两个通知原因里更强的那个（`null` 表示还没有原因） */
+function strongerReason(
+  a: ListUpdateReason | null,
+  b: ListUpdateReason,
+): ListUpdateReason {
+  if (a === null) return b;
+  return REASON_RANK[b] > REASON_RANK[a] ? b : a;
+}
+
 /** easeOutCubic：起步快、收尾慢，贴近原生 smooth 的手感 */
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
@@ -239,8 +261,16 @@ export class VirtListCore<T extends Record<string, any>> {
    *
    * 头部增删是唯一会整体推移后续内容的结构变化，识别它需要"变化前的头部长什么样"。
    * 只留头部是因为尾部增删不影响视口位置，不必为此拷一份全量 key。
+   *
+   * 存**原样**的 key 而不是 `String()` 之后的字符串：这份快照每次列表变更都要重建
+   * 一遍（长列表上就是几万次），而数字 key 转字符串每次都要新分配一个堆对象，
+   * 实测占了重建耗时的大头。比对改成原值 `===`，只在要拿尺寸时才转字符串
+   * （`getItemSize` 内部本来就会转）。
+   *
+   * 代价是数字 `1` 与字符串 `'1'` 不再算同一个 key。这类混用本来就已经是错的：
+   * `sizesMap` 一直按 `String(key)` 存，两者会撞进同一条尺寸记录。
    */
-  private _prevHeadKeys: string[] = [];
+  private _prevHeadKeys: unknown[] = [];
   /** 上一次列表的长度，用于识别尾部追加（贴底跟随） */
   private _prevLen = 0;
   /** 是否已有可比对的列表快照（首次装载时无从比对） */
@@ -248,12 +278,14 @@ export class VirtListCore<T extends Record<string, any>> {
   /** 最近一次列表变更是否为尾部追加（头部未动且变长） */
   private _lastChangeWasAppend = false;
   /**
-   * 是否正处在一次列表变更中。
+   * 通知合并事务的嵌套层数，`> 0` 表示正处在一个事务里（见 `_coalesce`）。
    *
-   * `_notify` 用它把这一趟里的所有通知升级为 `list`——列表变更会经由
-   * `_updateRenderRange` 等嵌套调用发通知，而那些点自报的原因是 `range`。
+   * 计数而非布尔量：使用方的 `scroll` / `loadStateChange` / `loadMore` 回调可能
+   * 同步再改一次列表，那时事务是嵌套的，只有最外层出栈才该发通知。
    */
-  private _listChanging = false;
+  private _coalesceDepth = 0;
+  /** 事务期间攒下的通知原因（取最强的那个），null 表示还没有人要求通知 */
+  private _pendingReason: ListUpdateReason | null = null;
   /**
    * 上一次列表变更时的总尺寸。
    *
@@ -685,10 +717,13 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 强制触发一次完整的重新计算与渲染更新 */
   forceUpdate(): void {
-    this._calcListTotalSize();
-    this._updateLeadingSize();
-    this._updateRange(this.state.inViewBegin);
-    this._notify('force');
+    // 合并成一次通知：`_updateRange` 内部会自报一次 `range`，那一趟是中间态
+    this._coalesce(() => {
+      this._calcListTotalSize();
+      this._updateLeadingSize();
+      this._updateRange(this.state.inViewBegin);
+      this._notify('force');
+    });
   }
 
   getState(): ListState {
@@ -1367,111 +1402,118 @@ export class VirtListCore<T extends Record<string, any>> {
    */
   private _initResizeObserver(): void {
     if (typeof ResizeObserver === 'undefined') return;
-    this._resizeObserver = new ResizeObserver((entries) => {
-      let diff = 0;
-      /** 本轮有插槽尺寸真的变了（吸顶/吸底/header/footer，不含 client） */
-      let slotChanged = false;
-      for (const entry of entries) {
-        const id = (entry.target as HTMLElement).dataset.id;
-        if (!id) continue;
+    // 一次回调就是一个外部事件（"这一批元素测出了新尺寸"），内部的偏移量修正与
+    // 区间重算都是它的中间步骤，合并成一次通知。这条是滚动与流式输出的热路径：
+    // 每有项被测量就走一遍，此前每次发 2 条（`_resolvePinned` 的 range + 末尾的 size）
+    this._resizeObserver = new ResizeObserver((entries) =>
+      this._coalesce(() => this._onResizeEntries(entries)),
+    );
+  }
 
-        const oldSize = this.getItemSize(id);
-        let newSize = 0;
+  private _onResizeEntries(entries: ResizeObserverEntry[]): void {
+    let diff = 0;
+    /** 本轮有插槽尺寸真的变了（吸顶/吸底/header/footer，不含 client） */
+    let slotChanged = false;
+    for (const entry of entries) {
+      const id = (entry.target as HTMLElement).dataset.id;
+      if (!id) continue;
 
-        if (entry.borderBoxSize) {
-          const boxSize = Array.isArray(entry.borderBoxSize)
-            ? entry.borderBoxSize[0]
-            : entry.borderBoxSize;
-          newSize = this._props.horizontal
-            ? boxSize.inlineSize
-            : boxSize.blockSize;
+      const oldSize = this.getItemSize(id);
+      let newSize = 0;
+
+      if (entry.borderBoxSize) {
+        const boxSize = Array.isArray(entry.borderBoxSize)
+          ? entry.borderBoxSize[0]
+          : entry.borderBoxSize;
+        newSize = this._props.horizontal
+          ? boxSize.inlineSize
+          : boxSize.blockSize;
+      } else {
+        newSize = this._props.horizontal
+          ? entry.contentRect.width
+          : entry.contentRect.height;
+      }
+
+      if (id === 'client') {
+        this.slotSize.clientSize = newSize;
+        this._onClientResize();
+      } else if (isSlotId(id)) {
+        if (this._writeSlotSize(id, newSize)) slotChanged = true;
+      } else if (oldSize !== newSize) {
+        // 直接写 map：公开的 setItemSize 会保守地整体废弃索引，
+        // 而这里知道项的索引，可以只修正它所属的那一块
+        this.sizesMap.set(id, newSize);
+        const delta = newSize - oldSize;
+        diff += delta;
+
+        const index = this._renderKeys.get(id);
+        if (index === undefined) {
+          // 渲染窗口之外的项上报了尺寸：增量维护的值都不再可信
+          this._leadingSizeDirty = true;
+          this._sizeIndex.invalidate();
         } else {
-          newSize = this._props.horizontal
-            ? entry.contentRect.width
-            : entry.contentRect.height;
+          this._sizeIndex.applyDelta(index, delta);
         }
+        this._events.itemResize?.(id, newSize);
 
-        if (id === 'client') {
-          this.slotSize.clientSize = newSize;
-          this._onClientResize();
-        } else if (isSlotId(id)) {
-          if (this._writeSlotSize(id, newSize)) slotChanged = true;
-        } else if (oldSize !== newSize) {
-          // 直接写 map：公开的 setItemSize 会保守地整体废弃索引，
-          // 而这里知道项的索引，可以只修正它所属的那一块
-          this.sizesMap.set(id, newSize);
-          const delta = newSize - oldSize;
-          diff += delta;
-
-          const index = this._renderKeys.get(id);
-          if (index === undefined) {
-            // 渲染窗口之外的项上报了尺寸：增量维护的值都不再可信
-            this._leadingSizeDirty = true;
-            this._sizeIndex.invalidate();
-          } else {
-            this._sizeIndex.applyDelta(index, delta);
-          }
-          this._events.itemResize?.(id, newSize);
-
-          if (this._sizeSamples) {
-            this._sizeSamples.push(newSize);
-            if (this._sizeSamples.length >= SIZE_SAMPLE_TARGET) {
-              this._checkEstimatedSize();
-            }
+        if (this._sizeSamples) {
+          this._sizeSamples.push(newSize);
+          if (this._sizeSamples.length >= SIZE_SAMPLE_TARGET) {
+            this._checkEstimatedSize();
           }
         }
       }
+    }
 
-      this.state.itemsTotalSize += diff;
+    this.state.itemsTotalSize += diff;
 
-      // 重新求解待维持的目标，防止内容跳动。只有目标上方的项才会改变解，
-      // 下方项的尺寸变化自然得出零位移，无需额外判断。
-      //
-      // 刻意放在 `diff !== 0` 之外：`kind:'end'` 的目标是 totalSize - clientSize，
-      // **容器**尺寸变化也会让它失效，而那一轮的 diff 是 0。求解本身幂等，
-      // 没有待维持目标时是一次早退
-      this._resolvePinned();
-      this._syncAfterWrite();
+    // 重新求解待维持的目标，防止内容跳动。只有目标上方的项才会改变解，
+    // 下方项的尺寸变化自然得出零位移，无需额外判断。
+    //
+    // 刻意放在 `diff !== 0` 之外：`kind:'end'` 的目标是 totalSize - clientSize，
+    // **容器**尺寸变化也会让它失效，而那一轮的 diff 是 0。求解本身幂等，
+    // 没有待维持目标时是一次早退
+    this._resolvePinned();
+    this._syncAfterWrite();
 
-      if (diff !== 0) {
+    if (diff !== 0) {
 
-        // 尺寸变了，填满视口所需的项数也跟着变——项缩小时（折叠长消息）尤其明显：
-        // 原本一项撑满视口，缩回去之后要好几项才够。偏移量没动的话上面那次同步
-        // 是空操作，所以这里必须单独重算一次结束项
-        this._refreshViewEnd();
-        // itemsTotalSize 变了，footer 的文档位置随之改变；同时最大偏移量也变了，
-        // 通知上层重摆各段并刷新滚动条滑块
-        this._notify('size');
-        // 首屏项测出真实尺寸后总高度才准，这时才能判断内容是否填满视口。
-        // 首屏只回来半屏数据的情况全靠这里续拉，否则会停在半屏不再加载
-        this._loader.checkAutoLoad();
-      } else if (slotChanged) {
-        // 插槽尺寸变了也必须通知，理由见 `_writeSlotSize`。
-        // `diff !== 0` 那支已经 `_notify()` 过，这里只补它漏下的那种轮次
-        this._notify('size');
-      }
+      // 尺寸变了，填满视口所需的项数也跟着变——项缩小时（折叠长消息）尤其明显：
+      // 原本一项撑满视口，缩回去之后要好几项才够。偏移量没动的话上面那次同步
+      // 是空操作，所以这里必须单独重算一次结束项
+      this._refreshViewEnd();
+      // itemsTotalSize 变了，footer 的文档位置随之改变；同时最大偏移量也变了，
+      // 通知上层重摆各段并刷新滚动条滑块
+      this._notify('size');
+      // 首屏项测出真实尺寸后总高度才准，这时才能判断内容是否填满视口。
+      // 首屏只回来半屏数据的情况全靠这里续拉，否则会停在半屏不再加载
+      this._loader.checkAutoLoad();
+    } else if (slotChanged) {
+      // 插槽尺寸变了也必须通知，理由见 `_writeSlotSize`。
+      // `diff !== 0` 那支已经 `_notify()` 过，这里只补它漏下的那种轮次
+      this._notify('size');
+    }
 
-      // 首次渲染完成后再校准一次区间：首次测量之前 clientSize 是 0，
-      // 那时算出的可视区间必然不可信。
-      //
-      // 参照物是当前真实的滚动偏移量，不是 props.initialIndex：initialIndex /
-      // initialOffset / initialPosition='bottom' 以及用户在首帧里的滚动，都会让
-      // 实际位置偏离它。用 initialIndex 就会把区间拽回列表顶部，而滚动位置在
-      // 别处——视口于是落在还没渲染的空白上，且因为偏移量未变时同步逻辑会直接
-      // 返回，这个错误状态不会自愈，非得用户滚一下才恢复。
-      if (!this._isInit) {
-        requestAnimationFrame(() => {
-          if (this._bound) {
-            this._syncedOffset = this.getOffset();
-            this._calcRange();
-          } else {
-            // 还没绑定滚动容器，偏移量无从得知，此时 start 是唯一的参照
-            this._updateRange(this._props.initialIndex);
-          }
-        });
-        this._isInit = true;
-      }
-    });
+    // 首次渲染完成后再校准一次区间：首次测量之前 clientSize 是 0，
+    // 那时算出的可视区间必然不可信。
+    //
+    // 参照物是当前真实的滚动偏移量，不是 props.initialIndex：initialIndex /
+    // initialOffset / initialPosition='bottom' 以及用户在首帧里的滚动，都会让
+    // 实际位置偏离它。用 initialIndex 就会把区间拽回列表顶部，而滚动位置在
+    // 别处——视口于是落在还没渲染的空白上，且因为偏移量未变时同步逻辑会直接
+    // 返回，这个错误状态不会自愈，非得用户滚一下才恢复。
+    if (!this._isInit) {
+      requestAnimationFrame(() => {
+        if (this._bound) {
+          this._syncedOffset = this.getOffset();
+          this._calcRange();
+        } else {
+          // 还没绑定滚动容器，偏移量无从得知，此时 start 是唯一的参照
+          this._updateRange(this._props.initialIndex);
+        }
+      });
+      this._isInit = true;
+    }
   }
 
   /**
@@ -1591,11 +1633,20 @@ export class VirtListCore<T extends Record<string, any>> {
       return;
     }
 
-    // 取值函数在这里就把 list / itemKey 解构好，避免重建的每一次迭代
-    // 都去读两次 Proxy 属性；它只在本次重建期间被使用
-    this._sizeIndex.rebuild(len, (index) =>
-      this.getItemSize(list[index]?.[itemKey]),
-    );
+    // 取值函数在这里就把 list / itemKey / sizesMap / 估算值全部解构好：
+    // 重建要跑满整个列表（30w 项就是 30w 次回调），每一次都去读 Proxy 属性、
+    // 或多走一层 `getItemSize`（那里还要判一次 fixedSize）都会被放大 n 倍。
+    //
+    // key 已经是字符串时跳过 `String()`：`sizesMap` 按字符串存，而数字 key
+    // 每次转换都要新分配一个堆对象——这是重建耗时里最大的一块，
+    // 而字符串 id 的列表本来就不需要它。
+    const sizes = this.sizesMap;
+    const unit = this._unitSize;
+    this._sizeIndex.rebuild(len, (index) => {
+      const raw = list[index]?.[itemKey];
+      const key = typeof raw === 'string' ? raw : String(raw);
+      return sizes.get(key) ?? unit;
+    });
     this.state.itemsTotalSize = this._sizeIndex.total;
   }
 
@@ -1833,13 +1884,13 @@ export class VirtListCore<T extends Record<string, any>> {
 
   /** 列表数据变化后重新计算尺寸和区间 */
   private _onListChange(): void {
-    // 见 `_notify`：这一趟里的每次通知都要让 DOM 层知道"数据变了"
-    this._listChanging = true;
-    try {
+    this._coalesce(() => {
       this._onListChangeInner();
-    } finally {
-      this._listChanging = false;
-    }
+      // 末尾无条件要一次 `list`：走到这里就意味着 list 确实换过，DOM 层必须收到
+      // 带 `list` 的通知才会让可见项重出内容。内部各步自报的是 `range` / `size`，
+      // 光靠它们攒出来的原因不够强
+      this._notify('list');
+    });
   }
 
   private _onListChangeInner(): void {
@@ -1862,13 +1913,11 @@ export class VirtListCore<T extends Record<string, any>> {
       // 参照。等下面重新定位过，这个信息就取不回来了
       const prevInViewBegin = this.state.inViewBegin;
 
+      // 必须先算总尺寸再写偏移量：`_writeOffset` 会按 `_maxScrollOffset()`
+      // （即 `getTotalSize() - clientSize`）裁剪，头部插入新增的那段高度不先进账，
+      // 补偿量就会被裁掉。裁剪读的是账本、与 DOM 上容器有多高无关——偏移量由
+      // core 自己持有（`_scrollOffset`），不经过原生 scrollTop
       this._calcListTotalSize();
-
-      // 先让上层把容器高度更新到新的 itemsTotalSize，再写 scrollOffset。
-      // 顺序不能反：头部插入新增的那段高度此刻还不存在于 DOM 上，浏览器会按旧的
-      // 可滚动上限把 scrollTop 裁掉。这一次通知用的还是旧渲染切片，但同一个同步
-      // 任务里后面会修正，中间态不会被绘制出来
-      this._notify('list');
 
       this._writeOffset(this._syncedOffset + shiftSize, 'adjust');
       // 与 _resolvePinned 同理：写完立刻把 _syncedOffset 同步到裁剪后的真实值，
@@ -1896,10 +1945,9 @@ export class VirtListCore<T extends Record<string, any>> {
       // 同一个列表；头部平移后必须全量重算，否则渲染块的位移量会偏掉
       this._updateLeadingSize();
 
-      // leadingSize 刚被全量校正，再通知一次让上层拿到正确的位移量；
-      // 列表内容也确实变了（旧代码正是靠手动 forceUpdate 兜住这一步）
+      // leadingSize 刚被全量校正，渲染切片要跟着重取——事务出栈时那一次通知
+      // 发出去的就是这份切片与这个位移量
       this._setRenderList();
-      this._notify('list');
 
       if (shiftCount > 0) {
         // 头部插入项的尺寸此刻多半还是估算值，补偿量因此不准，差额要靠锚点在
@@ -1994,13 +2042,13 @@ export class VirtListCore<T extends Record<string, any>> {
 
     const { list, itemKey } = this._props;
     const prevFirstKey = prev[0];
-    const newFirstKey = String(list[0]?.[itemKey]);
+    const newFirstKey = list[0]?.[itemKey];
     if (newFirstKey === prevFirstKey) return none;
 
     // 旧首项在新列表的前段出现 → 它前面的都是新插入的项
     const scanEnd = Math.min(list.length, HEAD_SCAN_LIMIT);
     for (let i = 1; i < scanEnd; i += 1) {
-      if (String(list[i]?.[itemKey]) === prevFirstKey) {
+      if (list[i]?.[itemKey] === prevFirstKey) {
         let size = 0;
         for (let j = 0; j < i; j += 1) {
           size += this.getItemSize(String(list[j]?.[itemKey]));
@@ -2016,7 +2064,7 @@ export class VirtListCore<T extends Record<string, any>> {
         let size = 0;
         for (let j = 0; j < i; j += 1) {
           // j < i < prev.length，索引一定命中
-          size += this.getItemSize(prev[j]!);
+          size += this.getItemSize(String(prev[j]));
         }
         return { count: -i, size: -size };
       }
@@ -2029,9 +2077,10 @@ export class VirtListCore<T extends Record<string, any>> {
   private _snapshotList(): void {
     const { list, itemKey } = this._props;
     const n = Math.min(list.length, HEAD_SCAN_LIMIT);
-    const keys: string[] = new Array(n);
+    // 原样存，不转字符串——理由见 `_prevHeadKeys`
+    const keys: unknown[] = new Array(n);
     for (let i = 0; i < n; i += 1) {
-      keys[i] = String(list[i]?.[itemKey]);
+      keys[i] = list[i]?.[itemKey];
     }
     this._prevHeadKeys = keys;
     this._prevLen = list.length;
@@ -2048,14 +2097,46 @@ export class VirtListCore<T extends Record<string, any>> {
    * 所以这里不给默认值，每个调用点都必须显式说明自己是哪一类。
    */
   private _notify(reason: ListUpdateReason): void {
-    // 列表变更过程中发出的通知一律算 `list`，哪怕它是从 `_updateRenderRange`
-    // 这类"区间"路径冒出来的。
-    //
-    // 必须这么做：`_onListChange` 的两条分支里，只有"头部增删"那条会自己
-    // `_notify`，而"同 key 改内容"那条（不可变更新的常态）完全依赖嵌套调用
-    // 的通知 —— 那些点按自己的语境标的是 `range`，DOM 层照此不会刷新内容，
-    // 数据变了页面却不动。反过来滚动与尺寸路径不经过这个标志位，仍是精确的。
-    const effective: ListUpdateReason = this._listChanging ? 'list' : reason;
+    // 事务内的通知不当场发，攒成一条由出栈时代表整趟变更（见 `_coalesce`）
+    if (this._coalesceDepth > 0) {
+      this._pendingReason = strongerReason(this._pendingReason, reason);
+      return;
+    }
+    this._emitUpdate(reason);
+  }
+
+  /**
+   * 把一串内部校正合并成**一次**通知。
+   *
+   * 一个外部事件（列表换了、一批项测出新尺寸、强制刷新）在 core 内部要经过好几步
+   * 校正：区间 → leadingSize → 偏移量补偿 → 贴底求解。每一步都会顺手 `_notify`，
+   * 而它们全是通往同一个终态的中间态——实测一次列表变更发 2~3 次，一批尺寸上报发 2 次，
+   * `forceUpdate` 发 2 次。
+   *
+   * 逐次发出去的代价是实打实的：DOM 层每收到一次就要重摆各段、重建一遍 key 集合、
+   * 把可见项过一遍；带 `list` / `force` 的那几次还会让每个可见项重出内容，
+   * 于是 Vue / vue2 的插槽多求值一遍、Tree 的整池 DOM 多重建一遍。
+   *
+   * `reason` 不写死而是取事务内出现过的**最强**那个（range < size < force < list）：
+   * DOM 层拿它决定要不要重出内容、要不要重新校正交叉轴视口，标弱了会漏刷新，
+   * 标强了会白干活。
+   */
+  private _coalesce(fn: () => void): void {
+    this._coalesceDepth += 1;
+    try {
+      fn();
+    } finally {
+      this._coalesceDepth -= 1;
+    }
+    if (this._coalesceDepth > 0) return;
+
+    const reason = this._pendingReason;
+    this._pendingReason = null;
+    if (reason) this._emitUpdate(reason);
+  }
+
+  /** 真正把 update 事件发出去。事务合并之后只剩这里一个出口 */
+  private _emitUpdate(reason: ListUpdateReason): void {
     // leadingSize 失效时先补一次全量重算。
     //
     // 上层拿它当渲染块的位移量（itemsEl 的 transform），用陈旧值会让这一块内容整体偏移，
@@ -2067,6 +2148,6 @@ export class VirtListCore<T extends Record<string, any>> {
     // 而 DOM 层读的是 state.leadingSize，走不到那里。
     if (this._leadingSizeDirty) this._updateLeadingSize();
 
-    this._events.update?.(this._renderList, this.state, effective);
+    this._events.update?.(this._renderList, this.state, reason);
   }
 }

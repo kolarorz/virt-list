@@ -4,6 +4,7 @@ const PAGE_SIZE = 40;
 
 let uid = 0;
 
+// demo:fold 示例数据构造：CHAT_MSGS、generatePage()
 const CHAT_MSGS = [
   '好的，收到！',
   '这个方案看起来不错，我觉得可以按这个方向继续推进。',
@@ -26,6 +27,7 @@ function generatePage(page, pageSize) {
     };
   });
 }
+// /demo:fold
 
 function asyncGeneratePage(page, pageSize) {
   return new Promise((resolve) =>

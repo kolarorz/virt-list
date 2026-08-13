@@ -33,7 +33,14 @@ jobs:
       - name: Run tests with coverage
         run: pnpm test:coverage
 
-      # 只构建 packages/*：docs 与示例应用的类型检查另有 typecheck 脚本
+      # 覆盖文档站与全部 5 个示例应用。各 app 的 tsconfig paths 直接指向
+      # packages/*/src，不经过 dist，所以这一步不必等 build。
+      # 五份框架实现是彼此的副本，漂移只会在类型层面显形——vue2 / react-legacy
+      # 一度不在 typecheck 里，副本漂移就没人发现
+      - name: Typecheck docs and demo apps
+        run: pnpm typecheck
+
+      # 只构建 packages/*
       - name: Build packages
         run: pnpm build:packages
 

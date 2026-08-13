@@ -1,3 +1,4 @@
+import { toggleFoldAt, handleFoldKeydown } from '../../_shared/foldToggle';
 
 const template = `
   <div class="demo-block">
@@ -78,14 +79,21 @@ export function mountDemoBlock(root, source) {
 
 
 
+  // 折叠摘要是 innerHTML 塞进来的，绑不到具体节点，走容器上的事件委托
+  const onFoldClick = (e) => toggleFoldAt(e.target);
+
   toggleBtn.addEventListener('click', onToggle);
   copyBtn.addEventListener('click', onCopy);
+  codeEl.addEventListener('click', onFoldClick);
+  codeEl.addEventListener('keydown', handleFoldKeydown);
 
   return {
     mountEl: contentEl,
     destroy() {
       toggleBtn.removeEventListener('click', onToggle);
       copyBtn.removeEventListener('click', onCopy);
+      codeEl.removeEventListener('click', onFoldClick);
+      codeEl.removeEventListener('keydown', handleFoldKeydown);
       root.innerHTML = '';
     },
   };

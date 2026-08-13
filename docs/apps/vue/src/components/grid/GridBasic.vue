@@ -38,6 +38,7 @@ import { VirtGrid } from '@virt-list/vue';
 import GridItem from './GridItem.vue';
 import type { VirtGridRef } from '../_virtRefTypes';
 
+// demo:fold 示例数据构造：generateData()、GridItem
 function generateData(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     id: faker.string.nanoid(),
@@ -48,6 +49,7 @@ function generateData(count: number) {
 }
 
 type GridItem = ReturnType<typeof generateData>[number];
+// /demo:fold
 
 const gridRef = ref<VirtGridRef | null>(null);
 const statusText = ref('');

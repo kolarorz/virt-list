@@ -3,6 +3,7 @@ import { VirtTree } from '@virt-list/react';
 import TreeIconItem from './items/TreeIconItem';
 import TreeEmpty from './items/TreeEmpty';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -17,6 +18,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 export default function TreeIcon() {
   const treeData = useMemo(() => generateTreeData(), []);

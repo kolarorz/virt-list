@@ -63,6 +63,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '使用 scrollToIndex 可以精确跳转到指定索引的位置。',
   '使用 scrollToOffset 可以跳转到指定的像素偏移量。',
@@ -82,6 +83,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');

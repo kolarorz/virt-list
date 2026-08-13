@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
 
+// demo:fold 示例数据构造：Item、SENTENCES、generateList()
 interface Item {
   id: number;
   index: number;
@@ -23,6 +24,7 @@ function generateList(count: number): Item[] {
     return { id: i, index: i, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 /** 四个插槽共用一套排版，只有色带和文案不同 */
 function Band({ variant, tag, text, note }: BandProps) {

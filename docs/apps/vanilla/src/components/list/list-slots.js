@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '插槽示例展示了 stickyHeader、header、footer、stickyFooter 四种插槽的使用方法。',
   '短行。',
@@ -17,6 +18,7 @@ function generateList(count) {
     return { id: i, index: i, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 /** 四个插槽共用一套排版，只有色带和文案不同 */
 function createBand(variant, tag, text, note) {

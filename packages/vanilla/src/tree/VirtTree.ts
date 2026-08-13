@@ -538,7 +538,9 @@ export class VirtTree {
     this._initCheckedKeys();
     this._nodeElMap.clear();
     this._virtListDOM.clearItemPool();
-    this._refresh();
+    // 池子刚清空，随后的 setList 本身就会把每个可见节点建一遍，
+    // 不必再让 _refresh 走一次 forceUpdate（那等于同一批节点连建两遍）
+    this._refresh(false);
   }
 
   forceUpdate(): void {
@@ -547,7 +549,7 @@ export class VirtTree {
     this._initCheckedKeys();
     this._nodeElMap.clear();
     this._virtListDOM.clearItemPool();
-    this._refresh();
+    this._refresh(false);
   }
 
   /** 增量更新选项（受控模式下由外部框架 wrapper 调用） */
@@ -860,11 +862,21 @@ export class VirtTree {
     this._renderList = flattenNodes;
   }
 
-  /** 重新计算可见列表并刷新虚拟列表渲染 */
-  private _refresh(): void {
+  /**
+   * 重新计算可见列表并刷新虚拟列表渲染。
+   *
+   * `rebuildAll` 决定要不要额外走一趟 `forceUpdate`（清空渲染池、把可见节点全部重建）。
+   * 展开 / 折叠 / 筛选那类调用**需要**它：可见列表里留下来的 key 没变，而节点内部的
+   * 展开图标、层级缩进都得按新状态重出——树没有给 VirtList 传 `updateItem`，
+   * 复用的项不会重新走 `renderItem`，只能靠重建。
+   *
+   * 反过来，调用方自己刚 `clearItemPool()` 过的话要传 `false`：池子已经是空的，
+   * 下面这句 `setList` 就会把每个可见节点建一遍，再 `forceUpdate` 等于连建两遍。
+   */
+  private _refresh(rebuildAll = true): void {
     this._computeRenderList();
     this._virtListDOM.setList(this._renderList);
-    this._virtListDOM.forceUpdate();
+    if (rebuildAll) this._virtListDOM.forceUpdate();
     this._updateRenderedNodeStates();
   }
 

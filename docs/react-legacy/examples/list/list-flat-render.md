@@ -1,4 +1,4 @@
-# React Legacy - 扁平渲染（默认支持）
+# 扁平渲染（默认支持）
 
 演示 children / render props 内容直接渲染到 item wrapper 中，无额外 DOM 包裹层。
 

@@ -3,6 +3,7 @@ import { VirtTree, type VirtTreeRef } from '@virt-list/react';
 import TreeFocusItem from './items/TreeFocusItem';
 import TreeEmpty from './items/TreeEmpty';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -17,6 +18,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 export default function TreeFocus() {
   const treeRef = useRef<VirtTreeRef>(null);

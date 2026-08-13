@@ -1,6 +1,7 @@
 import { useRef, useState, useLayoutEffect } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react';
 
+// demo:fold 示例数据构造：User、Product、generateUsers()…
 interface User {
   id: number;
   name: string;
@@ -42,6 +43,7 @@ function generateProducts(count: number): Product[] {
 }
 
 type Tab = 'users' | 'products';
+// /demo:fold
 
 export default function KeepAlive() {
   const userListRef = useRef<VirtListRef<User>>(null);

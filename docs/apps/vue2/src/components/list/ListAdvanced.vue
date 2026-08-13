@@ -88,6 +88,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 
+// demo:fold 示例数据构造：COLUMNS
 const COLUMNS = [
   { key: 'id' as const, title: 'ID', width: 60 },
   { key: 'name' as const, title: '姓名', width: 100 },
@@ -97,6 +98,7 @@ const COLUMNS = [
   { key: 'desc2' as const, title: '描述2', width: 300 },
   { key: 'desc3' as const, title: '描述3', width: 300 },
 ];
+// /demo:fold
 
 /**
  * 前两列合并后的宽度。
@@ -106,6 +108,7 @@ const COLUMNS = [
  */
 const MERGED_WIDTH = `${COLUMNS[0]!.width + COLUMNS[1]!.width}px`;
 
+// demo:fold 示例数据构造：generateList()、Item
 function generateList(count: number) {
   const addresses = ['北京市朝阳区', '上海市浦东新区', '广州市天河区', '深圳市南山区', '杭州市西湖区'];
   return Array.from({ length: count }, (_, i) => ({
@@ -121,6 +124,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref('');
 const list = ref<Item[]>(generateList(100));

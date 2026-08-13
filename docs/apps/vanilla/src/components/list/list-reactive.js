@@ -8,6 +8,7 @@ function randValue() {
   return Math.floor(Math.random() * 1000);
 }
 
+// demo:fold 示例数据构造：createRows()
 function createRows(count) {
   return Array.from({ length: count }, (_, index) => ({
     id: index,
@@ -17,6 +18,7 @@ function createRows(count) {
     updatedAt: nowText(),
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

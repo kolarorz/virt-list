@@ -3,6 +3,7 @@ import { VirtTree, type VirtTreeRef, type TreeNode } from '@virt-list/react';
 import TreeDragItem from './items/TreeDragItem';
 import TreeEmpty from './items/TreeEmpty';
 
+// demo:fold 示例数据构造：TreeRow、generateTreeData()
 type TreeRow = {
   id: string;
   title: string;
@@ -23,6 +24,7 @@ function generateTreeData(): TreeRow[] {
     })),
   }));
 }
+// /demo:fold
 
 function removeNode(list: TreeRow[], node: TreeNode): boolean {
   for (let i = 0; i < list.length; i++) {

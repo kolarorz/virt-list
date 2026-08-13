@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { Plugin } from 'vite';
-import { createHighlighter, type Highlighter } from 'shiki';
+import { createHighlighter, type Highlighter, type ShikiTransformer } from 'shiki';
+import { parseFoldMarkers, type FoldRegion } from './demoFold';
 
 /**
  * 把示例源码在**构建时**转成带语法高亮的 HTML。
@@ -42,15 +43,86 @@ function langOf(file: string): string {
   return LANG_BY_EXT[ext] ?? 'txt';
 }
 
-export function highlightSource(): Plugin {
-  let highlighter: Highlighter | null = null;
+/**
+ * 把折叠区间的行包进可展开的容器。
+ *
+ * 为什么在 hast 上做而不是切分源码分段高亮：TextMate 是有状态的行扫描器，
+ * 分段高亮会让每段从初始状态重新开始 —— Vue SFC 里 `<template>` 之后的段落
+ * 会被当成顶层重新解析，折叠区之后的代码全部串色。所以整体高亮一次，
+ * 再按行号重组输出结构。
+ *
+ * 结构全部用 `<span>`：`<code>` 只允许 phrasing content，`<details>` 塞进去不合法。
+ * 展开交互由 DemoBlock 用事件委托处理（v-html 的内容拿不到框架的事件绑定）。
+ */
+export function foldTransformer(regions: FoldRegion[]): ShikiTransformer {
+  return {
+    name: 'demo-fold',
+    code(node) {
+      if (regions.length === 0) return;
 
-  async function getHighlighter(): Promise<Highlighter> {
-    highlighter ??= await createHighlighter({
+      const isLine = (child: (typeof node.children)[number]) =>
+        child.type === 'element' && child.tagName === 'span' && String(child.properties?.class ?? '').split(/\s+/).includes('line');
+
+      // 第 k 个 line span 就是第 k 行
+      const lineAt: number[] = [];
+      node.children.forEach((child, index) => {
+        if (isLine(child)) lineAt.push(index);
+      });
+
+      // 从后往前替换，前面的下标才不会失效
+      for (const region of [...regions].reverse()) {
+        const from = lineAt[region.start - 1];
+        const to = lineAt[region.end - 1];
+        if (from == null || to == null) continue;
+
+        // 区间末尾那个换行也收进折叠块，否则展开时它会叠在 body 的块级断行之后
+        // 多出一个空行。摘要行的换行改由 CSS 让 toggle 独占一行来提供。
+        const next = node.children[to + 1];
+        const last = next?.type === 'text' ? to + 1 : to;
+
+        const body = node.children.slice(from, last + 1);
+        const count = region.end - region.start + 1;
+
+        node.children.splice(from, last + 1 - from, {
+          type: 'element',
+          tagName: 'span',
+          properties: { class: 'demo-fold', 'data-open': 'false' },
+          children: [
+            {
+              type: 'element',
+              tagName: 'span',
+              properties: {
+                class: 'demo-fold__toggle',
+                role: 'button',
+                tabindex: 0,
+                'aria-expanded': 'false',
+              },
+              children: [{ type: 'text', value: `${region.label}（${count} 行）` }],
+            },
+            {
+              type: 'element',
+              tagName: 'span',
+              properties: { class: 'demo-fold__body' },
+              children: body,
+            },
+          ],
+        });
+      }
+    },
+  };
+}
+
+export function highlightSource(): Plugin {
+  // 缓存 Promise 而不是实例：vite 并行 load 各个示例，`x ??= await create()`
+  // 会让每个并发调用都看到 null 各建一个 highlighter（实测建了 40 多个）
+  let highlighterPromise: Promise<Highlighter> | null = null;
+
+  function getHighlighter(): Promise<Highlighter> {
+    highlighterPromise ??= createHighlighter({
       themes: [THEMES.light, THEMES.dark],
       langs: Object.values(LANG_BY_EXT),
     });
-    return highlighter;
+    return highlighterPromise;
   }
 
   return {
@@ -70,21 +142,29 @@ export function highlightSource(): Plugin {
       if (!id.startsWith(VIRTUAL_PREFIX)) return null;
       const file = id.slice(VIRTUAL_PREFIX.length);
 
-      const raw = await readFile(file, 'utf-8');
+      const source = await readFile(file, 'utf-8');
+      // 标记行只是给构建看的，不进高亮也不进复制内容
+      const { code, regions } = parseFoldMarkers(source);
+
       const hl = await getHighlighter();
-      const html = hl.codeToHtml(raw, {
+      const html = hl.codeToHtml(code, {
         lang: langOf(file),
         themes: THEMES,
-        // 生成 --shiki-dark 变量，配合 CSS 切换明暗
-        defaultColor: false,
+        // 亮色直接写进 color，暗色写进 --shiki-dark 变量，由 CSS 按 .dark 切换。
+        // 不能用 defaultColor: false —— 那样连亮色也只写 --shiki-light 变量，
+        // 亮色模式下所有 token 都继承父级颜色，等于没高亮。
+        defaultColor: 'light',
+        transformers: [foldTransformer(regions)],
       });
 
-      return `export default ${JSON.stringify({ html, raw })};`;
+      return `export default ${JSON.stringify({ html, raw: code })};`;
     },
 
     async buildEnd() {
-      highlighter?.dispose();
-      highlighter = null;
+      const pending = highlighterPromise;
+      highlighterPromise = null;
+      // 构建失败时 load 可能还没跑完，await 一下再释放，别把 rejection 漏出去
+      await pending?.then((hl) => hl.dispose()).catch(() => {});
     },
   };
 }

@@ -481,3 +481,99 @@ describe('Vue VirtGrid 不可变替换', () => {
     expect(texts(container)).not.toContain('原始0');
   });
 });
+
+/**
+ * 一次数据变更下，每个可见项的插槽只该被求值一次。
+ *
+ * 插槽求值是使用方代码的入口（里面可能有 markdown 渲染、代码高亮这类不便宜的活），
+ * 所以「跑了几遍」是使用方能直接感受到的成本。曾经是 2 遍（头部增删 3 遍）：core 在
+ * 一次列表变更里发好几次 update，而 Vue 适配器每收到一次就把挂载点重渲染一遍。
+ * 现在 core 把事务内的通知合并成一次（见 core 的 ListChangeNotify.test.ts）。
+ */
+describe('Vue 插槽求值次数', () => {
+  /** 挂一个统计插槽求值次数的列表，返回控制句柄 */
+  async function mountCounting(len: number) {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const list = ref<Item[]>(
+      Array.from({ length: len }, (_, i) => ({ id: i, label: `原始${i}` })),
+    );
+    let calls = 0;
+
+    const Host = defineComponent({
+      setup() {
+        return () => {
+          const slots: any = {
+            default: withCtx(({ itemData }: { itemData: Item }) => {
+              calls += 1;
+              return [h('div', { class: 'cell' }, itemData.label)];
+            }),
+            _: 1,
+          };
+          return h(
+            VirtList as any,
+            { list: list.value, itemKey: 'id', estimatedSize: ITEM_SIZE },
+            slots,
+          );
+        };
+      },
+    });
+
+    app = createApp(Host);
+    app.mount(container);
+    measure();
+    await nextTick();
+    measure();
+    await nextTick();
+
+    const visible = container.querySelectorAll('.cell').length;
+    return {
+      container,
+      list,
+      visible,
+      reset: () => {
+        calls = 0;
+      },
+      get calls() {
+        return calls;
+      },
+    };
+  }
+
+  it('尾部追加：每个可见项的插槽只求值一次', async () => {
+    const h1 = await mountCounting(200);
+    expect(h1.visible).toBeGreaterThan(1);
+    h1.reset();
+
+    h1.list.value = [...h1.list.value, { id: 999, label: '新' }];
+    await nextTick();
+
+    expect(h1.calls).toBe(h1.visible);
+  });
+
+  it('整体换新：每个可见项的插槽只求值一次', async () => {
+    const h1 = await mountCounting(200);
+    h1.reset();
+
+    h1.list.value = h1.list.value.map((it) => ({ ...it, label: `改${it.id}` }));
+    await nextTick();
+
+    expect(h1.calls).toBe(h1.visible);
+    expect(texts(h1.container)).toContain('改0');
+  });
+
+  it('头部插入：每个可见项的插槽只求值一次', async () => {
+    const h1 = await mountCounting(200);
+    h1.reset();
+
+    h1.list.value = [
+      { id: 1001, label: 'a' },
+      { id: 1002, label: 'b' },
+      ...h1.list.value,
+    ];
+    await nextTick();
+
+    expect(h1.calls).toBe(h1.visible);
+  });
+});

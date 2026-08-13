@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '虚拟列表是一种高性能的列表渲染方案，只渲染可视区域内的元素。',
   '通过动态计算每个元素的位置和大小，可以高效地处理海量数据。',
@@ -28,6 +29,7 @@ function generateList(count, startIndex = 0) {
     };
   });
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

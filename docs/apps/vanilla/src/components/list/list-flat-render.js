@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '使用 el 回调模式可以直接操作 item wrapper，减少一层 DOM 嵌套。',
   '短行。',
@@ -17,6 +18,7 @@ function generateList(count) {
     return { id: i, index: i, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

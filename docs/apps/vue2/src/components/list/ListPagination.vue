@@ -44,6 +44,7 @@ const PAGE_MAX = 10;
 
 let uid = 0;
 
+// demo:fold 示例数据构造：PAGE_MSGS、generatePage()
 const PAGE_MSGS = [
   '短消息。',
   '这是一条普通长度的分页消息，展示双向分页加载的效果。',
@@ -64,6 +65,7 @@ function generatePage(page: number) {
     };
   });
 }
+// /demo:fold
 
 function asyncGeneratePage(page: number) {
   return new Promise<ReturnType<typeof generatePage>>((resolve) =>

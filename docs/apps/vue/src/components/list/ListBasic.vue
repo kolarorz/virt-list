@@ -1,5 +1,6 @@
 <template>
   <div class="demo-panel">
+    <!-- demo:fold 演示用工具栏与状态栏 -->
     <div class="demo-toolbar">
       <label>添加数量：</label>
       <input v-model.number="addCount" type="number" min="1" style="width: 80px" />
@@ -15,6 +16,7 @@
       </button>
     </div>
     <div class="demo-stats">{{ statsText }}</div>
+    <!-- /demo:fold -->
     <div class="demo-list-container">
       <VirtList
         ref="virtListRef"
@@ -36,6 +38,7 @@ import { ref, onUnmounted } from 'vue';
 import { VirtList } from '@virt-list/vue';
 import Item from '../Item.vue';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '虚拟列表是一种高性能的列表渲染方案，只渲染可视区域内的元素。',
   '通过动态计算每个元素的位置和大小，可以高效地处理海量数据。',
@@ -66,6 +69,7 @@ function generateList(count: number, startIndex = 0) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const virtListRef = ref<typeof VirtList | null>(null);
 const statsText = ref('');

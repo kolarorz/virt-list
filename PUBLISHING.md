@@ -281,7 +281,7 @@ beta 验证通过后回到正式版：`pnpm release 0.1.0`。
 
 ### 发布前检查清单
 
-用 `pnpm release` 时，前 5 项由脚本自动保证，只需人工确认后 4 项；先跑一次 `pnpm release:dry` 可以一次性验证到"发布前"的所有环节。
+用 `pnpm release` 时，前 6 项由脚本自动保证，只需人工确认后 4 项；先跑一次 `pnpm release:dry` 可以一次性验证到"发布前"的所有环节。
 
 - [x] `pnpm test` 全部通过 —— 脚本自动执行
 - [x] `pnpm build:packages` 构建成功 —— 脚本自动执行
@@ -290,7 +290,7 @@ beta 验证通过后回到正式版：`pnpm release 0.1.0`。
 - [x] 工作区无未提交更改 —— 脚本自动检查
 - [x] 构建产物能被 Node 直接 import —— `pnpm check:esm`，CI 里也有这一步
 - [ ] 各包 `dist/` 目录包含 `.js`、`.d.ts`、`.js.map`，以及 `style.css`（core 除外）
-- [ ] `files` 字段正确（`dist` + `src` 用于 CSS 和源码映射；`LICENSE` 与 `README` 由 npm 自动带上）
+- [ ] `files` 字段正确（`dist` + `src` 用于 CSS 和源码映射；npm 自动带上的是**各包目录下**的 `LICENSE` 与 `README.md`，不是根目录那两份——六个包各有一份副本）
 - [ ] `exports` 字段正确配置（含 `./style.css`）
 - [ ] `peerDependencies` 版本范围合理
 
@@ -298,8 +298,9 @@ beta 验证通过后回到正式版：`pnpm release 0.1.0`。
 
 ```bash
 # 验证包内容（列出将被打进 tarball 的文件）
-pnpm --filter @virt-list/core pack --dry-run
-pnpm --filter @virt-list/vanilla pack --dry-run
+# pnpm 9 的 pack 不认 --dry-run（报 Unknown options），所以进包目录用 npm pack
+(cd packages/core && npm pack --dry-run)
+(cd packages/vue && npm pack --dry-run)
 
 # 确认 registry 上的版本
 npm view @virt-list/vue version --registry https://registry.npmjs.org/
@@ -310,9 +311,13 @@ npm init -y
 npm install @virt-list/vue
 ```
 
+> `npm pack` 在这里只用来**看文件列表**。它不会把 `workspace:*` 换成真实版本号，所以它产出的
+> tarball 不能拿去发布 —— 发布始终走 `pnpm publish`，理由见上文。
+
 ## CI/CD 集成
 
-当前 `.github/workflows/ci.yml` 只跑测试与构建，发布是本地手动触发的（`pnpm release`）。
+当前 `.github/workflows/ci.yml` 跑四步：测试（含覆盖率阈值）、typecheck（文档站 + 5 个示例应用）、
+构建 packages、`check:esm`。发布是本地手动触发的（`pnpm release`）。
 
 如果将来想改成推送 tag 即自动发布，可以加下面这个 workflow，并在仓库 Settings → Secrets 里配置 `NPM_TOKEN`。注意此时本地应改用 `pnpm release --no-push` 之外的方式：让 CI 负责发布，本地只负责改版本号和推 tag。
 

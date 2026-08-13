@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { VirtList, type LoadDirection, type LoadState } from '@virt-list/react-legacy';
 
+// demo:fold 示例数据构造：Item、SENTENCES、generateList()
 interface Item {
   id: number;
   index: number;
@@ -26,6 +27,7 @@ function generateList(count: number, startIndex = 0): Item[] {
     return { id: uid++, index: idx, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 function delayItems(count: number, startIndex: number, ms: number): Promise<Item[]> {
   return new Promise((resolve) =>

@@ -2,6 +2,7 @@ import { VirtList } from '@virt-list/vanilla';
 
 let uid = 0;
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '滚动到底部会自动触发加载更多数据。',
   '新数据加载完成后会追加到列表末尾。',
@@ -21,6 +22,7 @@ function generateList(count, startIndex = 0, delay = 0) {
   if (delay <= 0) return Promise.resolve(items);
   return new Promise((resolve) => setTimeout(() => resolve(items), delay));
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

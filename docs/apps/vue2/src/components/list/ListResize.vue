@@ -23,6 +23,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '拖拽容器右下角可以调整大小，虚拟列表会自动适应新的容器尺寸。',
   '容器变大时会渲染更多的行。',
@@ -42,6 +43,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref('');
 const list = ref<Item[]>(generateList(2000));

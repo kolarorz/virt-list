@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '使用 scrollToIndex 可以精确跳转到指定索引的位置。',
   '使用 scrollToOffset 可以跳转到指定的像素偏移量。',
@@ -17,6 +18,7 @@ function generateList(count) {
     return { id: i, index: i, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

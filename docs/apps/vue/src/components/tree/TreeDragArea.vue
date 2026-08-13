@@ -39,6 +39,7 @@ interface TreeRow {
 
 const treeRef = ref<VirtTreeRef | null>(null);
 
+// demo:fold 示例数据构造：treeData
 const treeData = ref<TreeRow[]>([
   {
     id: 'role',
@@ -74,6 +75,7 @@ const treeData = ref<TreeRow[]>([
   { id: 'drag-2', title: '场景环节', children: [] },
   { id: 'drag-3', title: '测试', children: [] },
 ]);
+// /demo:fold
 
 function removeNode(list: TreeRow[], node: { data: TreeRow }): boolean {
   for (let i = 0; i < list.length; i++) {

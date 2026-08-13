@@ -29,6 +29,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
 
+// demo:fold 示例数据构造：WIDTHS、generateList()、Item
 const WIDTHS = [76, 92, 108, 124, 148];
 
 function generateList(count: number) {
@@ -39,6 +40,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref('');
 const list = ref<Item[]>(generateList(1000));

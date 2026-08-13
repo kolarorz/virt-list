@@ -1,4 +1,4 @@
-# Vue - 各类操作
+# 各类操作
 
 scrollToOffset / scrollToIndex / scrollIntoView 等操作。
 

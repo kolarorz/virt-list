@@ -6,6 +6,7 @@ import '@virt-list/vanilla/src/tree/tree.css';
  * 默认表现为一圈内描边环（亮/暗色自动适配）。
  * 需要换色时覆盖变量即可：`.virt-tree-item { --virt-tree-color-node-ring-focused: #18a058; }`
  */
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -20,6 +21,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="tree-demo">

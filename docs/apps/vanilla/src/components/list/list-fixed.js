@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：generateList()
 function generateList(count) {
   return Array.from({ length: count }, (_, i) => ({
     id: i,
@@ -7,6 +8,7 @@ function generateList(count) {
     text: `固定高度行 ${i}，每行高度一致（40px）。`,
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

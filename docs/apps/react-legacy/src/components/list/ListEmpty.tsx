@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
 import Item from '../Item';
 
+// demo:fold 示例数据构造：Item、SENTENCES、generateList()
 interface Item {
   id: number;
   index: number;
@@ -33,6 +34,7 @@ function generateList(count: number, startIndex = 0): Item[] {
     };
   });
 }
+// /demo:fold
 
 export default function Empty() {
   const [list, setList] = useState<Item[]>([]);

@@ -24,7 +24,7 @@
 响应式深度耦合，这里把它拆成**纯 JS 内核 + 原生 DOM 层 + 轻量框架绑定层**三段，
 于是同一套经过验证的算法可以跨框架复用，core 层也能脱离浏览器做单元测试。
 
-📖 [文档站](https://kolarorz.github.io/virt-list/) · 🏗 [架构设计](./ARCHITECTURE.md) · 📦 [发布流程](./PUBLISHING.md)
+📖 [文档站](https://kolarorz.github.io/virt-list/) · 🏗 [架构设计](./ARCHITECTURE.md) · 📦 [发布流程](./PUBLISHING.md) · 📋 [变更日志](./CHANGELOG.md)
 
 ## 包总览
 

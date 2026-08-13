@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { DemoSource } from '../../../_shared/demoSource';
+import { toggleFoldAt, handleFoldKeydown } from '../../../_shared/foldToggle';
 export default function DemoBlock({ source, children }: { source: DemoSource; children: ReactNode }) {
   const [showCode, setShowCode] = useState(false);
   const [copyText, setCopyText] = useState('复制');
@@ -49,9 +50,12 @@ export default function DemoBlock({ source, children }: { source: DemoSource; ch
               {copyText}
             </button>
           </div>
-          {/* 高亮 HTML 在构建时生成（见 _shared/vitePluginHighlightSource.ts），这里只负责渲染 */}
+          {/* 高亮 HTML 在构建时生成（见 _shared/vitePluginHighlightSource.ts），这里只负责渲染；
+              里面的折叠摘要拿不到 React 的事件绑定，靠这层委托处理展开 */}
           <div
             className="demo-block__pre"
+            onClick={(e) => toggleFoldAt(e.target)}
+            onKeyDown={handleFoldKeydown}
             dangerouslySetInnerHTML={{ __html: source.html }}
           />
         </div>

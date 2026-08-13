@@ -34,6 +34,7 @@ import type { LoadDirection, LoadState } from '@virt-list/vue2';
 
 let uid = 0;
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '滚动到底部会自动触发加载更多数据。',
   '新数据加载完成后会追加到列表末尾。',
@@ -55,6 +56,7 @@ function generateList(count: number, startIndex = 0, delay = 0) {
 }
 
 type Item = Awaited<ReturnType<typeof generateList>>[number];
+// /demo:fold
 
 const statsText = ref('');
 const list = ref<Item[]>([]);

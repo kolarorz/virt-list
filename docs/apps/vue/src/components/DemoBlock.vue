@@ -25,8 +25,14 @@
       <div class="demo-block__source-header">
         <button class="demo-block__copy" @click="onCopy">{{ copyText }}</button>
       </div>
-      <!-- 高亮 HTML 在构建时生成（见 _shared/vitePluginHighlightSource.ts），这里只负责渲染 -->
-      <div class="demo-block__pre" v-html="props.source.html" />
+      <!-- 高亮 HTML 在构建时生成（见 _shared/vitePluginHighlightSource.ts），这里只负责渲染；
+           里面的折叠摘要拿不到 Vue 的事件绑定，靠这层委托处理展开 -->
+      <div
+        class="demo-block__pre"
+        @click="toggleFoldAt($event.target)"
+        @keydown="handleFoldKeydown"
+        v-html="props.source.html"
+      />
     </div>
   </div>
 </template>
@@ -34,6 +40,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { DemoSource } from '../../../_shared/demoSource';
+import { toggleFoldAt, handleFoldKeydown } from '../../../_shared/foldToggle';
 const props = defineProps<{
   source: DemoSource;
 }>();

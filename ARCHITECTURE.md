@@ -160,6 +160,23 @@ _resolvePinned()                  // 每次 ResizeObserver 回调重新求解一
 求解的是不变量而非增量补偿，所以不需要收敛判据、不需要重试上限、不需要
 "这次是谁写的"标记窗口。实测 2000 项不定高 `scrollToBottom` 一轮即收敛。
 
+### 热路径上不读几何量
+
+滚动帧的落点是 `VirtList._applyLayout`：它把各段的 transform 残差写一遍。
+**这之后不能再读布局**（`getBoundingClientRect` / `clientHeight` / `offsetHeight`）——
+浏览器为了给出准确的值必须立刻重算刚被改脏的布局，读写交替就是每帧一次强制同步回流。
+
+需要几何量的地方各有对策：
+
+- 自绘滚动条的**轨道长度**按视口尺寸缓存（`Scrollbar._trackSize`）。轨道与视口等长，
+  视口没变它就没变；容器缩放会经由 ResizeObserver 改写账本里的 `clientSize`，
+  缓存自然失效，拖拽按下时再显式失效一次以保证换算精度。
+- **交叉轴视口的校正**（原生横向滚动条占掉的那一条）推到微任务里，且只跟着
+  `list` / `force` / `size` 那几趟走，不跟滚动帧（`VirtList._queueCrossViewportSync`）。
+
+契约锁在 `packages/vanilla/__tests__/ReactivePerf.test.ts`：滚动与数据变更期间
+`getBoundingClientRect` 的调用次数必须是 0。
+
 ### 已知取舍与风险
 
 - **移动端触摸惯性已经过真机验证**。衰减系数 0.95/帧、停止阈值 0.02px/ms 按常见实现取值，
@@ -272,9 +289,25 @@ DOM 完全交给使用方在框架里写。TanStack Virtual 是这条路线的�
   `range` / `size`）。**区分来源是必需的**：`update` 的 8 个触发点里只有 `list` / `force`
   意味着数据变了，而 `range` 每帧都在发（滚动）、`size` 也很频繁（ResizeObserver）。
   不区分就等于滚动每一帧把全部可见项的内容重渲染一遍。
-- 列表变更期间的通知一律升级为 `list`（`VirtListCore._notify` 的 `_listChanging` 标志）。
-  必要性在于 `_onListChange` 的"同 key 改内容"分支完全依赖 `_updateRenderRange` 等嵌套
-  调用发通知，而那些点按自己的语境标的是 `range`。
+- **一个外部事件只发一次通知**（`VirtListCore._coalesce` 事务：期间的通知全部吞掉，
+  最外层出栈时按事务内出现过的**最强** `reason` 发一次）。三个入口进事务：
+  列表变更（`_onListChange`）、一批尺寸上报（ResizeObserver 回调）、`forceUpdate`。
+
+  两个理由缺一不可：
+  - *正确性*：`_onListChange` 的"同 key 改内容"分支自己不发通知，全靠 `_updateRenderRange`
+    等嵌套调用，而那些点按自己的语境标的是 `range` —— 照原样传下去，数据变了页面不动。
+    所以事务末尾会显式要一次 `list`，并且合并时取最强原因（`range` < `size` < `force` < `list`）：
+    标弱了漏刷新，标强了白干活。
+  - *性能*：core 处理一个外部事件内部要经过区间 → leadingSize → 偏移量补偿 → 贴底求解
+    好几步校正，逐步发通知就是：列表变更 2 次（尾部追加 / 整体换新）到 3 次（头部增删）、
+    一批尺寸上报 2 次、`forceUpdate` 2 次。它们都只是通往同一个终态的中间态，DOM 层却会
+    照单全收：重摆各段、重建 key 集合、把可见项过一遍，带 `list` / `force` 的还要让每个
+    可见项重出内容（Vue / vue2 每项插槽多求值一遍，Tree 整池 DOM 多重建一遍）。
+    合并之后统一为 1 次。
+
+  合并只在**一个事件内部**发生：两次滚动、两批尺寸上报各自代表一次真实变化，仍然逐次通知。
+  契约锁在 `packages/core/__tests__/ListChangeNotify.test.ts` 与
+  `packages/vanilla/__tests__/ReactivePerf.test.ts`。
 - `vanilla` 在 `reason` 为 `list` / `force` 时，对复用的项调 `updateItem(item, index, el)`，
   并重算函数式的 `itemStyle` / `itemClass`（它们是 `(item, index)` 的函数，两个入参都会变）。
 - 四个框架包在插槽路径把 `updateItem` 指向与 `renderItem` 同一个挂载函数 ——
@@ -291,7 +324,8 @@ DOM 完全交给使用方在框架里写。TanStack Virtual 是这条路线的�
 React 侧另有一条互补通道 `flushMounts()`，两条都要留着：`updateItem` 覆盖
 "命令式 `ref.setList()`，宿主不重渲染"；`flushMounts()` 覆盖"宿主重渲染但 `list`
 引用没变"（流式文本存在宿主自己的 state 里）。两条同时命中也不会渲染两遍 ——
-挂载器在 React 阶段内按元素合并 pending。
+挂载器在 React 阶段内按元素合并 pending，并且**整批只调一次 `flushSync`**
+（一次数据变更会同时投递所有可见挂载点，各自 flushSync 就是几十次独立的同步渲染）。
 
 ### Grid 的两条路径与 mountKey 的取法
 

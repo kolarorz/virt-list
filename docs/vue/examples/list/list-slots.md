@@ -1,4 +1,4 @@
-# Vue - 插槽
+# 插槽
 
 StickyHeader / Header / Footer / StickyFooter 插槽。
 

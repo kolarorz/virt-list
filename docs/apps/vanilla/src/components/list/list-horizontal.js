@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：WIDTHS、generateList()
 const WIDTHS = [76, 92, 108, 124, 148];
 
 function generateList(count) {
@@ -8,6 +9,7 @@ function generateList(count) {
     width: WIDTHS[Math.floor(Math.random() * WIDTHS.length)],
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

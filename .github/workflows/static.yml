@@ -36,16 +36,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build micro apps
-        run: |
-          pnpm -C docs/apps/vanilla exec vite build
-          pnpm -C docs/apps/vue exec vite build
-          pnpm -C docs/apps/react exec vite build
-        env:
-          DEPLOY_BASE: /virt-list/
-
-      - name: Build docs site
-        run: pnpm -C docs exec vitepress build .
+      # 走 docs 自己的 build 脚本：gen:llms + 5 个微应用 + vitepress build。
+      # 此前这里手写三条 vite build，漏了 vue2 与 react-legacy，也没跑 gen:llms，
+      # 于是线上 micro-apps/vue2/、micro-apps/react-legacy/、llms.txt 全是 404
+      # —— 而 PlaygroundHost 在这两个框架下各有 42 处页面引用，示例页全打不开。
+      # 加微应用请改 docs/package.json 的 build:micro，别再在这里手写。
+      - name: Build docs site and micro apps
+        run: pnpm -C docs build
         env:
           DEPLOY_BASE: /virt-list/
 

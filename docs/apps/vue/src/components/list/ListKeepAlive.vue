@@ -98,6 +98,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue';
 
+// demo:fold 示例数据构造：generateUsers()、generateProducts()、User…
 function generateUsers(count: number) {
   const departments = ['工程部', '设计部', '产品部', '市场部', '运营部'];
   return Array.from({ length: count }, (_, i) => ({
@@ -123,6 +124,7 @@ function generateProducts(count: number) {
 
 type User = ReturnType<typeof generateUsers>[number];
 type Product = ReturnType<typeof generateProducts>[number];
+// /demo:fold
 
 const userListRef = ref<typeof VirtList | null>(null);
 const productListRef = ref<typeof VirtList | null>(null);

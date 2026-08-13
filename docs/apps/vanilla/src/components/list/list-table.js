@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：generateList()
 function generateList(count) {
   return Array.from({ length: count }, (_, i) => ({
     id: i,
@@ -9,6 +10,7 @@ function generateList(count) {
     action: '操作',
   }));
 }
+// /demo:fold
 
 function createCell(text, style) {
   const cell = document.createElement('div');

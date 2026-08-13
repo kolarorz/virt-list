@@ -26,7 +26,7 @@ const METRICS: Metric[] = [
   {
     value: '一屏',
     label: 'DOM 节点数',
-    detail: '30 万行与 30 行的节点数相同',
+    detail: '300 万行与 30 行的节点数相同',
   },
   {
     value: '6.1',

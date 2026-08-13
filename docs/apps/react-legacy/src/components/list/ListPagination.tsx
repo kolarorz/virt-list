@@ -6,6 +6,7 @@ const PAGE_MAX = 10;
 
 let uid = 0;
 
+// demo:fold 示例数据构造：Item、PAGE_MSGS、generatePage()
 interface Item {
   id: number;
   index: number;
@@ -32,6 +33,7 @@ function generatePage(page: number): Item[] {
     };
   });
 }
+// /demo:fold
 
 function asyncGeneratePage(page: number): Promise<Item[]> {
   return new Promise((resolve) => setTimeout(() => resolve(generatePage(page)), 1000));

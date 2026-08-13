@@ -45,6 +45,7 @@ import TreeFooter from './items/TreeFooter.vue';
 import TreeStickyFooter from './items/TreeStickyFooter.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -59,6 +60,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 const treeRef = ref<VirtTreeRef | null>(null);
 const treeData = ref(generateTreeData());

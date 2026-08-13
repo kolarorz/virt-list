@@ -3,6 +3,7 @@ import { VirtList } from '@virt-list/vanilla';
 /** 不限制逐帧穿越距离（会露白，用于对比） */
 const NO_LIMIT = Infinity;
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '平滑滚动通过 behavior: "smooth" 开启，不传参数时保持瞬时跳转。',
   '这一行比较短。',
@@ -19,6 +20,7 @@ function generateList(count) {
     return { id: i, index: i, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">

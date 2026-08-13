@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { VirtTree } from '@virt-list/react';
 import TreeEmpty from './items/TreeEmpty';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   const data = Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -21,6 +22,7 @@ function generateTreeData() {
   }
   return data;
 }
+// /demo:fold
 
 export default function TreeShowLine() {
   const [showLine, setShowLine] = useState(true);

@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：COLUMNS、generateList()
 const COLUMNS = [
   { key: 'id', title: 'ID', width: 60 },
   { key: 'name', title: '姓名', width: 100 },
@@ -23,6 +24,7 @@ function generateList(count) {
     rowSpan: i < 2 ? 2 : 1,
   }));
 }
+// /demo:fold
 
 function createTableCell(text, width, extra) {
   const cell = document.createElement('div');

@@ -47,6 +47,10 @@ export class Scrollbar {
   private _grabDelta = 0;
   private _travel = 0;
   private _visible = false;
+  /** 缓存的轨道长度，与下面的 `_trackSizeAt` 成对（见 `_trackSize`） */
+  private _trackSizeCache = 0;
+  /** 上次测量轨道长度时的视口尺寸，`-1` 表示缓存无效 */
+  private _trackSizeAt = -1;
   private _hideTimer: ReturnType<typeof setTimeout> | null = null;
   private _scheduler: FrameScheduler = createFrameScheduler();
 
@@ -119,12 +123,35 @@ export class Scrollbar {
     return this._options.horizontal ? rect.left : rect.top;
   }
 
+  /**
+   * 轨道长度。**测量结果按视口尺寸缓存**，不是每次调用都读一次布局。
+   *
+   * 为什么必须缓存：`update()` 由 `_applyLayout` 驱动，而后者每个滚动帧都在跑，
+   * 且刚刚写完各段的 transform。紧接着读 `getBoundingClientRect` 就是典型的
+   * 读写交替——浏览器为了给出准确的矩形必须立刻重算布局，每帧强制一次同步回流。
+   * （`VirtList._queueCrossViewportSync` 的注释里点明了这条纪律，滑块这里此前漏了。）
+   *
+   * 缓存键取视口尺寸：轨道与视口等长，视口没变轨道就没变。容器缩放会经由
+   * ResizeObserver 改写账本里的 clientSize，缓存自然失效；拖拽开始时还会
+   * 显式失效一次（见 `invalidateGeometry`），保证按下的那一刻量的是实值。
+   */
   private _trackSize(): number {
+    const clientSize = this._host.getClientSize();
+    if (this._trackSizeAt === clientSize) return this._trackSizeCache;
+
     // getBoundingClientRect 在 jsdom 下恒为 0，退回宿主给的视口尺寸：
     // 轨道本来就与视口等长，这个退化值在真实浏览器里也不会被用到
     const rect = this._trackEl.getBoundingClientRect();
     const size = this._options.horizontal ? rect.width : rect.height;
-    return size > 0 ? size : this._host.getClientSize();
+    const resolved = size > 0 ? size : clientSize;
+    this._trackSizeAt = clientSize;
+    this._trackSizeCache = resolved;
+    return resolved;
+  }
+
+  /** 丢弃缓存的轨道长度，下一次查询重新测量 */
+  invalidateGeometry(): void {
+    this._trackSizeAt = -1;
   }
 
   private _onThumbDown = (e: MouseEvent): void => {
@@ -160,6 +187,8 @@ export class Scrollbar {
     if (e.button !== 0) return;
     e.preventDefault();
 
+    // 拖拽全程按下面这一次测量的轨道长度换算比例，按下时先取实值
+    this.invalidateGeometry();
     const thumbSize = this._thumbSize();
     this._grabDelta = thumbSize / 2;
     this._dragging = true;
@@ -184,6 +213,8 @@ export class Scrollbar {
   }
 
   private _beginDrag(pointer: number): void {
+    // 同 _onTrackDown：拖拽的换算精度直接由轨道长度决定，这一刻重新量一次
+    this.invalidateGeometry();
     const thumbRect = this._thumbEl.getBoundingClientRect();
     const thumbStart = this._options.horizontal
       ? thumbRect.left

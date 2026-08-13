@@ -36,6 +36,7 @@ import type { TreeNodeKey } from '@virt-list/vue';
 import type { VirtTreeRef } from '../_virtRefTypes';
 import TreeEmpty from './items/TreeEmpty.vue';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -51,6 +52,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 const initialSelected = ['0'] as const;
 

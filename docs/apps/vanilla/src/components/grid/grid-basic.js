@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker';
 import { VirtGrid } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：generateData()
 function generateData(count) {
   return Array.from({ length: count }, (_, i) => ({
     id: faker.string.nanoid(),
@@ -9,6 +10,7 @@ function generateData(count) {
     name: faker.person.firstName(),
   }));
 }
+// /demo:fold
 
 const template = `
   <div class="virt-grid-demo">

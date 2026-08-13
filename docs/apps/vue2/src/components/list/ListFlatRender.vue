@@ -39,6 +39,7 @@
 import { ref } from 'vue';
 import { VirtList } from '@virt-list/vue2';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()、Item
 const SENTENCES = [
   '使用扁平渲染模式，slot 内容直接挂载到 item wrapper 上，无额外包裹层。',
   '短行。',
@@ -57,6 +58,7 @@ function generateList(count: number) {
 }
 
 type Item = ReturnType<typeof generateList>[number];
+// /demo:fold
 
 const statsText = ref('总数: 1000 | 扁平渲染模式');
 const list = ref<Item[]>(generateList(1000));

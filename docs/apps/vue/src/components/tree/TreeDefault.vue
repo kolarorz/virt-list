@@ -33,6 +33,7 @@ import TreeEmpty from './items/TreeEmpty.vue';
 
 const INDENT = 20;
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -47,6 +48,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 const treeRef = ref<VirtTreeRef | null>(null);
 const treeData = ref(generateTreeData());

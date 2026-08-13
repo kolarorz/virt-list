@@ -19,6 +19,7 @@ function randValue() {
   return Math.floor(Math.random() * 1000);
 }
 
+// demo:fold 示例数据构造：createRows()
 function createRows(count: number): Row[] {
   return Array.from({ length: count }, (_, index) => ({
     id: index,
@@ -28,6 +29,7 @@ function createRows(count: number): Row[] {
     updatedAt: nowText(),
   }));
 }
+// /demo:fold
 
 export default function Reactive() {
   const [list, setList] = useState<Row[]>(() => createRows(1000));

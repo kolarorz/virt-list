@@ -1,4 +1,4 @@
-# Vue - 平滑滚动
+# 平滑滚动
 
 所有滚动定位方法（`scrollToIndex` / `scrollIntoView` / `scrollToTop` / `scrollToBottom` / `scrollToOffset`）都接受一个可选的 `VirtScrollOptions`，传入 `behavior: 'smooth'` 即为平滑滚动；不传参数时保持瞬时跳转。
 

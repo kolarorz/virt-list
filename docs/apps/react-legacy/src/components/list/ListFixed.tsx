@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
 
+// demo:fold 示例数据构造：Item、generateList()
 interface Item {
   id: number;
   index: number;
@@ -14,6 +15,7 @@ function generateList(count: number): Item[] {
     text: `固定高度行 ${i}，每行高度一致（40px）。`,
   }));
 }
+// /demo:fold
 
 export default function Fixed() {
   const list = useMemo(() => generateList(1000), []);

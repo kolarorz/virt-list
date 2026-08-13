@@ -1,6 +1,7 @@
 import { useState, useMemo, type CSSProperties } from 'react';
 import { VirtList } from '@virt-list/react-legacy';
 
+// demo:fold 示例数据构造：COLUMNS、Row、generateList()
 const COLUMNS = [
   { key: 'id', title: 'ID', width: 60 },
   { key: 'name', title: '姓名', width: 100 },
@@ -35,6 +36,7 @@ function generateList(count: number): Row[] {
     rowSpan: i < 2 ? 2 : 1,
   }));
 }
+// /demo:fold
 
 function TableCell({
   text,

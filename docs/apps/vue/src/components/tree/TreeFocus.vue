@@ -30,6 +30,7 @@ import type { TreeNodeKey } from '@virt-list/vue';
 import TreeFocusItem from './items/TreeFocusItem.vue';
 import TreeEmpty from './items/TreeEmpty.vue';
 
+// demo:fold 示例数据构造：generateTreeData()
 function generateTreeData() {
   return Array.from({ length: 40 }, (_, i) => ({
     id: String(i),
@@ -44,6 +45,7 @@ function generateTreeData() {
     })),
   }));
 }
+// /demo:fold
 
 const treeData = ref(generateTreeData());
 const focusedKeys = ref<TreeNodeKey[]>([]);

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { VirtList, type VirtListRef } from '@virt-list/react-legacy';
 import Item from '../Item';
 
+// demo:fold 示例数据构造：Item、SENTENCES、generateList()
 interface Item {
   id: number;
   index: number;
@@ -36,6 +37,7 @@ function generateList(count: number, startIndex = 0): Item[] {
     };
   });
 }
+// /demo:fold
 
 export default function Basic() {
   const [list, setList] = useState<Item[]>(() => generateList(1000));
@@ -82,6 +84,7 @@ export default function Basic() {
 
   return (
     <div className="demo-panel">
+      {/* demo:fold 演示用工具栏与状态栏 */}
       <div className="demo-toolbar">
         <label>添加数量：</label>
         <input
@@ -105,6 +108,7 @@ export default function Basic() {
         )}
       </div>
       <div className="demo-stats">{stats || `总数: ${list.length}`}</div>
+      {/* /demo:fold */}
       <div className="demo-list-container">
         <VirtList<Item>
           ref={virtListRef}

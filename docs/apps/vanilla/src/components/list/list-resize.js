@@ -1,5 +1,6 @@
 import { VirtList } from '@virt-list/vanilla';
 
+// demo:fold 示例数据构造：SENTENCES、generateList()
 const SENTENCES = [
   '拖拽容器右下角可以调整大小，虚拟列表会自动适应新的容器尺寸。',
   '容器变大时会渲染更多的行。',
@@ -17,6 +18,7 @@ function generateList(count) {
     return { id: i, index: i, text: parts.join(' ') };
   });
 }
+// /demo:fold
 
 const template = `
   <div class="demo-panel">
