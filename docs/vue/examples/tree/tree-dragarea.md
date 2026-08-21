@@ -1,3 +1,3 @@
-# 虚拟树形（同级拖拽）
+# 同级拖拽
 
 <PlaygroundHost framework="vue" example-id="tree-dragarea" />

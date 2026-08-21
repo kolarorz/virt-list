@@ -166,6 +166,10 @@ function VirtGridInner(props: VirtGridProps, ref: ForwardedRef<VirtGridRef>) {
         renderHeader: props.renderHeader,
         renderFooter: props.renderFooter,
         renderEmpty: props.renderEmpty,
+        // 行滚出渲染窗口时回收它下面所有单元格的挂载点。少了这条，纯滚动期间
+        // 账本只增不减 —— flushMounts 的 prune 判不出来（单元格容器按行位置
+        // 复用，旧 key 记着的元素仍 isConnected），宿主不重渲染时它也不会跑
+        onItemUnmounted: (el: HTMLElement) => mounter.dropMount(el),
         stickyHeaderStyle: props.stickyHeaderStyle,
       },
       {

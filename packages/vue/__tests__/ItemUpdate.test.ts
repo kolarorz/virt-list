@@ -180,7 +180,9 @@ describe('Vue 最佳实践：shallowRef + 不可变替换', () => {
   /**
    * 文档（design-decisions / list-reactive 示例）推荐的写法，锁在这里。
    *
-   * `shallowRef` 不递归代理数组元素，十万条数据的初始化开销因此小得多 ——
+   * `shallowRef` 不代理数组元素，读写回到原始速度 —— Vue 3 的代理是惰性的，`ref` 那一下
+   * 不贵，贵的是之后每次穿过代理读数据（库每次数据变更都要整表扫一遍取 itemKey，
+   * 十万条 `ref` 20~25ms 对 `shallowRef` 0.7ms）。
    * 代价是「原地改某一项的字段」不会被 Vue 察觉。但只要用不可变替换
    * （`list.value = list.value.map(...)`），`.value` 的替换会触发组件重渲染，
    * 于是 `props.list` 引用变 → watch 触发 → setList → updateItem。

@@ -6,8 +6,10 @@
 
 根节点同样支持 **`style?: React.CSSProperties`**、**`className?: string`**。
 
-1. `list.item[itemKey]` <font color="#f00">必须唯一!!!</font>
-2. item 元素之间不能使用 <font color="#f00">margin!!!</font>
+::: warning 两条硬约束
+- `itemKey` 指向的字段在整个列表里必须唯一，重复的 key 会让滚动错位。
+- 列表项之间不能用 `margin`：外边距不计入项的测量尺寸，用 `itemGap` 或 `padding` 代替。
+:::
 
 ## StyleValue / ClassValue
 
@@ -21,8 +23,8 @@
 
 | 参数               | 说明                                                                                     | 类型                                                                                         | 默认值  | 是否必须                     |
 | ------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------- | ---------------------------- |
-| list               | 数据列表                                                                                 | `T[]`                                                                                        | `[]`    | <font color="#f00">是</font> |
-| itemKey            | 项的唯一 id                                                                              | `string \| number`                                                                           | -       | <font color="#f00">是</font> |
+| list               | 数据列表                                                                                 | `T[]`                                                                                        | `[]`    | **是**                       |
+| itemKey            | 项的唯一 id                                                                              | `string \| number`                                                                           | -       | **是**                       |
 | estimatedSize        | 预估尺寸                                                                                 | `number`                                                                                     | -       | -                            |
 | itemGap            | 元素之间的间距（元素尺寸包含 itemGap）                                                   | `number`                                                                                     | `0`     | -                            |
 | fixedSize              | 是否为固定高度<br />**注意：动态高度模式下请勿开启**                                     | `boolean`                                                                                    | `false` | -                            |
@@ -55,7 +57,7 @@
 | hasMoreBottom      | 底部方向是否还有更多数据；可作为受控属性覆盖 `loadMore` 的返回值                        | `Boolean`                                                                                   | `true`  | -                            |
 | initialPosition    | 首屏定位。`'bottom'` 会在挂载后定位到底部，并随尺寸测量渐进校准（聊天室常用）<br />与 `initialIndex` / `initialOffset` 同时给出时后两者优先 | `'top' \| 'bottom'`                                            | `'top'` | -                            |
 | stickyBottom       | 尾部追加时是否自动跟随到底部；仅在**原本就贴底**时跟随                                  | `Boolean`                                                                                   | `false` | -                            |
-| stickyThreshold    | 判定"贴底"的容差（px），缺省取 `edgeThreshold`（至少 2px）                             | `Number`                                                                                    | `0`     | -                            |
+| stickyThreshold    | 判定「贴底」的容差（px），缺省取 `edgeThreshold`（至少 2px）                             | `Number`                                                                                    | `0`     | -                            |
 | aria           | 为辅助技术补上列表语义。开启后渲染容器加 `role`（默认 `list`）、每项加 `role="listitem"` 与 `aria-posinset` / `aria-setsize`——**位置与总数取自数据，不由 DOM 元素个数推断** | `Boolean\|'list'\|'listbox'`                                                | `false` | -                            |
 | ariaLabel      | 供辅助技术朗读的列表名称，配合 `aria` 使用                                          | `String`                                                                      | -       | -                            |
 | copyText       | 每项对应的纯文本，**给出即开启跨虚拟化的选区复制**：用户选中的范围跨越未渲染区域时，中间那些没有 DOM 的项从数据补齐。不给则完全不挂 `copy` 监听 | `(item, index) => string`                                                     | -       | -                            |
@@ -176,9 +178,9 @@ listRef.current.scrollToTop({ behavior: 'smooth', duration: 600, onDone: (cancel
 2. 动画期间用户滚动滚轮或触摸滑动会立即接管，动画中断并回调 `onDone(true)`；调用 `cancelScroll()` 或发起新的滚动调用同样会中断前一个动画。
 3. 平滑动画每帧都会重新计算目标位置，不定高列表在滚动途中撑开高度也不会跑偏；动画正常结束后还会做一次精确落位修正。
 
-### 长距离滚动为什么会先"瞬跳"一段
+### 长距离滚动为什么会先「瞬跳」一段
 
-虚拟列表逐帧穿越长距离时，相邻两帧的渲染区间完全不重叠 —— 每一帧都要销毁整屏、再新建整屏 DOM，主线程跟不上就会露白，而中间一闪而过的几十屏内容本身也没有观看价值。
+虚拟列表逐帧穿越长距离时，相邻两帧的渲染区间完全不重叠——每一帧都要销毁整屏、再新建整屏 DOM，主线程跟不上就会露白，而中间一闪而过的几十屏内容本身也没有观看价值。
 
 所以平滑滚动只逐帧滚过最后一段距离，超出部分先瞬跳掉。这段距离由属性 `smoothMaxDistance` 控制（也可以在单次调用里用 `maxDistance` 覆盖），缺省为两倍视口高度：
 
@@ -238,7 +240,7 @@ header / footer 拿到的加载状态、`onLoadStateChange` 的回调参数、�
 | loadingBottom   | `boolean` | 底部方向正在加载                                         |
 | hasMoreTop      | `boolean` | 顶部方向是否还有更多数据                                 |
 | hasMoreBottom   | `boolean` | 底部方向是否还有更多数据                                 |
-| pendingNew      | `number`  | 未贴底时尾部新增的项数，用于渲染"N 条新消息"角标；视口回到底部后归零（仅 `stickyBottom` 开启时累加） |
+| pendingNew      | `number`  | 未贴底时尾部新增的项数，用于渲染「N 条新消息」角标；视口回到底部后归零（仅 `stickyBottom` 开启时累加） |
 
 ## VirtScrollEvent
 
@@ -266,7 +268,7 @@ header / footer 拿到的加载状态、`onLoadStateChange` 的回调参数、�
 
 ## 延伸阅读
 
-- [分页与无限加载](../guide/load-more) —— `loadMore` / `hasMoreTop` / `hasMoreBottom` /
+- [分页与无限加载](../guide/load-more)——`loadMore` / `hasMoreTop` / `hasMoreBottom` /
   `initialPosition` / `stickyBottom` 的完整用法，以及无限加载、双向分页、聊天室三类场景的写法。
-- [滚动是怎么工作的](../guide/custom-scrollbar) —— 为什么容器是 `overflow: hidden`、
+- [滚动是怎么工作的](../guide/custom-scrollbar)——为什么容器是 `overflow: hidden`、
   已知取舍、`scrollTop` 的替代写法、`scroll` 与 `offsetChange` 怎么选、滚动条样式定制。

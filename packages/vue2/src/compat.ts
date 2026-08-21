@@ -57,10 +57,30 @@ export function createSlotMounter() {
     slotMap.set(mountKey, entry);
   }
 
+  /**
+   * 项滚出渲染窗口时清账（接 core 的 `onItemUnmounted`）。
+   *
+   * 少了这一步就是一条内存泄漏：core 只把元素从文档里摘掉，每个挂载点的 Vue 实例
+   * 还活着、watcher 还订阅着那一项的数据 —— 长列表滚过的每个 key 都留下一个实例。
+   * `cleanupSlots()` 只在组件卸载时跑，兜不住滚动过程。
+   *
+   * 传入的是**项元素**，而挂载点可能是它的后代（Grid 的单元格、Tree 的节点行），
+   * 所以按 `contains` 匹配 —— `el.contains(el)` 为真，List 那种"挂载点就是项元素
+   * 本身"的情形一并覆盖。core 在 `remove()` 之前回调，此刻子树还完整。
+   */
+  function dropSlot(el: HTMLElement): void {
+    slotMap.forEach((entry, key) => {
+      if (el !== entry.el && !el.contains(entry.el)) return;
+      entry.instance.$destroy();
+      // 遍历中删除当前项是安全的：Map 的迭代器只跳过"已删除且未重新插入"的键
+      slotMap.delete(key);
+    });
+  }
+
   function cleanupSlots(): void {
     slotMap.forEach(({ instance }) => instance.$destroy());
     slotMap.clear();
   }
 
-  return { mountSlot, cleanupSlots };
+  return { mountSlot, dropSlot, cleanupSlots };
 }

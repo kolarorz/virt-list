@@ -123,6 +123,15 @@ const MAX_INCREMENTAL_STEPS = 64;
 const HEAD_SCAN_LIMIT = 65536;
 
 /**
+ * 视口锚点在新列表里的扫描半径（见 `_captureViewAnchor`）。
+ *
+ * 中间增删的位移通常很小：删一条、插一条、删掉一页。从原位置向两侧找几百格
+ * 足够覆盖。刻意**不做全量查找** —— 那会让"整体换数据源"（锚点根本不存在）
+ * 每次都白扫一遍全表，而换来的只是一个本来就不该维持的视口位置。
+ */
+const ANCHOR_SCAN_RADIUS = 512;
+
+/**
  * 尺寸诊断：收集到这么多实测值之后与 `estimatedSize` 比对一次。
  *
  * 取 32 而不是更小的值，是为了让样本覆盖首屏之外的几项——头几项常常不典型
@@ -551,13 +560,21 @@ export class VirtListCore<T extends Record<string, any>> {
    */
   scrollToIndex(index: number, options?: VirtScrollOptions): void {
     if (index < 0) return;
-    // 末项交给 scrollToBottom：它的目标就是"贴到底"，两种对齐在那里没有分别
-    if (index >= this._props.list.length - 1) {
+
+    const align = options?.align ?? 'start';
+
+    // 末项 + `align:'end'` 交给 scrollToBottom：两者的目标本就是同一个位置，
+    // 而它把"到底"当**动态目标**维持（项渲染后报上真实尺寸，可滚动上限会往后挪），
+    // 比一次性算出的偏移量更稳。
+    //
+    // `align:'start'` 不能这么走：末项高于一屏时（展开的聊天消息、长图）
+    // "顶部对齐视口顶部"与"贴到底"是两个位置，调用方要的是前者。末项装得进
+    // 一屏时通用路径算出的目标会被 `_maxScrollOffset()` 裁到底，与贴底等价，
+    // 所以不必在这里区分"装不装得下"。
+    if (index >= this._props.list.length - 1 && align === 'end') {
       this.scrollToBottom(options);
       return;
     }
-
-    const align = options?.align ?? 'start';
 
     if (options?.behavior === 'smooth') {
       this._clearScrollTasks();
@@ -708,6 +725,10 @@ export class VirtListCore<T extends Record<string, any>> {
     this._hasListSnapshot = false;
     this._prevHeadKeys = [];
     this._prevLen = 0;
+
+    // 分页状态同样属于"旧内容"：切会话后留着 pendingNew 就是个假角标，
+    // 留着 loading 则这个方向再也触发不了加载。理由详见 ListLoader.reset()
+    this._loader.reset();
 
     // 只发 offsetChange 不发 scroll，与 resume() 同理：DOM 层要据此把内容搬回
     // 原点，但「重置」不是一次滚动，方向 / 边界 / 来源那套载荷在这里没有意义
@@ -1257,7 +1278,21 @@ export class VirtListCore<T extends Record<string, any>> {
       index,
       key: String(item[this._props.itemKey]),
       align,
-      within: this.getOffset() - this._getIndexScrollTarget(index, align),
+      /**
+       * 显式定位（`scrollToIndex`）的意图就是"把这一项对齐到视口边"，项内偏移
+       * 恒为 0 —— 不能拿"当前偏移量 - 目标"现算。
+       *
+       * 刚写进去的偏移量可能被 `_maxScrollOffset()` 裁掉：目标项还没渲染时它的
+       * 尺寸只有估算值，可滚动上限因此偏小。那个裁剪差额会被当成"用户想要的项内
+       * 偏移"固化下来，等尺寸测准、上限放开了也回不到真正的目标。末项配
+       * `align:'start'` 每次都会踩到 —— 按估算值算，它的顶部必然超出上限。
+       *
+       * 隐式锚定（用户向上滚时自动锚住视口顶部那一项）反过来必须记住偏移：
+       * 要保住的正是"用户此刻看到这一项的第几个像素"。
+       */
+      within: explicit
+        ? 0
+        : this.getOffset() - this._getIndexScrollTarget(index, align),
       explicit,
     };
   }
@@ -1974,17 +2009,27 @@ export class VirtListCore<T extends Record<string, any>> {
         : false;
       const addedCount = newLen - this._prevLen;
 
+      // 中间增删把用户正在看的内容整体推移了，而 _diffHead 只比首项、判不出来。
+      // 必须在 _calcListTotalSize 之前捕获：那一步会按新列表重建尺寸索引，
+      // 之后就再也算不出锚点在**旧**列表里的位置了
+      const anchor = this._captureViewAnchor();
+
       this._calcListTotalSize();
+
+      // 锚点挪位了：按它的新位置重算偏移量，让视口内容留在原处
+      const anchorTarget = anchor ? this._resolveViewAnchor(anchor) : -1;
 
       // 列表变短后（切换数据源、过滤）旧偏移量可能已经超出新的可滚动范围。
       // 浏览器会把 scrollTop 夹回来，但 scroll 事件是异步回送的——内部偏移量
       // 必须立刻跟着收，否则这一轮的区间会按一个已经不存在的位置去算
       // 列表变短后旧偏移量可能已越界：重写一次当前值就会被夹回范围内
-      const beforeClamp = this.getOffset();
+      const beforeClamp = anchorTarget >= 0 ? anchorTarget : this.getOffset();
       this._writeOffset(beforeClamp, 'adjust');
-      if (this.getOffset() !== beforeClamp) {
+      if (anchorTarget >= 0 || this.getOffset() !== beforeClamp) {
         this._syncedOffset = this.getOffset();
-        // 偏移量变了，旧的 inViewBegin 不再对应当前位置，按新偏移量权威定位
+        // 偏移量变了，旧的 inViewBegin 不再对应当前位置，按新偏移量权威定位。
+        // 锚点补偿走的是同一条路：与头部分支同理，平移旧 inViewBegin 不可靠
+        // （停在顶部时它被钳成 0、与偏移量并不自洽），直接按偏移量定位才无关边界
         const target = this._syncedOffset - this.slotSize.headerSize;
         this._updateRange(target < 0 ? 0 : this._locateIndex(target));
       } else {
@@ -2006,6 +2051,94 @@ export class VirtListCore<T extends Record<string, any>> {
     }
 
     this._snapshotList();
+  }
+
+  /**
+   * 捕获"变更前用户正在看的是哪一项、看到它的哪个位置"。
+   *
+   * `_diffHead` 只认头部结构变化（它比的是首项 key），而中间增删同样会把视口
+   * 内容整体推移：视口停在 index 50，删掉 index 10 —— 首项没变，偏移量没变，
+   * 但视口顶部显示的项从 k50 悄悄换成了 k51。用户会看到列表自己跳了一格。
+   *
+   * 身份取自 `_renderList`：进到这里时 `_props.list` 已经是**新**列表，旧列表
+   * 唯一还留着的痕迹就是上一轮切出去的渲染切片。它天然覆盖视口
+   * （`renderBegin <= inViewBegin <= renderEnd`），读一下就有，不必额外存快照。
+   *
+   * 返回 null 表示不必补偿 —— 包括最常见的两种变更：尾部追加、同 key 换内容
+   * （不可变替换）。那时锚点还在原位，一次 `===` 就短路掉，不付后面的代价。
+   */
+  private _captureViewAnchor(): { key: unknown; within: number } | null {
+    // leadingSize 是下面唯一的参照，脏了就没有可信的旧位置可算 —— 而"补错"比
+    // "不补"糟得多（视口会跳到一个谁都没要求的位置）。重算它救不了：那要走
+    // `_prefixSize`，而尺寸索引此刻已经指向新列表
+    if (this._leadingSizeDirty) return null;
+
+    const { list, itemKey } = this._props;
+    const begin = this.state.inViewBegin;
+
+    const renderBegin = this.state.renderBegin;
+    const offsetInSlice = begin - renderBegin;
+    const prevItem = this._renderList[offsetInSlice];
+    const key = prevItem?.[itemKey];
+    if (key === undefined) return null;
+    // 锚点还在原位：绝大多数变更都走到这里
+    if (list[begin]?.[itemKey] === key) return null;
+
+    // 锚点在**旧**列表里的顶部偏移。
+    //
+    // 不能走 `_prefixSize`：`updateOptions` 已经把尺寸索引置为失效，而它的重建
+    // 回调读的是 `_props.list` —— 此刻那已经是新列表了，算出来的是新位置。
+    // 改从手上这份旧切片累加：`leadingSize` 是 renderBegin 之前的累计尺寸
+    // （增量维护，本轮还没重算，仍是旧值），窗口内的部分按旧切片的 key 逐项取，
+    // 尺寸记录还没清理，拿到的都是实测值。顺带比 O(√n) 的索引查询更快。
+    let oldTop = this.state.leadingSize;
+    for (let i = 0; i < offsetInSlice; i += 1) {
+      oldTop += this.getItemSize(this._renderList[i]?.[itemKey]);
+    }
+
+    return {
+      key,
+      // 偏移量落在锚点内部的哪个位置。连 headerSize 一起折进来，
+      // 求解时再加回去 —— header 高度本身变化也就跟着对上了
+      within: this._syncedOffset - this.slotSize.headerSize - oldTop,
+    };
+  }
+
+  /**
+   * 求锚点在新列表里对应的偏移量，找不到锚点则返回 -1（不补偿）。
+   *
+   * 必须在 `_calcListTotalSize()` 之后调：`_prefixSize` 读的是重建过的尺寸索引。
+   */
+  private _resolveViewAnchor(anchor: { key: unknown; within: number }): number {
+    const newIndex = this._findAnchorNearby(anchor.key, this.state.inViewBegin);
+    if (newIndex < 0) return -1;
+    return (
+      this._prefixSize(newIndex) + this.slotSize.headerSize + anchor.within
+    );
+  }
+
+  /**
+   * 从 `from` 向两侧交替查找 key，先近后远，命中即停；超出半径返回 -1。
+   *
+   * 交替而不是先扫一边：插入与删除的位移方向相反，而"挪了几格"通常是个很小的
+   * 数，两侧同时推进能让常见情形在头几轮就命中。
+   */
+  private _findAnchorNearby(key: unknown, from: number): number {
+    const { list, itemKey } = this._props;
+    const len = list.length;
+    if (from >= 0 && from < len && list[from]?.[itemKey] === key) return from;
+
+    for (let d = 1; d <= ANCHOR_SCAN_RADIUS; d += 1) {
+      const back = from - d;
+      const fwd = from + d;
+      const backIn = back >= 0;
+      const fwdIn = fwd < len;
+      // 两侧都出界了就没得找了，不必把半径走完
+      if (!backIn && !fwdIn) break;
+      if (backIn && list[back]?.[itemKey] === key) return back;
+      if (fwdIn && list[fwd]?.[itemKey] === key) return fwd;
+    }
+    return -1;
   }
 
   /**

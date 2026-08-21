@@ -132,7 +132,7 @@ export const VirtTree = defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     let tree: VirtTreeVanilla | null = null;
 
-    const { mountSlot, cleanupSlots } = createSlotMounter();
+    const { mountSlot, dropSlot, cleanupSlots } = createSlotMounter();
 
     function buildOptions(): VirtTreeDOMOptions {
       const opts: VirtTreeDOMOptions = {
@@ -174,6 +174,9 @@ export const VirtTree = defineComponent({
         renderIcon: props.renderIcon as any,
         renderNode: props.renderNode as any,
         renderEmpty: props.renderEmpty as any,
+        // 节点滚出渲染窗口时回收它的插槽挂载点（content / icon / node 三个）。
+        // 见 compat 的 dropSlot
+        onItemUnmounted: dropSlot,
         renderStickyHeader: props.renderStickyHeader as any,
         renderStickyFooter: props.renderStickyFooter as any,
         renderHeader: props.renderHeader as any,
@@ -261,8 +264,11 @@ export const VirtTree = defineComponent({
       cleanupSlots();
     });
 
-    watch(() => props.list, (newList) => {
-      tree?.setList(newList);
+    // 与 VirtList 同理：只盯引用会漏掉「在同一个数组上原地 splice / push」——
+    // Vue 的 getter 依赖是 props.list 这个引用本身，原地改动不会让它重新触发。
+    // 长度进依赖后这类写法也能同步（引用变化仍覆盖整体换数据源）
+    watch([() => props.list, () => props.list.length], () => {
+      tree?.setList(props.list);
     });
 
     watch(() => props.expandedKeys, (keys) => {

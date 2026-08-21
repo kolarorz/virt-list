@@ -1,5 +1,5 @@
-# Vanilla - 渲染buffer
+# 渲染 buffer
 
-当数量过大时，滚动可能会白屏。可以在首位多渲染几个buffer items用来减轻白屏现象
+数据量大、滚动快时视口边缘可能闪出白边。在渲染区间的首尾各多渲染几项（buffer）可以减轻这种现象。
 
 <PlaygroundHost framework="react-legacy" example-id="list-buffer" />

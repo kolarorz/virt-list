@@ -1,6 +1,6 @@
 # VirtTree API
 
-原生版的树没有"属性 / 插槽 / 事件"三件套，只有构造函数的三个参数：
+原生版的树没有「属性 / 插槽 / 事件」三件套，只有构造函数的三个参数：
 
 ```js
 import { VirtTree } from '@virt-list/vanilla';
@@ -19,7 +19,7 @@ const tree = new VirtTree(container, options, events);
 
 | 参数                            | 说明                                                                          | 类型                         | 默认值    | 是否必须                     |
 | ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------- | --------- | ---------------------------- |
-| list                            | 树形数据                                                                      | `TreeNodeData[]`             | -         | <font color="#f00">是</font> |
+| list                            | 树形数据                                                                      | `TreeNodeData[]`             | -         | **是**                       |
 | fieldNames                      | 字段名映射，见下方 [TreeFieldNames](#treefieldnames)                          | `TreeFieldNames`             | -         | -                            |
 | estimatedSize               | 预估尺寸                                                                      | `number`                     | `32`      | -                            |
 | fixedSize                       | 是否为固定高度，可以提升性能                                                  | `boolean`                    | `false`   | -                            |

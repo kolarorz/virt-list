@@ -111,17 +111,22 @@ describe('transform 定位的 DOM 布局', () => {
 
     expect(clientEl.style.overflow).toBe('hidden');
     expect(clientEl.tabIndex).toBe(0);
-    // 主轴的触摸滚动由 InputController 接管，必须先关掉浏览器在这条轴上的默认手势；
-    // 交叉轴（这里是横向）反过来要放行，那条轴归原生滚动。
+    // **两条轴**的触摸滚动都由 InputController 接管（起步阈值 + 方向锁定），
+    // 所以单指平移一律不放行：浏览器插手会抢在 JS 的轴判定之前把轴定死，
+    // 之后 touchmove 的 cancelable 变 false，轴锁就说了不算了。
+    // `none` 是给不认 pinch-zoom 的老浏览器打的底（无效声明会落回 auto）。
     // 读 style 属性而不是 style.touchAction：jsdom 不认识 touch-action，
     // 会把它从 cssText 里悄悄丢掉，但属性字符串本身是原样送进浏览器的
-    expect(clientEl.getAttribute('style')).toContain('touch-action:pan-x');
+    expect(clientEl.getAttribute('style')).toContain('touch-action:none');
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pinch-zoom');
   });
 
   it('crossScroll: false 时回到两轴全裁切', () => {
     const { vl, clientEl } = mount({ crossScroll: false } as any);
 
-    expect(clientEl.getAttribute('style')).toContain('touch-action:none');
+    // touch-action 与 crossScroll 已经无关：两条轴都归 InputController，
+    // 这里只剩 overflow 的差别
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pinch-zoom');
     expect(vl.scrollContentEl.getAttribute('style')).toContain(
       'overflow:hidden',
     );
@@ -145,7 +150,8 @@ describe('transform 定位的 DOM 布局', () => {
   it('横向列表把交叉轴换成竖向', () => {
     const { vl, clientEl } = mount({ horizontal: true } as any);
 
-    expect(clientEl.getAttribute('style')).toContain('touch-action:pan-y');
+    // 横向列表的交叉轴是竖向，但 touch-action 不随主轴方向变：两条轴都不放行
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pinch-zoom');
     expect(vl.scrollContentEl.style.overflowY).toBe('auto');
     expect(vl.scrollContentEl.style.overflowX).toBe('hidden');
   });

@@ -34,10 +34,10 @@ import '@virt-list/vue/style.css';
 组件的 JS 里刻意不 `import` 这份 css：那会让整个包在纯 Node 环境（SSR）下 import 不了
 ——Node 不认 `.css` 扩展名。样式只此一份，覆盖 CSS 变量即可换肤，见「滚动是怎么工作的」。
 
-## 注意!!!
-
-1. `list.item.id` <font color="#f00">必须唯一!!!</font>
-2. item元素之间不能使用 <font color="#f00">margin!!!</font>
+::: warning 两条硬约束
+- `itemKey` 指向的字段在整个列表里必须唯一，重复的 key 会让滚动错位。
+- 列表项之间不能用 `margin`：外边距不计入项的测量尺寸，用 `itemGap` 或 `padding` 代替。
+:::
 
 ## 引入
 

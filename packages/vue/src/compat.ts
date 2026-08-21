@@ -66,10 +66,31 @@ export function createSlotMounter() {
     slotContainers.set(mountKey, el);
   }
 
+  /**
+   * 项滚出渲染窗口时清账（接 core 的 `onItemUnmounted`）。
+   *
+   * 少了这一步就是一条内存泄漏：core 只把元素从文档里摘掉，`SlotRenderer` 及其
+   * **render effect** 还挂在上面，并且仍订阅着那一项的响应式数据 —— 长列表滚过的
+   * 每个 key 都留下一个脱离文档的组件实例，改数据时它们还会各自白渲染一遍。
+   * `cleanupSlots()` 只在组件卸载时跑，兜不住滚动过程。
+   *
+   * 传入的是**项元素**，而挂载点可能是它的后代（Grid 的单元格、Tree 的节点行），
+   * 所以按 `contains` 匹配 —— `el.contains(el)` 为真，List 那种"挂载点就是项元素
+   * 本身"的情形一并覆盖。core 在 `remove()` 之前回调，此刻子树还完整。
+   */
+  function dropSlot(el: HTMLElement): void {
+    slotContainers.forEach((mountEl, key) => {
+      if (el !== mountEl && !el.contains(mountEl)) return;
+      vueRender(null, mountEl);
+      // 遍历中删除当前项是安全的：Map 的迭代器只跳过"已删除且未重新插入"的键
+      slotContainers.delete(key);
+    });
+  }
+
   function cleanupSlots(): void {
     slotContainers.forEach((el) => vueRender(null, el));
     slotContainers.clear();
   }
 
-  return { mountSlot, cleanupSlots };
+  return { mountSlot, dropSlot, cleanupSlots };
 }

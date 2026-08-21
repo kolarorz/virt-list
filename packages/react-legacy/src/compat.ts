@@ -61,9 +61,9 @@ export function createReactMounter() {
   /**
    * 元素已经离开文档就把这个挂载点清掉，返回 true 表示不必再渲染。
    *
-   * 项滚出渲染窗口时 core 会 remove 掉元素。VirtList 能通过 onItemUnmounted 精确清账，
-   * 但 tree / grid 没把这个钩子透出来，于是重刷时兜一道：否则长时间滚动下来
-   * entries 只增不减，还会往脱离文档的节点里白渲染。
+   * 项滚出渲染窗口时 core 会 remove 掉元素，List / Grid / Tree 都接了
+   * `onItemUnmounted` → `dropMount` 精确清账，这里只是重刷路径上的兜底：
+   * 万一有元素绕过那条路被摘掉，也不至于往脱离文档的节点里白渲染。
    *
    * 只在重刷路径上做 —— 首次挂载时元素还没被 insertBefore 进去（见 vanilla 的 `_patch`），
    * 那时 isConnected 必然是 false。
@@ -80,10 +80,23 @@ export function createReactMounter() {
     ReactDOM.unmountComponentAtNode(el);
   }
 
-  /** 项滚出渲染窗口时清账（接 core 的 onItemUnmounted） */
+  /**
+   * 项滚出渲染窗口时清账（接 core 的 onItemUnmounted），否则挂载点会一直泄漏。
+   *
+   * 传入的是**项元素**，而挂载点可能是它的后代（Grid 的单元格是行元素的子节点、
+   * Tree 的插槽挂在节点行里），所以按 `contains` 匹配 —— `el.contains(el)` 为真，
+   * List 那种"挂载点就是项元素本身"的情形一并覆盖。core 在 `remove()` 之前回调，
+   * 此刻子树还完整。
+   *
+   * 不能只依赖 `flushMounts()` 里的 `prune`：那条路只在宿主重渲染时才走，纯滚动
+   * 期间账本只增不减；Grid 更是压根指望不上 —— 它的挂载点容器按行位置复用，旧 key
+   * 记着的元素仍 `isConnected`，`prune` 判不出来。
+   */
   function dropMount(el: HTMLElement): void {
     entries.forEach((entry, key) => {
-      if (entry.el === el) entries.delete(key);
+      if (el !== entry.el && !el.contains(entry.el)) return;
+      entries.delete(key);
+      unmountEl(entry.el);
     });
     unmountEl(el);
   }

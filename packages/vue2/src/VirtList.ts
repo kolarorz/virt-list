@@ -212,7 +212,7 @@ export const VirtList = defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     let vl: VirtListVanilla<any> | null = null;
 
-    const { mountSlot, cleanupSlots } = createSlotMounter();
+    const { mountSlot, dropSlot, cleanupSlots } = createSlotMounter();
 
     /**
      * 挂载/更新一项的插槽内容，同时充当 `renderItem` 与 `updateItem`。
@@ -274,6 +274,9 @@ export const VirtList = defineComponent({
         renderItem: props.renderItem ?? mountItem,
         // 插槽路径才注入：用户自己接管 renderItem 时，怎么更新也由他决定
         updateItem: typeof props.renderItem === 'function' ? undefined : mountItem,
+        // 项滚出渲染窗口时回收挂载点，否则滚过的每个 key 都留下一个活着的
+        // Vue 实例。见 compat 的 dropSlot
+        onItemUnmounted: dropSlot,
       };
 
       // header / footer 拿到 loadState：加载提示条直接在插槽里按状态渲染

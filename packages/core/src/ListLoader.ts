@@ -68,6 +68,19 @@ export class ListLoader {
 
   private _destroyed = false;
 
+  /** 构造时的 hasMore 初值，`reset()` 据此还原 */
+  private readonly _initialHasMore: { top: boolean; bottom: boolean };
+
+  /**
+   * 状态代号。`reset()` 递增它。
+   *
+   * 一次 `loadMore` 的 promise 可能在 `reset()` **之后**才落地（切会话时上一个
+   * 会话的请求还在飞）。那时它的 `_settle` 会把旧数据的结论写进新一轮状态：
+   * `more === false` 关掉新会话的 hasMore、`grew` 为假置上停摆标记、甚至续拉
+   * 下一段。发起时把代号抓在闭包里，落地时对不上就整个丢弃。
+   */
+  private _epoch = 0;
+
   private readonly _host: LoaderHost;
   /**
    * 取当前的 loadMore 回调。
@@ -101,6 +114,51 @@ export class ListLoader {
 
     if (initial?.hasMoreTop === false) this._state.hasMoreTop = false;
     if (initial?.hasMoreBottom === false) this._state.hasMoreBottom = false;
+
+    this._initialHasMore = {
+      top: this._state.hasMoreTop,
+      bottom: this._state.hasMoreBottom,
+    };
+  }
+
+  /**
+   * 回到初始状态：列表被清空或整体换了数据源时调用（见 `VirtListCore.reset()`）。
+   *
+   * 每一项都必须归位，否则切会话后会留下上一个会话的痕迹：
+   * - `loadingTop/Bottom`：卡在 true 就再也触发不了这个方向的加载；
+   * - `pendingNew`：上层拿它渲染"N 条新消息"角标，不清就挂着一个假数字；
+   * - `hasMore`：旧会话"没有更早的消息了"的结论对新数据不成立；
+   * - `_stalled` / `_chainCount`：停摆标记会挡掉新数据的首次自动续拉。
+   *
+   * 受控用法下框架层随后还会用 props 再落一次 `hasMore`，不受影响。
+   */
+  reset(): void {
+    if (this._destroyed) return;
+    // 在飞的请求落地时不再改状态（理由见 `_epoch`）
+    this._epoch += 1;
+
+    const next: LoadState = {
+      loadingTop: false,
+      loadingBottom: false,
+      hasMoreTop: this._initialHasMore.top,
+      hasMoreBottom: this._initialHasMore.bottom,
+      pendingNew: 0,
+    };
+    this._stalled.top = false;
+    this._stalled.bottom = false;
+    this._chainCount = 0;
+
+    const changed =
+      next.loadingTop !== this._state.loadingTop ||
+      next.loadingBottom !== this._state.loadingBottom ||
+      next.hasMoreTop !== this._state.hasMoreTop ||
+      next.hasMoreBottom !== this._state.hasMoreBottom ||
+      next.pendingNew !== this._state.pendingNew;
+
+    this._state = next;
+    // 本来就在初始态就不发：`reset()` 会被"清空列表"路径顺带调到，
+    // 空列表反复写入不该刷出一串一模一样的 loadStateChange
+    if (changed) this._emit();
   }
 
   getState(): LoadState {
@@ -216,6 +274,8 @@ export class ListLoader {
     }
 
     const lengthBefore = this._host.getListLength();
+    // 落地时用它判断这一趟是否还属于当前这一轮（见 `_epoch`）
+    const epoch = this._epoch;
     this._state[loadingKey] = true;
     this._emit();
 
@@ -224,20 +284,20 @@ export class ListLoader {
       result = loadMore(direction);
     } catch (err) {
       // 同步抛错也要解锁，否则这个方向就永久卡在 loading 上
-      this._settle(direction, undefined, lengthBefore);
+      this._settle(direction, undefined, lengthBefore, epoch);
       throw err;
     }
 
     if (!(result instanceof Promise)) {
-      this._settle(direction, result, lengthBefore);
+      this._settle(direction, result, lengthBefore, epoch);
       return;
     }
 
     result.then(
-      (more) => this._settle(direction, more, lengthBefore),
+      (more) => this._settle(direction, more, lengthBefore, epoch),
       // 加载失败不改 hasMore：使用方还应该能重试。停摆标记会防住忙循环，
       // 下次用户滚动时自动解开。异常本身归使用方在自己的回调里处理
-      () => this._settle(direction, undefined, lengthBefore),
+      () => this._settle(direction, undefined, lengthBefore, epoch),
     );
   }
 
@@ -246,8 +306,11 @@ export class ListLoader {
     direction: LoadDirection,
     more: boolean | void,
     lengthBefore: number,
+    epoch: number,
   ): void {
     if (this._destroyed) return;
+    // 期间 reset() 过：这一趟的结论属于上一个数据源，整个丢弃
+    if (epoch !== this._epoch) return;
 
     const loadingKey = direction === 'top' ? 'loadingTop' : 'loadingBottom';
     const hasMoreKey = direction === 'top' ? 'hasMoreTop' : 'hasMoreBottom';

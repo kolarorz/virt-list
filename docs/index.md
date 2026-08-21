@@ -21,7 +21,7 @@ hero:
       link: https://github.com/kolarorz/virt-list
 
 features:
-  - title: AI 流式对话就绪
+  - title: AI 流式对话
     details: 逐 token 输出时视口稳定跟随，用户上滑立即脱离、滚回底部自动恢复。万级会话历史双向加载，未读消息自带计数。
     link: /vanilla/ai/overview
     linkText: 看在线 demo

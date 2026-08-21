@@ -1,10 +1,12 @@
 import { computed } from 'vue';
 import { useRoute, useData, withBase } from 'vitepress';
+// 框架清单与展示名放在 shared/ 下，config.ts（node 侧）也要用同一份
+import { FRAMEWORKS, FRAMEWORK_LABELS, type Framework } from '../../shared/frameworks';
 
-export type Framework = 'vanilla' | 'vue' | 'vue2' | 'react' | 'react-legacy';
+export { FRAMEWORKS, FRAMEWORK_LABELS };
+export type { Framework };
 export type ModuleName = 'guide' | 'ai' | 'examples' | 'api';
 
-const FRAMEWORKS: Framework[] = ['vanilla', 'vue', 'vue2', 'react', 'react-legacy'];
 const MODULES: ModuleName[] = ['guide', 'ai', 'examples', 'api'];
 
 /**
@@ -23,14 +25,6 @@ export function hasModule(fw: Framework, mod: ModuleName): boolean {
   const only = MODULE_FRAMEWORKS[mod];
   return !only || only.includes(fw);
 }
-
-export const FRAMEWORK_LABELS: Record<Framework, string> = {
-  vanilla: 'Vanilla',
-  vue: 'Vue 3',
-  vue2: 'Vue 2',
-  react: 'React 18+',
-  'react-legacy': 'React 16-17',
-};
 
 export const FRAMEWORK_ICONS: Record<Framework, string> = {
   vanilla: '<svg width="16" height="16" viewBox="0 0 20 20"><rect width="20" height="20" rx="3" fill="#f7df1e"/><text x="10" y="14.5" font-size="10" font-weight="bold" fill="#323330" text-anchor="middle" font-family="sans-serif">JS</text></svg>',

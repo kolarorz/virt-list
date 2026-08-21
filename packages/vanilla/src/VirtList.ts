@@ -499,7 +499,7 @@ export class VirtList<T extends Record<string, any>> {
   /**
    * 构建滚动容器的完整 DOM 结构。
    *
-   *   clientEl .virt-list__client (overflow:hidden; position:relative; touch-action:pan-x)
+   *   clientEl .virt-list__client (overflow:hidden; position:relative; touch-action:pinch-zoom)
    *   ├─ scrollContentEl .virt-list__scroll-content ← 交叉轴的滚动层
    *   │     (inset:0; overflow-x:auto; overflow-y:hidden)
    *   │  ├─ stickyHeaderEl (position:absolute; top:0) ← sticky 依赖原生滚动，主轴上失效
@@ -520,8 +520,11 @@ export class VirtList<T extends Record<string, any>> {
    * - **平移在每一段上，不在公共父节点上**。每段只带自己的残差
    *   `该段的文档位置 − offset`，所以任何单个 transform 都碰不到浏览器的位移上限。
    *   详见 `_applyLayout`。
-   * - **两条轴的滚动归属不同**。主轴（虚拟化的那条）归 JS，交叉轴归浏览器原生
-   *   滚动，落在 `scrollContentEl` 上（理由见 `crossScroll` 选项）。自绘滚动条与
+   * - **两条轴的滚动机制不同，但输入都归 JS**。主轴的位置是虚拟偏移量（transform
+   *   残差），交叉轴仍是 `scrollContentEl` 的原生 `scrollLeft`（`sticky` 要它当参照，
+   *   理由见 `crossScroll` 选项）；触摸 / 滚轮两条轴都由 `InputController` 驱动 ——
+   *   `preventDefault` 拦不住"只拦一条轴"，交叉轴留给浏览器就等于主轴一拦它也废了。
+   *   自绘滚动条与
    *   空状态因此必须留在 `clientEl` 里：放进滚动层的话，横滚 400px 就把整条滚动条
    *   推出视口了（实测如此）。吸顶 / 吸底反过来要放**进**滚动层，表头才会跟着列横移。
    *
@@ -531,13 +534,23 @@ export class VirtList<T extends Record<string, any>> {
     const { horizontal } = this._options;
     const crossScroll = this._options.crossScroll !== false;
     /**
-     * 交叉轴方向上放行的原生 pan 手势。
+     * 单指平移一律不放行给浏览器，**两条轴都由 `InputController` 接管**。
      *
-     * 不能再一律 `none`：主轴的触摸滚动由 InputController 接管（`touchmove` 里
-     * preventDefault），交叉轴则要让浏览器自己滚。而 touch-action 沿祖先链**求交**，
-     * 只在内层滚动层上写 pan-x、外层留 none 的话一样滚不动。
+     * 曾经是 `crossScroll ? (horizontal ? 'pan-y' : 'pan-x') : 'none'`：交叉轴让浏览器
+     * 自己滚。行不通，因为 `preventDefault` 没有"只拦一条轴"的粒度 —— 主轴一拦，
+     * 同一个事件里的交叉轴分量也一起没了，触屏上表现为「竖着滚起来之后横向滚不动」。
+     * 更要紧的是浏览器的方向判定**先于** JS：它一旦启动原生 pan，后续 `touchmove` 的
+     * `cancelable` 就变成 `false`，`InputController` 的轴锁说了不算，而 `_scrollCross`
+     * 仍会照写一次 `scrollLeft` —— 那条轴双倍速。
+     *
+     * 交叉轴的位移机制没变（仍是 `scrollContentEl` 的原生 scrollport，`sticky` 照旧），
+     * 只是改由 `InputController` 写它的 `scrollLeft` / `scrollTop`。
+     *
+     * `pinch-zoom` 保留双指缩放；前面那条 `none` 是给不认 `pinch-zoom` 的老浏览器
+     * （Safari < 13）打的底 —— 少了它，无效声明会让 `touch-action` 落回 `auto`，
+     * 浏览器就把两条轴全接管回去了。
      */
-    const touchAction = crossScroll ? (horizontal ? 'pan-y' : 'pan-x') : 'none';
+    const touchActionDecl = 'touch-action:none; touch-action:pinch-zoom;';
 
     this._clientEl = document.createElement('div');
     this._clientEl.className = 'virt-list__client';
@@ -551,12 +564,13 @@ export class VirtList<T extends Record<string, any>> {
     // 浏览器的滚动锚定照样会在内容高度变化时悄悄改 scrollTop（且不派发 scroll
     // 事件）。滚动位置由列表自己维护，浏览器这份好意只会和它打架。
     //
-    // touch-action 收窄到只放行交叉轴，是因为主轴的触摸滚动改由 InputController 接管。
+    // touch-action 不放行任何单指平移：两条轴的触摸滚动都由 InputController 接管
+    // （含起步阈值与方向锁定），浏览器插手就会抢在 JS 的轴判定之前把轴定死。
     this._clientEl.tabIndex = 0;
     applyStyle(
       this._clientEl,
       'width:100%; height:100%; overflow:hidden; overflow-anchor:none;' +
-        ` position:relative; touch-action:${touchAction};`,
+        ` position:relative; ${touchActionDecl}`,
     );
 
     // 参与滚动的各段都挂在这一层里，但**它在主轴上不平移**。
@@ -588,7 +602,7 @@ export class VirtList<T extends Record<string, any>> {
       'position:absolute; top:0; right:0; bottom:0; left:0;' +
         // 主轴方向照样要显式关掉滚动锚定：这一层现在是真正的 scrollport 了，
         // 浏览器会在内容高度变化时悄悄改它的 scrollTop（且不派发 scroll 事件）
-        ` ${crossOverflow} overflow-anchor:none; touch-action:${touchAction};`,
+        ` ${crossOverflow} overflow-anchor:none; ${touchActionDecl}`,
     );
     this._clientEl.appendChild(this._scrollContentEl);
 

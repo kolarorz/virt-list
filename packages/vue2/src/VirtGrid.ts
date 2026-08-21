@@ -52,7 +52,7 @@ export const VirtGrid = defineComponent({
   setup(props, { emit, expose, slots }) {
     const containerRef = ref<HTMLElement | null>(null);
     let grid: VirtGridVanilla<any> | null = null;
-    const { mountSlot, cleanupSlots } = createSlotMounter();
+    const { mountSlot, dropSlot, cleanupSlots } = createSlotMounter();
 
     /**
      * 挂载/更新一个单元格的插槽内容，同时充当 renderItem 与 updateItem
@@ -103,6 +103,8 @@ export const VirtGrid = defineComponent({
           renderHeader: props.renderHeader,
           renderFooter: props.renderFooter,
           renderEmpty: props.renderEmpty,
+          // 行滚出渲染窗口时回收它下面所有单元格的挂载点。见 compat 的 dropSlot
+          onItemUnmounted: dropSlot,
           stickyHeaderStyle: props.stickyHeaderStyle,
         },
         {
@@ -122,8 +124,11 @@ export const VirtGrid = defineComponent({
       cleanupSlots();
     });
 
-    watch(() => props.list, (newList) => {
-      grid?.setList(newList);
+    // 与 VirtList 同理：只盯引用会漏掉「在同一个数组上原地 splice / push」——
+    // Vue 的 getter 依赖是 props.list 这个引用本身，原地改动不会让它重新触发。
+    // 长度进依赖后这类写法也能同步（引用变化仍覆盖整体换数据源）
+    watch([() => props.list, () => props.list.length], () => {
+      grid?.setList(props.list);
     });
 
     watch(() => props.gridItems, (n) => {

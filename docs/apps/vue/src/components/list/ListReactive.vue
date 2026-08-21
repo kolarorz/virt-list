@@ -129,8 +129,9 @@ const rowCount = ref(1000);
 const dataTick = ref(0);
 const running = ref(false);
 const mode = ref<Mode>('replace');
-// 大数据量用 shallowRef：ref 会递归代理数组里每个对象的每个属性，十万条的初始化
-// 就要数百毫秒。代价是「原地改某一项的字段」Vue 察觉不到 —— 正是下面 mutate 模式演示的
+// 大数据量用 shallowRef：Vue 3 的代理是惰性的，ref 那一下不贵，贵的是之后每次穿过代理
+// 读数据 —— 库每次数据变更都要整表扫一遍取 itemKey，十万条 ref 要 20~25ms、shallowRef 0.7ms。
+// 代价是「原地改某一项的字段」Vue 察觉不到 —— 正是下面 mutate 模式演示的
 const list = shallowRef<Row[]>(createRows(1000));
 let timer: ReturnType<typeof setInterval> | null = null;
 

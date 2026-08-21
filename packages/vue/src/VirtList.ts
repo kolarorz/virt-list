@@ -237,7 +237,7 @@ export const VirtList = defineComponent({
     const containerRef = ref<HTMLElement | null>(null);
     let vl: VirtListVanilla<any> | null = null;
 
-    const { mountSlot, cleanupSlots } = createSlotMounter();
+    const { mountSlot, dropSlot, cleanupSlots } = createSlotMounter();
 
     /**
      * 挂载/更新一项的插槽内容。
@@ -305,6 +305,9 @@ export const VirtList = defineComponent({
         // 插槽路径才注入：用户自己接管 renderItem 时，怎么更新也由他决定
         // （原地更新的语义只有他知道，我们无脑重跑他的 renderItem 会重复追加节点）
         updateItem: typeof props.renderItem === 'function' ? undefined : mountItem,
+        // 项滚出渲染窗口时回收挂载点，否则滚过的每个 key 都留下一个脱离文档的
+        // SlotRenderer（连着它的 render effect）。见 compat 的 dropSlot
+        onItemUnmounted: dropSlot,
       };
 
       // header / footer 拿到 loadState：加载提示条（"加载中" / "没有更早的消息了"）

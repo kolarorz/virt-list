@@ -240,6 +240,9 @@ function VirtTreeInner(props: VirtTreeProps, ref: ForwardedRef<VirtTreeRef>) {
       renderIcon: props.renderIcon,
       renderNode: props.renderNode,
       renderEmpty: props.renderEmpty,
+      // 节点滚出渲染窗口时回收它的插槽挂载点（content / icon / node 三个）。
+      // flushMounts 的 prune 只在宿主重渲染时才走，兜不住纯滚动
+      onItemUnmounted: (el: HTMLElement) => mounter.dropMount(el),
       renderStickyHeader: props.renderStickyHeader,
       renderStickyFooter: props.renderStickyFooter,
       renderHeader: props.renderHeader,

@@ -4,8 +4,8 @@
 
 | 参数         | 说明             | 类型                                                         | 是否必须                     |
 | ------------ | ---------------- | ------------------------------------------------------------ | ---------------------------- |
-| `gridItems`  | 每行展示个数     | `number`                                                     | <font color="#f00">是</font> |
-| `renderItem` | 网格项渲染函数   | `(item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement \| void` | <font color="#f00">是</font> |
+| `gridItems`  | 每行展示个数     | `number`                                                     | **是**                       |
+| `renderItem` | 网格项渲染函数   | `(item: T, rowIndex: number, listIndex: number, el: HTMLElement) => HTMLElement \| void` | **是**                       |
 | `updateItem` | 数据变更时**原地更新**已渲染的单元格。不传则 `setList` 后会退化为「作废并重建成员变了的整行」 | `(item: T, rowIndex: number, listIndex: number, el: HTMLElement) => void` | 可选 |
 | 其他属性     | 同 VirtList 属性 | -                                                            | -                            |
 

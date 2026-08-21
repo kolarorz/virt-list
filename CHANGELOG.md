@@ -9,6 +9,53 @@
 
 ## [未发布]
 
+### 修复
+
+- **Vue / Vue2：项滚出渲染窗口后不再泄漏挂载点。** 两个适配层此前只有
+  `cleanupSlots()`（组件卸载时才跑），滚动过程无人回收：core 把元素从文档里摘掉，
+  Vue 3 那边留下一个连着 render effect 的 `SlotRenderer`、Vue 2 那边留下一个未
+  `$destroy` 的实例，而且它们仍订阅着那一项的响应式数据——改数据时还会各自白渲染
+  一遍。滚过的每个 key 都留一份（Tree 每个节点三份：`content` / `icon` / `node`）。
+  新增 `dropSlot(el)` 接到 core 的 `onItemUnmounted` 上。
+- **React / React-legacy：Grid 与 Tree 也接上 `onItemUnmounted`。** 此前只有
+  `VirtList` 接了，另两个靠 `flushMounts()` 里的 `prune` 兜底，而那条路只在宿主
+  重渲染时才走——纯滚动期间账本只增不减。Grid 更是指望不上它：单元格容器按行位置
+  复用，旧 key 记着的元素仍 `isConnected`，`prune` 判不出来。
+  `dropMount` 同时改为按 `contains` 匹配，覆盖「挂载点是项元素的后代」这种形态
+  （Grid 的单元格、Tree 的节点行）。
+- **`scrollToIndex` 的末项不再无视 `align: 'start'`。** 原先 `index >= length - 1`
+  一律转 `scrollToBottom`，注释以为"两种对齐在那里没有分别"——只在末项装得进一屏时
+  成立。末项高于一屏（展开的聊天消息、长图）时想把它顶部滚进视口，实际会贴到底。
+  现在只有 `align: 'end'` 才走贴底那条路。
+- **显式定位不再把「被裁掉的目标」固化下来。** `_pinIndex` 原先用「当前偏移量 − 目标」
+  现算项内偏移，而 `scrollToIndex` 刚写进去的值可能被 `_maxScrollOffset()` 裁掉
+  （目标项尚未渲染、尺寸只有估算值时可滚动上限偏小）。那个差额被当成"用户想要的项内
+  偏移"记住，等尺寸测准、上限放开了也回不到真正的目标。显式定位现在恒取 0；隐式锚定
+  （用户向上滚时自动锚住视口顶部项）仍然保留偏移——那里要保住的正是"看到这一项的第几
+  个像素"。
+- **中间增删数据也维持视口内容。** 此前只有头部结构变化会补偿（`_diffHead` 只比首项
+  key），视口停在 index 50 时删掉 index 10，首项与偏移量都没变，但视口顶部显示的项会
+  从 `k50` 悄悄换成 `k51`。现在以「变更前视口顶部那一项」为锚点，在新列表里从原索引向
+  两侧找回它并按新位置反解偏移量。找不到（锚点被删、整体换数据源）就退回保持像素偏移。
+  查找有半径上限，避免为「锚点根本不存在」的情形每次白扫全表；尾部追加与同 key 换内容
+  由一次 `===` 短路，不付任何额外代价。
+- **`reset()` 会一并归零分页状态。** `ListLoader` 此前完全不参与重置，切会话（清空
+  list 走内部 `reset()`）会留下上一个会话的 `pendingNew`（上层拿它渲染"N 条新消息"
+  角标，于是挂着一个假数字）、卡住的 `loadingTop/Bottom`（这个方向再也触发不了加载）、
+  以及 `hasMore` 与停摆标记。新增 `ListLoader.reset()`，并用代号（`_epoch`）让 reset
+  之前发起、之后才落地的请求整个作废——否则旧会话的 `more === false` 会关掉新会话的
+  分页。
+- **Vue / Vue2 的 Grid 与 Tree 补上对 `list.length` 的侦听。** 只盯 `props.list` 引用
+  会漏掉「在同一个数组上 `splice` / `push`」：Vue 的 getter 依赖就是那个引用，原地改动
+  不会重新触发。`VirtList` 本来是对的，另两个漏了。
+- **Tree：取消拖拽后源节点的展开态还原。** 拖拽开始时会折叠源节点（拖着一整棵展开的
+  子树没法看落点），但那只是实现手段、不是用户意图，Esc 取消或落在空处之后一直没还原。
+  还原发生在派发 `dragend` 之前，使用方在回调里看到的是一致状态。
+- **Tree：换数据源不再残留过滤留下的隐藏状态。** `_hiddenNodeKeySet` 与
+  `_hiddenExpandIconKeySet` 按 key 记录，而 `setList` 两个都不清——新数据复用同样的
+  key（切会话、翻页、服务端返回同一批 id 的另一份内容）时，那些节点一上来就是隐藏的、
+  或者展开图标没了，而用户并没有在过滤。`filter()` 也改为两个集合一起清后全量重算。
+
 ### 性能
 
 - **core：一个外部事件只发一次 `update` 通知。** 原先用 `_listChanging` 布尔标记，
@@ -32,6 +79,23 @@
 - 新增 `packages/vanilla/__tests__/ReactivePerf.test.ts`：断言每个可见项恰好一次
   `updateItem`、滚动帧不读几何量、容器尺寸变化后缓存正确失效。
 - 补充 Vue 的 `ItemUpdate.test.ts`。
+- 新增 `packages/core/__tests__/VirtListMidChangeAnchor.test.ts`：中间增删的视口锚点，
+  含「锚点被删」「整体换数据源」「位移超出扫描半径」这些必须退回原行为的情形。
+- 新增 `packages/core/__tests__/VirtListScrollToIndexAlign.test.ts`：末项两种对齐，
+  以及「目标被可滚动上限裁掉后仍要回到真正的目标」（走真实的 `ResizeObserver` 上报路径，
+  渐进修正挂在那条回调上）。
+- 新增 `packages/core/__tests__/ListLoaderReset.test.ts`：分页状态的重置与「reset 之前
+  发起的请求落地后不得改状态」。
+- 新增四个框架包的挂载点回收测试（`SlotRecycle` / `MountRecycle`）：滚一大段之后账本
+  必须有界，并各自用最贴合的存活判据（Vue 3 看容器的 `_vnode`、Vue 2 看实例的
+  `_isDestroyed`、React 看 root 渲染出的内容还在不在）。
+- 新增 `InPlaceListMutation.test.ts`（vue / vue2）：三个组件的原地 `splice` / `push`。
+- 新增 `packages/vanilla/__tests__/VirtTreeFilterState.test.ts`，并在
+  `VirtTreeDrag.test.ts` 里补上拖拽取消后展开态还原的四个用例。
+- 上述改动另用 CDP 驱动真实 Chrome 复核过 27 项（jsdom 没有布局、命中测试是 mock 的，
+  滚动 / 拖拽 / 泄漏这三类只有真实浏览器算数）。其中「末项 `align:'start'` 落位」这条
+  正是单测全绿、真实浏览器才暴露出来的——被裁剪的目标要靠 `ResizeObserver` 回调渐进
+  修正，而 jsdom 里不会自然发生。
 
 ### 工程
 

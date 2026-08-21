@@ -69,6 +69,14 @@ export interface VirtGridOptions<T extends Record<string, any>> {
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
   renderFooter?: (el: HTMLElement) => HTMLElement | void;
   renderEmpty?: (el: HTMLElement) => HTMLElement | void;
+  /**
+   * 行滚出渲染窗口、即将被移除前回调。框架适配层用它回收单元格的挂载点
+   * （React 的 root、Vue 的组件实例），否则滚过的每一格都会留一份在内存里。
+   *
+   * **给到的是行元素，不是单元格**：单元格容器是行元素的子节点。调用时机在
+   * `remove()` 之前，此刻子树还完整，按 `contains` 就能找出该行下的所有挂载点。
+   */
+  onItemUnmounted?: (el: HTMLElement) => void;
   stickyHeaderStyle?: StyleValue;
 }
 
@@ -162,6 +170,7 @@ export class VirtGrid<T extends Record<string, any>> {
         renderHeader: options.renderHeader,
         renderFooter: options.renderFooter,
         renderEmpty: options.renderEmpty,
+        onItemUnmounted: (el: HTMLElement) => options.onItemUnmounted?.(el),
         stickyHeaderStyle: options.stickyHeaderStyle,
       },
       listEvents,

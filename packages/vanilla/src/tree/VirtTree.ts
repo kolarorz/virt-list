@@ -360,7 +360,12 @@ export class VirtTree {
     const family: TreeNode[] = [];
     const nodes = this._treeInfo.treeNodes || [];
     const filterFn = this._options.filterMethod;
+    // 两个 Set 都要清：下面的遍历只在「节点自己进了 expandKeySet」这一支里
+    // delete hiddenExpandIconKeys，整个子树都不匹配的节点走不到那里，
+    // 上一轮的判定就会留着。它此刻虽然也被隐藏、看不出来，但换成
+    // `children` 为空数组之类的形态就会漏出去 —— 不如统一从零开始算
     hiddenKeys.clear();
+    hiddenExpandIconKeys.clear();
 
     const traverse = (nodeList: TreeNode[]) => {
       for (const node of nodeList) {
@@ -406,6 +411,19 @@ export class VirtTree {
     }
     this._virtListDOM.scrollToTop();
     this._refresh();
+  }
+
+  /**
+   * 丢掉过滤留下的隐藏状态。
+   *
+   * 换数据源时必须清：两个 Set 按 key 记录，而新数据完全可能复用同样的 key
+   * （切换会话、翻页、服务端返回同一批 id 的另一份内容）。不清的话新数据里
+   * 那些 key 一上来就是隐藏的 —— 节点不见了、或者展开图标没了，而用户并没有
+   * 在过滤。`filter()` 自己会全量重算，不需要走这里。
+   */
+  private _clearFilterState(): void {
+    this._hiddenNodeKeySet.clear();
+    this._hiddenExpandIconKeySet.clear();
   }
 
   // ----- Scroll -----
@@ -533,6 +551,7 @@ export class VirtTree {
   /** 替换整棵树的数据，重建所有内部状态 */
   setList(list: TreeData): void {
     this._options.list = list;
+    this._clearFilterState();
     this._setTreeData(list);
     this._initExpandedKeys();
     this._initCheckedKeys();
@@ -944,6 +963,9 @@ export class VirtTree {
           if (key !== undefined) {
             this._nodeElMap.delete(key);
           }
+          // 这个钩子被 Tree 自己占了（清 _nodeElMap），所以外部的要在这里转发出去，
+          // 否则框架适配层拿不到"节点滚出去了"的时机、回收不了插槽挂载点
+          opts.onItemUnmounted?.(el);
         },
       },
       {
@@ -1262,6 +1284,7 @@ export class VirtTree {
       dragAreaParentElement: null,
       clientElementRect,
       sourceNode: undefined,
+      sourceWasExpanded: false,
       prevElementNode: undefined,
       parentNode: undefined,
       prevNode: undefined,
@@ -1322,6 +1345,11 @@ export class VirtTree {
           this._cleanupDragDOM(state);
           return;
         }
+
+        // 在派发 dragend **之前**还原：使用方在回调里读展开态、或据此算新的
+        // expandedKeys，看到的应该是"拖拽从未折叠过它"的状态。
+        // Esc 取消也走这里（onKeydown 只是把 dragEffect 置假后转调本函数）
+        this._restoreSourceExpanded(state);
 
         if (state.dragAreaBottom && !crossLevel) {
           state.parentNode = state.sourceNode.parent;
@@ -1394,7 +1422,18 @@ export class VirtTree {
     this._dragState = state;
   }
 
+  /** 还原拖拽开始时被折叠掉的源节点（见 DragState.sourceWasExpanded） */
+  private _restoreSourceExpanded(state: DragState): void {
+    if (!state.sourceWasExpanded || !state.sourceNode) return;
+    state.sourceWasExpanded = false;
+    this.expandNode(state.sourceNode.key, true);
+  }
+
   private _cleanupDragDOM(state: DragState): void {
+    // 兜底：正常路径已在派发 dragend 之前还原过（幂等，这里不会重复）。
+    // 剩下的是 _dragging 还没置起来就收尾的那些分支 —— 折叠发生在
+    // _dragStartClone 里，而 _dragging 要等它返回后才置 true
+    this._restoreSourceExpanded(state);
     if (state.hasStyleTreeItem?.contains(state.dragLine)) {
       state.hasStyleTreeItem.removeChild(state.dragLine);
     }
@@ -1438,7 +1477,10 @@ export class VirtTree {
 
     this._events.dragstart?.({ sourceNode: state.sourceNode });
 
-    if (this.hasExpanded(state.sourceNode)) {
+    // 拖着一整棵展开的子树没法看落点，先折叠；拖拽结束时由 _restoreSourceExpanded
+    // 还原（"折叠"是实现手段，不是用户意图）
+    state.sourceWasExpanded = this.hasExpanded(state.sourceNode);
+    if (state.sourceWasExpanded) {
       this.expandNode(nodeKey, false);
     }
 
@@ -1978,6 +2020,13 @@ interface DragState {
   dragAreaParentElement: HTMLElement | null;
   clientElementRect: DOMRect | undefined;
   sourceNode: TreeNode | undefined;
+  /**
+   * 拖拽开始前源节点是否展开。
+   *
+   * 拖拽期间会把它折叠起来（拖着一整棵展开的子树没法看落点），而"折叠"是实现
+   * 手段、不是用户意图，所以拖拽一结束就得还原 —— 尤其是 Esc 取消那条路。
+   */
+  sourceWasExpanded: boolean;
   prevElementNode: TreeNode | undefined;
   parentNode: TreeNode | undefined;
   prevNode: TreeNode | undefined;

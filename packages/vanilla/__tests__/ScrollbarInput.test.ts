@@ -477,12 +477,17 @@ describe('触摸', () => {
     return e as TouchEvent;
   }
 
-  it('手指上滑，内容跟着上走', () => {
+  it('手指上滑，内容跟着上走（起步那一段不补进内容）', () => {
     const { vl, clientEl } = mount();
     touch(clientEl, 'touchstart', 300, 0);
+    // 越过起步阈值的这一帧只用来判定锁哪条轴，位移**不**补进内容：
+    // 补了的话手势一开始内容会跳一下（原生的 slop 同样是扣掉的）
     touch(clientEl, 'touchmove', 250, 16);
-    expect(vl.core.getOffset()).toBe(50);
+    expect(vl.core.getOffset()).toBe(0);
+    // 从这一帧起 1:1 跟手
     touch(clientEl, 'touchmove', 200, 32);
+    expect(vl.core.getOffset()).toBe(50);
+    touch(clientEl, 'touchmove', 150, 48);
     expect(vl.core.getOffset()).toBe(100);
   });
 

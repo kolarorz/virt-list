@@ -324,6 +324,62 @@ describe('VirtTree 拖拽生命周期', () => {
     expect(check).not.toHaveBeenCalled();
   });
 
+  it('Esc 取消后源节点的展开态还原', () => {
+    const { container, clientEl, tree } = mount();
+    fakeGeometry(container, clientEl);
+    tree.expandAll(true);
+    expect(tree.hasExpanded({ key: '1' } as any)).toBe(true);
+
+    startDrag(container, '1');
+    mouseMove(50, 3 * ROW + 20);
+    // 拖拽期间折叠，好让用户看清落点
+    expect(tree.hasExpanded({ key: '1' } as any)).toBe(false);
+
+    pressEscape();
+
+    // 折叠只是实现手段，取消之后不该留下副作用
+    expect(tree.hasExpanded({ key: '1' } as any)).toBe(true);
+  });
+
+  it('落在空处（dragend 不带数据）后源节点的展开态也还原', () => {
+    const { container, clientEl, tree } = mount();
+    fakeGeometry(container, clientEl);
+    tree.expandAll(true);
+
+    startDrag(container, '1');
+    mouseMove(10, 10);
+    mouseUp();
+
+    expect(tree.hasExpanded({ key: '1' } as any)).toBe(true);
+  });
+
+  it('还原发生在派发 dragend 之前，回调看到的是一致状态', () => {
+    let seen: boolean | null = null;
+    const { container, clientEl, tree } = mount({}, {
+      dragend: () => { seen = tree.hasExpanded({ key: '1' } as any); },
+    });
+    fakeGeometry(container, clientEl);
+    tree.expandAll(true);
+
+    startDrag(container, '1');
+    mouseMove(50, 3 * ROW + 20);
+    mouseUp();
+
+    expect(seen).toBe(true);
+  });
+
+  it('本来就折叠的节点拖完仍然折叠', () => {
+    const { container, clientEl, tree } = mount();
+    fakeGeometry(container, clientEl);
+    expect(tree.hasExpanded({ key: '1' } as any)).toBe(false);
+
+    startDrag(container, '1');
+    mouseMove(50, 3 * ROW + 20);
+    pressEscape();
+
+    expect(tree.hasExpanded({ key: '1' } as any)).toBe(false);
+  });
+
   it('destroy 解绑 document 上的拖拽监听', () => {
     const dragend = vi.fn();
     const { container, tree } = mount({}, { dragend });

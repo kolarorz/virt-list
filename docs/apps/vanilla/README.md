@@ -1,14 +1,11 @@
-# vanilla
+# vanilla 示例应用
 
-纯 JavaScript 示例目录（参考 `/Users/hao.li/Desktop/virt-list/docs/examples/js`）。
+文档站里原生 JS 示例的宿主应用。文档页面通过 `PlaygroundHost` 以 iframe 内嵌本应用的
+对应示例，示例源码在 `src/components/` 下按 `list` / `tree` / `grid` / `ai` 分目录存放。
 
 ## 运行
 
-- `pnpm -C docs/apps/vanilla dev`
-- `pnpm -C docs/apps/vanilla build`
-
-## 内容
-
-- `src/virtual-list.js`: 纯 JS 虚拟列表核心实现
-- `src/main.js`: 控制按钮与滚动 API 示例
-- `index.html`: 演示页面入口
+```sh
+pnpm -C docs/apps/vanilla dev      # 开发，端口 7801
+pnpm -C docs/apps/vanilla build    # 构建，产物给文档站用
+```

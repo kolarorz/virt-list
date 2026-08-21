@@ -129,8 +129,9 @@ const rowCount = ref(1000);
 const dataTick = ref(0);
 const running = ref(false);
 const mode = ref<Mode>('replace');
-// 大数据量用 shallowRef：ref 会递归代理数组里每个对象的每个属性，十万条的初始化
-// 就要数百毫秒。代价是「原地改某一项的字段」Vue 察觉不到 —— 正是下面 mutate 模式演示的
+// 大数据量用 shallowRef：放进 data 的数组会被 Vue 2 预先递归改写每个属性（十万条 150~190ms），
+// 之后每次整表读还要多走一层 getter（13~20ms 对 shallowRef 的 0.8~1ms）。
+// 代价是「原地改某一项的字段」Vue 察觉不到 —— 正是下面 mutate 模式演示的
 const list = shallowRef<Row[]>(createRows(1000));
 let timer: ReturnType<typeof setInterval> | null = null;
 

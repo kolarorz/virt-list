@@ -206,6 +206,14 @@ export interface VirtTreeDOMOptions {
   renderHeader?: (el: HTMLElement) => HTMLElement | void;
   renderFooter?: (el: HTMLElement) => HTMLElement | void;
   renderEmpty?: (el: HTMLElement) => HTMLElement | void;
+  /**
+   * 节点滚出渲染窗口、即将被移除前回调。框架适配层用它回收节点插槽的挂载点
+   * （React 的 root、Vue 的组件实例），否则滚过的每个节点都会留一份在内存里。
+   *
+   * **给到的是节点项元素**，而插槽挂载点（`.virt-tree-node` / 图标容器）是它的
+   * 子节点。调用时机在 `remove()` 之前，此刻子树还完整，按 `contains` 即可找全。
+   */
+  onItemUnmounted?: (el: HTMLElement) => void;
 }
 
 /**

@@ -9,6 +9,10 @@
  * 帧率就是这个循环自己量的，不是写死的数字。
  * 尊重 prefers-reduced-motion，用户若关闭了动效就保持静止（仍可手动滚）；此时
  * 没有滚动循环，也就没有帧率可测，读数保持「—」。
+ *
+ * 访客一动手（滚轮 / 触摸 / 键盘 / 拖滑块），自动滚动立刻让位：卡片是可以真的上手
+ * 玩的，自流的内容不该把他指定的位置抢回去。停手一会儿再自己接着跑——鼠标掠过
+ * hero 时的一下误触不该把演示永久钉住。
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { VirtList } from '@virt-list/vanilla';
@@ -44,20 +48,120 @@ const SPEED_PX_PER_SEC = 900;
  * 看着像在掉帧；400ms 一结账既跟得上手感变化，数字也稳得住。
  */
 const SAMPLE_MS = 400;
+/**
+ * 手动滚动后，静止多久自动接着跑。
+ *
+ * 定这么一个时长而不是「一动手就永久停」：hero 卡片占着首屏右侧一大块，访客滚页面
+ * 时鼠标常常正掠过它，滚轮被卡片接走了——那不是「我要看这一段」的意思，演示不该
+ * 因此永久静止。反过来也不能太短：1.6s 足够读完一行再决定下一步，又不至于让人
+ * 觉得卡片卡住了。
+ */
+const RESUME_DELAY_MS = 1600;
 
 const hostRef = ref<HTMLElement | null>(null);
 const domCount = ref(0);
 /** 实时帧率；0 表示还没有测量窗口结账（静止或刚挂载），UI 上显示为「—」 */
 const fps = ref(0);
+/** 因手动滚动而让位中，脚注据此换成「已暂停」，免得看着像卡住了 */
+const paused = ref(false);
 
 let vList: VirtList<Row> | null = null;
 let rafId: number | null = null;
+let resumeTimer: number | null = null;
+/**
+ * 自动滚动这条路是否开着：reduced-motion 下整个循环都不存在，
+ * 手动滚动便无从「暂停」，也不该在停手后凭空跑起来。
+ */
+let autoScroll = false;
+
+/*
+ * 自动滚动的进度累加器，以及帧率采样窗口。
+ *
+ * 累加器自己维护，不去读回 getOffset()：到达底部那一帧的写入会被裁到
+ * maxOffset，读回来的值就不再是我们的进度，下一帧会卡在底部反复自增。
+ * 唯一的例外是用户接手之后——那时以他停下的位置为新起点（见 pauseForUser）。
+ */
+let offset = 0;
+let lastTs: number | null = null;
+/* 窗口内累计帧数，到期一起公布 */
+let frames = 0;
+let windowStart: number | null = null;
+
+function step(ts: number): void {
+  /*
+   * 首帧只用来取时间基准（此时还没有"上一帧"可比）。
+   * 上限 50ms：切走标签页时 rAF 停跑，切回来的第一帧间隔是整段离开的时长，
+   * 不钳住就会一次瞬移几百上千像素。
+   */
+  const deltaSec = lastTs === null ? 0 : Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  offset += SPEED_PX_PER_SEC * deltaSec;
+  if (offset >= vList!.getMaxOffset()) offset = 0;
+  /*
+   * 走 scrollToOffset，不要写 clientEl.scrollTop：容器是 overflow:hidden，
+   * 偏移量归 JS 掌管，写原生 scrollTop 不但不滚动，还会被内部当成「浏览器为露出
+   * 焦点元素而静默滚动」立刻归零。
+   *
+   * 语义上这是「程序要求去某处」而非用户滚动，所以用 scrollToOffset
+   * 而不是 scrollFromUser：不该触发 toTop / toBottom 与自动续拉。这一路派发的
+   * scroll 事件 source 是 'program'，于是下面那个暂停判定不会被自己触发。
+   */
+  vList!.scrollToOffset(offset);
+
+  /*
+   * 帧率也是这个循环量出来的：帧数除以窗口实际时长，而不是除以 SAMPLE_MS
+   * ——最后一帧总会略微越过窗口边界，用名义值算会把读数系统性抬高一点。
+   */
+  frames += 1;
+  if (windowStart === null) windowStart = ts;
+  const elapsed = ts - windowStart;
+  if (elapsed >= SAMPLE_MS) {
+    fps.value = Math.round((frames * 1000) / elapsed);
+    frames = 0;
+    windowStart = ts;
+  }
+
+  rafId = requestAnimationFrame(step);
+}
+
+function startLoop(): void {
+  if (!autoScroll || rafId !== null) return;
+  /*
+   * 时间基准与采样窗口都清掉再起步：暂停期间时钟照走，留着旧的 lastTs 会让复跑的
+   * 第一帧把整段暂停时长当成帧间隔（虽被 50ms 钳住，仍是一次看得见的跳），留着旧的
+   * windowStart 则会拿几帧去除一整段停顿，帧率报出个位数。
+   */
+  lastTs = null;
+  windowStart = null;
+  frames = 0;
+  rafId = requestAnimationFrame(step);
+}
 
 function stopLoop(): void {
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
   }
+}
+
+/**
+ * 用户动了滚动位置：让位，并排一个复跑的定时器。
+ *
+ * 每来一次都重排定时器，所以连续滚动期间不会被打断，只有真的停手才开始计时。
+ */
+function pauseForUser(): void {
+  if (!autoScroll) return;
+  stopLoop();
+  paused.value = true;
+  // 循环停了就没有测量窗口，读数保持诚实：显示「—」而不是冻住最后那个数字
+  fps.value = 0;
+  if (resumeTimer !== null) clearTimeout(resumeTimer);
+  resumeTimer = window.setTimeout(() => {
+    resumeTimer = null;
+    paused.value = false;
+    startLoop();
+  }, RESUME_DELAY_MS);
 }
 
 onMounted(() => {
@@ -85,6 +189,17 @@ onMounted(() => {
       update: (renderList) => {
         domCount.value = renderList.length;
       },
+      /*
+       * 谁动的滚动位置，库自己说得准（source 是确定的，不是靠比对上次写入值去猜）：
+       * 'program' 是上面那个自动滚循环，'adjust' 是内部补偿（这里数据不变，不会有），
+       * 只有 'user' 才是访客的滚轮 / 触摸 / 方向键 / 拖滑块。
+       */
+      scroll: (e) => {
+        if (e.source !== 'user') return;
+        // 以他停下的地方作为新起点，复跑时才不会跳回自动滚原来的进度
+        offset = e.offset;
+        pauseForUser();
+      },
     },
   );
 
@@ -94,54 +209,25 @@ onMounted(() => {
   if (reduceMotion) return;
 
   /*
-   * 走 scrollToOffset，不要写 clientEl.scrollTop：容器是 overflow:hidden，
-   * 偏移量归 JS 掌管，写原生 scrollTop 不但不滚动，还会被内部当成「浏览器为露出
-   * 焦点元素而静默滚动」立刻归零。
-   *
-   * 语义上这是「程序要求去某处」而非用户滚动，所以用 scrollToOffset
-   * 而不是 scrollFromUser：不该触发 toTop / toBottom 与自动续拉。
-   *
-   * 累加器自己维护，不去读回 getOffset()：到达底部那一帧的写入会被裁到
-   * maxOffset，读回来的值就不再是我们的进度，下一帧会卡在底部反复自增。
+   * Home / End 走的是程序化路径（scrollToTop / scrollToBottom），派发的 scroll 事件
+   * source 是 'program'，上面那个判定看不见它。容器 tabIndex 是 0，键盘确实够得着，
+   * 所以补一个 keydown：多余的按键（Tab 之类）顶多让演示晚 1.6s 继续，而漏掉 End
+   * 会让访客刚跳到的位置当场被自动滚抢走。
    */
-  let offset = 0;
-  let lastTs: number | null = null;
-  /* 帧率采样窗口：窗口内累计帧数，到期一起公布 */
-  let frames = 0;
-  let windowStart: number | null = null;
-  const step = (ts: number) => {
-    /*
-     * 首帧只用来取时间基准（此时还没有"上一帧"可比）。
-     * 上限 50ms：切走标签页时 rAF 停跑，切回来的第一帧间隔是整段离开的时长，
-     * 不钳住就会一次瞬移几百上千像素。
-     */
-    const deltaSec = lastTs === null ? 0 : Math.min((ts - lastTs) / 1000, 0.05);
-    lastTs = ts;
+  vList.clientEl.addEventListener('keydown', pauseForUser);
 
-    offset += SPEED_PX_PER_SEC * deltaSec;
-    if (offset >= vList!.getMaxOffset()) offset = 0;
-    vList!.scrollToOffset(offset);
-
-    /*
-     * 帧率也是这个循环量出来的：帧数除以窗口实际时长，而不是除以 SAMPLE_MS
-     * ——最后一帧总会略微越过窗口边界，用名义值算会把读数系统性抬高一点。
-     */
-    frames += 1;
-    if (windowStart === null) windowStart = ts;
-    const elapsed = ts - windowStart;
-    if (elapsed >= SAMPLE_MS) {
-      fps.value = Math.round((frames * 1000) / elapsed);
-      frames = 0;
-      windowStart = ts;
-    }
-
-    rafId = requestAnimationFrame(step);
-  };
-  rafId = requestAnimationFrame(step);
+  autoScroll = true;
+  startLoop();
 });
 
 onBeforeUnmount(() => {
   stopLoop();
+  if (resumeTimer !== null) {
+    clearTimeout(resumeTimer);
+    resumeTimer = null;
+  }
+  autoScroll = false;
+  vList?.clientEl.removeEventListener('keydown', pauseForUser);
   vList?.destroy();
   vList = null;
 });
@@ -157,7 +243,12 @@ onBeforeUnmount(() => {
     <div class="hero-demo-foot">
       <span>DOM 中的列表节点：<strong>{{ domCount }}</strong> 个</span>
       <span class="hero-demo-sep" aria-hidden="true">·</span>
-      <span>实时帧率：<strong :class="{ 'is-smooth': fps >= 60 }">{{ fps || '—' }}</strong> fps</span>
+      <!--
+        暂停时明说一句，不要只让帧率变成「—」：那看着像演示卡住了。
+        aria-live 让读屏用户也知道自动滚动是主动让位的，不是他碰坏了什么。
+      -->
+      <span v-if="paused" aria-live="polite">自动滚动<strong>已暂停</strong></span>
+      <span v-else>实时帧率：<strong :class="{ 'is-smooth': fps >= 60 }">{{ fps || '—' }}</strong> fps</span>
     </div>
   </div>
 </template>
