@@ -106,27 +106,21 @@ function translateX(el: HTMLElement): number {
 }
 
 describe('transform 定位的 DOM 布局', () => {
-  it('容器为 overflow:hidden 且可聚焦（键盘滚动的前提）', () => {
+  it('容器为 overflow:hidden 且默认只接管主轴触摸', () => {
     const { clientEl } = mount();
 
     expect(clientEl.style.overflow).toBe('hidden');
     expect(clientEl.tabIndex).toBe(0);
-    // **两条轴**的触摸滚动都由 InputController 接管（起步阈值 + 方向锁定），
-    // 所以单指平移一律不放行：浏览器插手会抢在 JS 的轴判定之前把轴定死，
-    // 之后 touchmove 的 cancelable 变 false，轴锁就说了不算了。
-    // `none` 是给不认 pinch-zoom 的老浏览器打的底（无效声明会落回 auto）。
+    // 竖向主轴由 InputController 接管；横向留给代码块等内层原生 scrollport。
     // 读 style 属性而不是 style.touchAction：jsdom 不认识 touch-action，
     // 会把它从 cssText 里悄悄丢掉，但属性字符串本身是原样送进浏览器的
-    expect(clientEl.getAttribute('style')).toContain('touch-action:none');
-    expect(clientEl.getAttribute('style')).toContain('touch-action:pinch-zoom');
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pan-x pinch-zoom');
   });
 
-  it('crossScroll: false 时回到两轴全裁切', () => {
+  it('crossScroll: false 时列表自身不创建交叉轴 scrollport', () => {
     const { vl, clientEl } = mount({ crossScroll: false } as any);
 
-    // touch-action 与 crossScroll 已经无关：两条轴都归 InputController，
-    // 这里只剩 overflow 的差别
-    expect(clientEl.getAttribute('style')).toContain('touch-action:pinch-zoom');
+    expect(clientEl.getAttribute('style')).toContain('touch-action:pan-x pinch-zoom');
     expect(vl.scrollContentEl.getAttribute('style')).toContain(
       'overflow:hidden',
     );
@@ -134,7 +128,7 @@ describe('transform 定位的 DOM 布局', () => {
   });
 
   it('交叉轴的滚动落在 scrollContentEl 上，主轴仍是 hidden', () => {
-    const { vl, clientEl } = mount();
+    const { vl, clientEl } = mount({ crossScroll: true } as any);
 
     // 外层只负责裁切，横滚交给内层——自绘滚动条挂在外层，横滚时才不会被推出视口
     expect(clientEl.style.overflow).toBe('hidden');
@@ -148,7 +142,7 @@ describe('transform 定位的 DOM 布局', () => {
   });
 
   it('横向列表把交叉轴换成竖向', () => {
-    const { vl, clientEl } = mount({ horizontal: true } as any);
+    const { vl, clientEl } = mount({ horizontal: true, crossScroll: true } as any);
 
     // 横向列表的交叉轴是竖向，但 touch-action 不随主轴方向变：两条轴都不放行
     expect(clientEl.getAttribute('style')).toContain('touch-action:pinch-zoom');

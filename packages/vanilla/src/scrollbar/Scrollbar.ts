@@ -29,8 +29,8 @@ export interface ScrollbarOptions {
 /**
  * 单轴自绘滚动条。
  *
- * 只负责「画滑块」和「把指针位置换算成比例」两件事——滑块位置与列表项之间的
- * 索引映射在 VirtList 里做，因为那里才拿得到 core。
+ * 只负责「画滑块」和「把指针位置换算成比例」两件事——比例与内容偏移之间的
+ * 映射由宿主完成，因为那里才拿得到实际的滚动范围。
  *
  * 事件用 mouse + touch 而不是 Pointer Events：jsdom 里既没有 `PointerEvent`
  * 也没有 `setPointerCapture`，用 Pointer Events 会让这部分完全没法测。

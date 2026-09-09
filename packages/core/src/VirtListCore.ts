@@ -515,9 +515,6 @@ export class VirtListCore<T extends Record<string, any>> {
   /**
    * `getItemPosByIndex(index).top` 的逆运算：给定偏移量，返回它落在第几项。
    *
-   * 自绘滚动条的「滑块位置 ↔ 列表项」映射两个方向都要用到，必须严格互逆，
-   * 否则拖到某处松手时滑块会跳。
-   *
    * 注意 fixedSize 模式下 `getItemPosByIndex` 不计 headerSize（既有行为），
    * 这里的基准要跟着它走，不能统一减掉 header。
    */
@@ -1566,6 +1563,18 @@ export class VirtListCore<T extends Record<string, any>> {
   scrollFromUser(offset: number): void {
     this._writeOffset(offset, 'user');
     this._syncFromScrollPosition();
+  }
+
+  /**
+   * 把当前视口位置记成不定高测量时要维持的视觉锚点。
+   *
+   * 滑块拖拽期间目标随指针持续变化，不应挂修正任务；松手后再调用本方法，
+   * 以「视口顶部项 + 扎进该项的像素」保住当前位置。若已经由用户滚到底建立了
+   * stickyBottom，则保留贴底目标。
+   */
+  pinCurrentPosition(): void {
+    if (this._pinned?.kind === 'end') return;
+    this._pinIndex(this.state.inViewBegin);
   }
 
   /**

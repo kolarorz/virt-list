@@ -116,6 +116,11 @@ function isEditable(el: EventTarget | null): boolean {
  */
 type TouchAxis = 'main' | 'cross' | 'free';
 
+interface NestedScrollRoute {
+  target: HTMLElement | null;
+  blocked: boolean;
+}
+
 /**
  * 输入接管。
  *
@@ -215,14 +220,17 @@ export class InputController {
    * 触摸：本次手势里额外挂了兜底监听的那个 `touchstart` target（见 `_bindTouchTarget`）。
    */
   private _touchTarget: EventTarget | null = null;
+  /** 触摸起点到输入源之间的元素路径；轴判定完成时用它把手势交给最近的内层 scrollport */
+  private _touchPath: HTMLElement[] = [];
 
   /**
-   * 触摸：本次手势 latch 到的**外层**滚动容器；`null` = 由表格自己滚。
+   * 触摸：本次手势 latch 到的委托滚动容器（可能是内层，也可能是外层）；
+   * `null` = 由列表 / 表格自己滚。
    *
    * 对齐 iOS 的嵌套滚动语义：**归属在手势开始的那一刻定一次，中途绝不转手**。
-   * 越过起步阈值、轴判定完成的同时，如果被锁的那条轴上表格已经到头，这次手势
-   * 就整个交给外层（`_chain` 记下是谁），表格从头到尾一动不动；反过来，一开始
-   * 由表格滚的手势，即使中途滚到底也不会把剩下的位移让出去 —— 想滚外层得抬手重滑。
+   * 越过起步阈值、轴判定完成的同时，先让事件起点里的内层 scrollport 响应；没有
+   * 内层目标且列表在该轴已到头时再交给外层（`_chain` 记下是谁）。归属一经确定，
+   * 中途滚到底也不转手，想换目标得抬手重滑。
    *
    * 为什么不照 Chrome / Android 的「同一手势内到边界就转手」：数据网格里用户经常
    * 是在微调表格位置，滚到底那一下顺势把整个页面带飞会很难受；而 iOS 的规矩下
@@ -236,6 +244,8 @@ export class InputController {
   private _chain: HTMLElement | null = null;
   /** `_chain` 吃的是哪条轴：`true` = 横向（写它的 `scrollLeft`） */
   private _chainHorizontal = false;
+  /** 内层 scrollport 用 overscroll-behavior 截断了滚动链，但当前方向已经到头 */
+  private _chainBlocked = false;
 
   constructor(
     el: HTMLElement,
@@ -292,6 +302,77 @@ export class InputController {
     if (!node) return false;
     if (this._el.contains(node)) return true;
     return this._sources.some((s) => s.contains(node));
+  }
+
+  /**
+   * 取事件起点到当前监听元素之间的元素路径（不含监听元素本身）。
+   *
+   * 优先用 `composedPath()`，这样 Web Component / Shadow DOM 里的代码块也能被识别；
+   * 测试环境或旧浏览器没有它时再沿 `parentElement` 回退。
+   */
+  private _eventPath(e: Event): HTMLElement[] {
+    const boundary = e.currentTarget as EventTarget | null;
+    const composed = e.composedPath?.() ?? [];
+    const result: HTMLElement[] = [];
+
+    if (composed.length > 0) {
+      for (const item of composed) {
+        if (item === boundary) break;
+        if ((item as Node | null)?.nodeType === 1) {
+          result.push(item as HTMLElement);
+        }
+      }
+      return result;
+    }
+
+    let node = e.target as Node | null;
+    if (node?.nodeType !== 1) node = node?.parentNode ?? null;
+    while (node && node !== boundary) {
+      if (node.nodeType === 1) result.push(node as HTMLElement);
+      node = node.parentNode;
+    }
+    return result;
+  }
+
+  /**
+   * 从事件起点向外，查找输入源内部最近的原生 scrollport。
+   *
+   * 虚拟列表只拥有自己的主轴，以及显式传入 `crossEl` 时的交叉轴。代码块、表格、
+   * textarea 等子元素仍应优先响应落在自己上面的滚动；否则列表一旦在冒泡阶段
+   * `preventDefault()`，浏览器就再也没有机会滚它们。
+   */
+  private _findNestedScrollTarget(
+    path: readonly HTMLElement[],
+    delta: number,
+    horizontal: boolean,
+  ): NestedScrollRoute {
+    if (delta === 0) return { target: null, blocked: false };
+    const win = this._el.ownerDocument.defaultView;
+    if (!win) return { target: null, blocked: false };
+
+    for (const node of path) {
+      // 这两层是 InputController 自己拥有的 scrollport，不属于“内层委托”。
+      if (node === this._el || node === this._crossEl || this._sources.includes(node)) {
+        continue;
+      }
+
+      const style = win.getComputedStyle(node);
+      const overflow = horizontal ? style.overflowX : style.overflowY;
+      if (!overflow || overflow === 'visible') continue;
+
+      if (isUserScrollable(overflow) && hasScrollRoom(node, delta, horizontal)) {
+        return { target: node, blocked: false };
+      }
+
+      const overscroll = horizontal
+        ? style.overscrollBehaviorX
+        : style.overscrollBehaviorY;
+      if (overscroll && overscroll !== 'auto') {
+        return { target: null, blocked: true };
+      }
+    }
+
+    return { target: null, blocked: false };
   }
 
   /**
@@ -445,20 +526,7 @@ export class InputController {
 
   private _onWheel = (e: WheelEvent): void => {
     // ctrl + 滚轮是浏览器缩放，不能抢
-    if (e.ctrlKey) return;
-
-    // 横向列表要同时认 deltaX（触摸板横扫、shift + 滚轮）与 deltaY（普通滚轮），
-    // 取绝对值大的那个轴即可覆盖三种输入设备；剩下的那个分量归交叉轴
-    let raw: number;
-    let rawCross: number;
-    if (this._horizontal) {
-      const xWins = Math.abs(e.deltaX) >= Math.abs(e.deltaY);
-      raw = xWins ? e.deltaX : e.deltaY;
-      rawCross = xWins ? e.deltaY : e.deltaX;
-    } else {
-      raw = e.deltaY;
-      rawCross = e.deltaX;
-    }
+    if (e.ctrlKey || e.defaultPrevented) return;
 
     const factor =
       e.deltaMode === 1
@@ -466,55 +534,78 @@ export class InputController {
         : e.deltaMode === 2
           ? this._host.getClientSize()
           : 1;
-    const delta = raw * factor;
+    const deltaX = e.deltaX * factor;
+    const deltaY = e.deltaY * factor;
+    if (deltaX === 0 && deltaY === 0) return;
 
-    // 交叉轴由我们代劳，而不是"不 preventDefault 让浏览器自己滚"：
-    // 一次事件里两条轴的处置只能二选一，让给浏览器就等于主轴也一起放走。
-    // 顺序上先滚交叉轴，主轴到边界要早退时它已经生效了
-    const crossMoved = this._scrollCross(rawCross * factor);
+    // 一次 wheel 只认主导轴。触摸板斜滑时把两个分量同时写入，会让纵向阅读中的
+    // 代码块 / 宽内容横向漂移；同类虚拟列表和编辑器都采用 predominant-axis lock。
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    const physicalHorizontal =
+      absX === absY ? this._horizontal : absX > absY;
+    const physicalDelta = physicalHorizontal ? deltaX : deltaY;
 
-    // 主轴已经到边界还继续朝外滚：不拦截，把事件让给外层可滚动祖先（滚动链）。
-    // 拦下来的话，嵌在页面里的列表滚到底之后整个页面就再也滚不动了。
-    // 但交叉轴刚吃下这次滚动时不能放走 —— 否则「竖向到底 + 横向还没到头」的
-    // 斜向手势会一边横滚一边把整个页面带着滚
-    if (this._wouldOverscroll(delta)) {
-      if (crossMoved) {
-        e.preventDefault();
-        return;
-      }
-      /**
-       * 走到这里 = 主轴没得滚、交叉轴也没吃下位移。放行本来是对的（让浏览器走链），
-       * 唯独**纯交叉轴手势 + 交叉轴已到头**这一种要自己接管：
-       *
-       * `raw` 为 0（触摸板纯水平横扫、`shift` 没按的横向滚轮）时 `_wouldOverscroll(0)`
-       * 恒真，于是纯横向手势总是走到这条分支上。此时放行有两种结局，都不是想要的：
-       * 外层能横滚也白搭 —— 宿主为了压掉橡皮筋在交叉轴上写了 `overscroll-behavior-x: none`
-       * （表格是数据网格，横向到头弹一下只会让人以为还能再滚），而那条声明**同时**
-       * 掐断了链，浏览器根本不会把位移交给祖先；把它放宽成 `auto` 链是通了，橡皮筋
-       * 也一起回来了。这两件事在那一个属性上是二选一的。
-       *
-       * 所以这条轴索性也由我们代劳：自己找出浏览器本该交给谁（`_findChainTarget`），
-       * 直接写它的 `scrollLeft`，然后**无条件 `preventDefault`** —— 浏览器全程不介入，
-       * 于是「穿透」与「不回弹」同时成立，宿主的 `overscroll-behavior-x` 可以一直是 `none`。
-       * 找不到目标就只剩 `preventDefault`，横向到头就干脆停住。
-       *
-       * 主轴有位移时（斜向手势）不走这条路、一律放行：那种情形下纵向穿透更重要，
-       * 拦下来会把「滚到底之后页面再也滚不动」那个更严重的问题带回来。
-       */
-      if (raw === 0 && rawCross !== 0) {
-        e.preventDefault();
-        const crossHorizontal = !this._horizontal;
-        const crossDelta = rawCross * factor;
-        const target = this._findChainTarget(crossDelta, crossHorizontal);
-        if (target) this._scrollChain(crossDelta, target, crossHorizontal);
+    // 最内层原生 scrollport 优先。wheel 不需要我们代滚：不 preventDefault，浏览器
+    // 会在本次派发结束后把位移写进去；内层显式 contain/none 时则按它的边界截断。
+    const nested = this._findNestedScrollTarget(
+      this._eventPath(e),
+      physicalDelta,
+      physicalHorizontal,
+    );
+    if (nested.target) return;
+    if (nested.blocked) {
+      e.preventDefault();
+      return;
+    }
+
+    if (!this._horizontal) {
+      if (physicalHorizontal) {
+        this._handleCrossWheel(e, physicalDelta);
+      } else {
+        this._handleMainWheel(e, physicalDelta);
       }
       return;
     }
 
+    if (physicalHorizontal) {
+      this._handleMainWheel(e, physicalDelta);
+      return;
+    }
+
+    // 横向列表仍兼容普通鼠标滚轮：没有竖向交叉内容时，把 deltaY 映射到主轴；
+    // 真有竖向 overflow 时，Y 就是交叉轴，不能把它偷换成横向。
+    const cross = this._crossEl;
+    const hasCrossOverflow =
+      !!cross && cross.scrollHeight - cross.clientHeight > 1;
+    if (hasCrossOverflow) {
+      this._handleCrossWheel(e, physicalDelta);
+    } else {
+      this._handleMainWheel(e, physicalDelta);
+    }
+  };
+
+  private _handleMainWheel(e: WheelEvent, delta: number): void {
+    // 主轴到边界就放行，让浏览器继续走祖先滚动链。
+    if (this._wouldOverscroll(delta)) return;
     e.preventDefault();
     this._stopInertia();
     this._accumulate(delta);
-  };
+  }
+
+  private _handleCrossWheel(e: WheelEvent, delta: number): void {
+    // 没显式配置交叉轴，列表不拥有它：完整交还浏览器（内层代码块 / 外层容器）。
+    if (!this._crossEl) return;
+
+    e.preventDefault();
+    this._stopInertia();
+    if (this._scrollCross(delta)) return;
+
+    // 显式交叉轴到边界后仍自己走祖先链，以同时保留穿透和 macOS 防回弹语义。
+    const horizontal = !this._horizontal;
+    const target = this._findChainTarget(delta, horizontal);
+    if (target) this._scrollChain(delta, target, horizontal);
+  }
 
   private _onKeyDown = (e: KeyboardEvent): void => {
     // 组合键留给宿主（Ctrl+F、Cmd+↓ 等）
@@ -575,6 +666,7 @@ export class InputController {
   }
 
   private _onTouchStart = (e: TouchEvent): void => {
+    if (e.defaultPrevented) return;
     const t = e.touches[0];
     if (!t) return;
     // 手指落下先刹住惯性，这是所有原生滚动容器的行为。
@@ -591,6 +683,8 @@ export class InputController {
     this._axis = null;
     // 归属也重新来一次 —— 上一次手势 latch 到谁，与这一次无关（这就是「抬手重滑」）
     this._chain = null;
+    this._chainBlocked = false;
+    this._touchPath = this._eventPath(e);
     this._samples = [{ pos, cross, time: e.timeStamp }];
     this._bindTouchTarget(e.target);
   };
@@ -690,17 +784,30 @@ export class InputController {
        * 内容偏移量朝相反方向走，与 `_onTouchMove` 主体里的 `_touchLast - pos` 同源。
        * 被锁的那条轴上表格已经到头，这次手势就整个让给外层。
        */
-      if (this._axis === 'main') {
-        const want = -dMain;
-        if (this._wouldOverscroll(want)) {
-          this._chain = this._findChainTarget(want, this._horizontal);
-          this._chainHorizontal = this._horizontal;
-        }
-      } else {
-        const want = -dCross;
-        if (!this._canScrollCross(want)) {
-          this._chain = this._findChainTarget(want, !this._horizontal);
-          this._chainHorizontal = !this._horizontal;
+      const want = this._axis === 'main' ? -dMain : -dCross;
+      const gestureHorizontal =
+        this._axis === 'main' ? this._horizontal : !this._horizontal;
+      const gestureOwned = this._axis === 'main' || this._crossEl !== null;
+
+      if (gestureOwned) {
+        const nested = this._findNestedScrollTarget(
+          this._touchPath,
+          want,
+          gestureHorizontal,
+        );
+        if (nested.target) {
+          // touch-action 收窄后浏览器不会替我们滚，手动 latch 到最近的内层 scrollport。
+          this._chain = nested.target;
+          this._chainHorizontal = gestureHorizontal;
+        } else if (nested.blocked) {
+          this._chainBlocked = true;
+        } else if (
+          this._axis === 'main'
+            ? this._wouldOverscroll(want)
+            : !this._canScrollCross(want)
+        ) {
+          this._chain = this._findChainTarget(want, gestureHorizontal);
+          this._chainHorizontal = gestureHorizontal;
         }
       }
       // 起步那一段位移**不补进内容**：手指与内容从此差着一个 slop，但内容不会在
@@ -718,11 +825,17 @@ export class InputController {
      * 阈值见 `AXIS_UNLOCK_DISTANCE`，真机对照后可调。
      */
     if (
+      this._crossEl &&
+      !this._chain &&
+      !this._chainBlocked &&
       this._axis === 'main' &&
       Math.abs(posCross - this._lockOriginCross) > AXIS_UNLOCK_DISTANCE
     ) {
       this._axis = 'free';
     } else if (
+      this._crossEl &&
+      !this._chain &&
+      !this._chainBlocked &&
       this._axis === 'cross' &&
       Math.abs(pos - this._lockOrigin) > AXIS_UNLOCK_DISTANCE
     ) {
@@ -735,8 +848,13 @@ export class InputController {
     this._touchLast = pos;
     this._touchLastCross = posCross;
 
+    if (this._chainBlocked) {
+      e.preventDefault();
+      return;
+    }
+
     /**
-     * 这次手势归外层（`_chain` 在起步那一刻定的）：位移整个写给它，表格一动不动。
+     * 这次手势已有委托目标（`_chain` 在起步那一刻定的）：位移整个写给它，列表不动。
      *
      * `preventDefault` 是必须的，哪怕外层此刻也已经到头 —— 归属在起步时就定了，
      * 中途让回浏览器就等于转手，而那正是 iOS 语义要避免的事。
@@ -778,14 +896,22 @@ export class InputController {
     const samples = this._samples;
     const axis = this._axis;
     const tapToStop = this._tapToStop;
+    const chainBlocked = this._chainBlocked;
     this._samples = [];
     this._axis = null;
     this._tapToStop = false;
+    this._chainBlocked = false;
+    this._touchPath = [];
     // 手势结束，兜底监听跟着摘掉（target 可能已经不在文档里，但监听还在它身上）
     this._unbindTouchTarget();
 
     // 按在惯性上的那一下只为刹车，别让它同时点开手指底下的内容
     if (tapToStop) e.preventDefault?.();
+
+    if (chainBlocked) {
+      e.preventDefault?.();
+      return;
+    }
 
     // axis 为 null = 没越过起步阈值，那是一次 tap，不该有惯性
     if (samples.length < 2 || axis === null) return;

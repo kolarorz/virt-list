@@ -18,7 +18,7 @@ import {
 } from './utils.js';
 import { Scrollbar } from './scrollbar/Scrollbar.js';
 import { InputController } from './scrollbar/InputController.js';
-import { positionToRatio, ratioToPosition } from './scrollbar/geometry.js';
+import { offsetToRatio, ratioToOffset } from './scrollbar/geometry.js';
 
 /**
  * 虚拟列表的 DOM 层实现。
@@ -114,15 +114,14 @@ export class VirtList<T extends Record<string, any>> {
   }
 
   /**
-   * 内容层（`.virt-list__scroll-content`），同时是**交叉轴**的滚动容器
-   * （竖向列表的横向、横向列表的竖向）。
+   * 内容层（`.virt-list__scroll-content`）。显式开启 `crossScroll` 时，它同时是
+   * **交叉轴**的滚动容器（竖向列表的横向、横向列表的竖向）。
    *
    * 各段（含吸顶 / 吸底）都在它下面，主轴的位移由各段自己的 transform 表达，
    * 它自己在主轴上不动。交叉轴则是货真价实的原生滚动：读写它的
    * `scrollLeft`（横向列表读 `scrollTop`）就是读写横向滚动位置。
    *
-   * 想回到「两轴全裁切」，把 `crossScroll` 关掉，或直接
-   * `scrollContentEl.style.overflowX = 'hidden'`。
+   * 默认不由列表拥有交叉轴；代码块、表格等列表项内部的原生 scrollport 仍可滚动。
    */
   get scrollContentEl(): HTMLElement {
     return this._scrollContentEl;
@@ -520,10 +519,10 @@ export class VirtList<T extends Record<string, any>> {
    * - **平移在每一段上，不在公共父节点上**。每段只带自己的残差
    *   `该段的文档位置 − offset`，所以任何单个 transform 都碰不到浏览器的位移上限。
    *   详见 `_applyLayout`。
-   * - **两条轴的滚动机制不同，但输入都归 JS**。主轴的位置是虚拟偏移量（transform
-   *   残差），交叉轴仍是 `scrollContentEl` 的原生 `scrollLeft`（`sticky` 要它当参照，
-   *   理由见 `crossScroll` 选项）；触摸 / 滚轮两条轴都由 `InputController` 驱动 ——
-   *   `preventDefault` 拦不住"只拦一条轴"，交叉轴留给浏览器就等于主轴一拦它也废了。
+   * - **主轴始终归 JS，交叉轴按需拥有**。主轴的位置是虚拟偏移量（transform 残差）；
+   *   显式开启 `crossScroll` 后，交叉轴是 `scrollContentEl` 的原生 `scrollLeft`
+   *   （`sticky` 要它当参照），输入也由 `InputController` 驱动。普通一维列表默认不拥有
+   *   交叉轴，事件按主导轴交给列表项内部或外层的原生滚动链。
    *   自绘滚动条与
    *   空状态因此必须留在 `clientEl` 里：放进滚动层的话，横滚 400px 就把整条滚动条
    *   推出视口了（实测如此）。吸顶 / 吸底反过来要放**进**滚动层，表头才会跟着列横移。
@@ -532,25 +531,25 @@ export class VirtList<T extends Record<string, any>> {
    */
   private _buildDOM(): void {
     const { horizontal } = this._options;
-    const crossScroll = this._options.crossScroll !== false;
+    const crossScroll = this._options.crossScroll === true;
     /**
-     * 单指平移一律不放行给浏览器，**两条轴都由 `InputController` 接管**。
+     * 主轴单指平移不放行给浏览器；显式开启交叉轴时两条轴都由
+     * `InputController` 接管，否则交叉轴交回浏览器，让代码块等内层 scrollport 原生滚动。
      *
-     * 曾经是 `crossScroll ? (horizontal ? 'pan-y' : 'pan-x') : 'none'`：交叉轴让浏览器
-     * 自己滚。行不通，因为 `preventDefault` 没有"只拦一条轴"的粒度 —— 主轴一拦，
-     * 同一个事件里的交叉轴分量也一起没了，触屏上表现为「竖着滚起来之后横向滚不动」。
-     * 更要紧的是浏览器的方向判定**先于** JS：它一旦启动原生 pan，后续 `touchmove` 的
-     * `cancelable` 就变成 `false`，`InputController` 的轴锁说了不算，而 `_scrollCross`
-     * 仍会照写一次 `scrollLeft` —— 那条轴双倍速。
+     * 显式开启交叉轴后不能把那条轴同时放给浏览器：`preventDefault` 没有"只拦一条轴"
+     * 的粒度，而且浏览器的方向判定先于 JS，原生 pan 与 `_scrollCross` 并存会双倍速。
+     * 单轴模式没有这个冲突：控制器从不写交叉轴，因此可以安全放行 `pan-x` / `pan-y`。
      *
      * 交叉轴的位移机制没变（仍是 `scrollContentEl` 的原生 scrollport，`sticky` 照旧），
      * 只是改由 `InputController` 写它的 `scrollLeft` / `scrollTop`。
      *
-     * `pinch-zoom` 保留双指缩放；前面那条 `none` 是给不认 `pinch-zoom` 的老浏览器
-     * （Safari < 13）打的底 —— 少了它，无效声明会让 `touch-action` 落回 `auto`，
-     * 浏览器就把两条轴全接管回去了。
+     * 双轴模式用 `pinch-zoom` 保留双指缩放；前面的 `none` 是旧浏览器回退。
      */
-    const touchActionDecl = 'touch-action:none; touch-action:pinch-zoom;';
+    const touchActionDecl = crossScroll
+      ? 'touch-action:none; touch-action:pinch-zoom;'
+      : horizontal
+        ? 'touch-action:pan-y pinch-zoom;'
+        : 'touch-action:pan-x pinch-zoom;';
 
     this._clientEl = document.createElement('div');
     this._clientEl.className = 'virt-list__client';
@@ -564,8 +563,8 @@ export class VirtList<T extends Record<string, any>> {
     // 浏览器的滚动锚定照样会在内容高度变化时悄悄改 scrollTop（且不派发 scroll
     // 事件）。滚动位置由列表自己维护，浏览器这份好意只会和它打架。
     //
-    // touch-action 不放行任何单指平移：两条轴的触摸滚动都由 InputController 接管
-    // （含起步阈值与方向锁定），浏览器插手就会抢在 JS 的轴判定之前把轴定死。
+    // touch-action 与归属保持一致：主轴始终由 InputController 接管；交叉轴只有显式
+    // 开启时才接管，否则留给项内 / 外层原生 scrollport。
     this._clientEl.tabIndex = 0;
     applyStyle(
       this._clientEl,
@@ -583,9 +582,8 @@ export class VirtList<T extends Record<string, any>> {
     // 现在每一段只带自己的**残差**（`该段的文档位置 - offset`），残差最大也就
     // 一屏多一点，永远碰不到上限，于是那个天花板整个消失。
     //
-    // 主轴的职责被抽空之后，这一层改去干另一件事：**当交叉轴的滚动容器**。
-    // 它铺满视口（原来是 height:0 的空壳），交叉轴 `auto`、主轴 `hidden`。
-    // 交叉轴上没有虚拟化、内容是完整的真实 DOM，原生滚动在那条轴上既安全又跟手。
+    // 主轴的职责被抽空之后，这一层铺满视口（原来是 height:0 的空壳）；显式开启
+    // `crossScroll` 时它兼任交叉轴 scrollport，否则两轴都裁切，但项内 scrollport 不受影响。
     this._scrollContentEl = document.createElement('div');
     // 带上类名纯粹为了可读：DevTools 里这一层原来是个匿名 div，看不出它是干什么的。
     // 库自己的样式一行都不挂在类名上（全是 inline style），所以覆盖它不会影响布局
@@ -765,52 +763,25 @@ export class VirtList<T extends Record<string, any>> {
   }
 
   /**
-   * 滚到底时视口顶部那一项的索引，也就是 inViewBegin 的上限。
-   *
-   * 滑块按索引映射，这个数就是映射的分母。用 `list.length - 1` 是错的：
-   * 那样滚到底时滑块只走到 (len - 可见项数) / len 的位置，永远碰不到轨道尽头。
-   */
-  private _maxBegin(): number {
-    return this._core.getIndexByOffset(this._core.getMaxOffset());
-  }
-
-  /**
    * 当前内容位置对应的滑块比例。
    *
-   * 按索引而不是像素：不定高列表的 totalSize 随实测尺寸回填一直在变，
-   * 按像素算滑块会在手指底下反复跳。frac 让长项内部也能连续移动。
+   * 与原生滚动条一样按像素距离映射。不同高度的项占据与其高度成比例的轨道，
+   * 因此滚过一条超长消息时滑块不会再表现得像落后于内容。
    */
   private _currentRatio(): number {
-    const { inViewBegin } = this._core.state;
-    const pos = this._core.getItemPosByIndex(inViewBegin);
-    const frac =
-      pos.current > 0 ? (this._core.getOffset() - pos.top) / pos.current : 0;
-    return positionToRatio({
-      inViewBegin,
-      maxBegin: this._maxBegin(),
-      frac,
-    });
+    return offsetToRatio(
+      this._core.getOffset(),
+      this._core.getMaxOffset(),
+    );
   }
 
   /** 用户把滑块拖到了 ratio，换算成偏移量并立即落位 */
   private _scrollToRatio(ratio: number): void {
-    // 两端交给 core 的专用路径：按索引换算出的目标是「那一项的顶部」，
-    // 到不了浏览器意义上的真正底部，末尾会差半屏
-    if (ratio >= 1) {
-      this._core.scrollToBottom();
-      return;
-    }
-    if (ratio <= 0) {
-      this._core.scrollToTop();
-      return;
-    }
-
-    const { index, frac } = ratioToPosition(ratio, this._maxBegin());
-    const pos = this._core.getItemPosByIndex(index);
-    // 拖拽热路径刻意不用 scrollToIndex：它会挂渐进修正任务，
-    // 而那个任务会和下一次 move 抢 offset。修正只在松手时做一次。
-    // 走 scrollFromUser 而非 scrollToOffset，边界事件与自动续拉才会触发
-    this._core.scrollFromUser(pos.top + frac * pos.current);
+    // 走 scrollFromUser 而非 scrollToOffset，边界事件、自动续拉和 stickyBottom
+    // 的用户语义才能完整触发。拖拽期间不挂锚点，避免和下一次 move 抢 offset。
+    this._core.scrollFromUser(
+      ratioToOffset(ratio, this._core.getMaxOffset()),
+    );
   }
 
   /** 创建自绘滚动条并挂到视口上 */
@@ -822,11 +793,9 @@ export class VirtList<T extends Record<string, any>> {
         getTotalSize: () => this._core.getTotalSize(),
         getRatio: () => this._currentRatio(),
         onRatio: (ratio) => this._scrollToRatio(ratio),
-        // 松手后再挂一次渐进修正：拖拽途中新项才刚渲染出来，
-        // 它们的真实尺寸回填后目标位置会变，这一步把误差收敛掉
-        onDragEnd: () => {
-          this._core.scrollToIndex(this._core.state.inViewBegin);
-        },
+        // 拖拽中滑块由指针直接控制；松手后按当前「顶部项 + 项内像素」建锚，
+        // 后续不定高测量可以校准总尺寸，又不会把视口吸回该项顶部。
+        onDragEnd: () => this._core.pinCurrentPosition(),
       },
       {
         horizontal,
@@ -861,7 +830,7 @@ export class VirtList<T extends Record<string, any>> {
       {
         keyboard: this._options.keyboard,
         crossEl:
-          this._options.crossScroll !== false ? this._scrollContentEl : null,
+          this._options.crossScroll === true ? this._scrollContentEl : null,
       },
     );
   }
@@ -878,7 +847,7 @@ export class VirtList<T extends Record<string, any>> {
    * 与消失只跟内容尺寸与容器尺寸有关，跟着 `list` / `force` / `size` 那几趟走就够了。
    */
   private _queueCrossViewportSync(): void {
-    if (this._options.crossScroll === false) return;
+    if (this._options.crossScroll !== true) return;
     if (this._crossSyncQueued) return;
     this._crossSyncQueued = true;
     // 推到微任务里，而不是就地校正：调用点还在 `_patch` 的栈上，而 setClientSize
@@ -891,7 +860,7 @@ export class VirtList<T extends Record<string, any>> {
   }
 
   private _syncCrossViewport(): void {
-    if (this._options.crossScroll === false) return;
+    if (this._options.crossScroll !== true) return;
     const el = this._scrollContentEl;
     if (!el) return;
     const inner = this._options.horizontal ? el.clientWidth : el.clientHeight;

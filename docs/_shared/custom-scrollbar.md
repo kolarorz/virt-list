@@ -18,9 +18,13 @@
 自己掌管偏移量之后，容器不会自己滚动，内容只在 JS 写入时才移动，位置与 DOM 永远在
 同一帧提交——露白从根上不成立。
 
-第二个改善是滑块不再抖动。原生滑块的位置由 `scrollHeight` 决定，而不定高列表的
-总高度随尺寸测量一直在变，拖拽中滑块会在手指底下反复跳。这里的滑块按**列表项索引**
-映射，与实测尺寸无关。
+第二个改善是拖拽时滑块不会与测量结果争抢位置。不定高列表的总高度会随
+`ResizeObserver` 回填而变化；拖拽期间滑块直接跟随指针，尺寸回填只更新几何，不反向覆盖
+滑块位置。松手后再以当前“顶部项 + 项内像素”建立视觉锚点，让后续测量逐步校准而不吸回
+项顶部。
+
+非拖拽状态下，滑块与原生滚动条一样按**像素进度**映射：`offset / maxOffset`。因此一条
+2400px 的长消息会占据与其高度相称的轨道，不会因为它只是一项就被压成一个普通消息的刻度。
 
 ## 超大列表：不再有「尾部滚不到」
 
@@ -54,6 +58,75 @@ End / 空格）、触摸拖动与惯性都由库自己实现，行为已对齐�
 
 - `scrollIntoView({ behavior: 'smooth' })` 不保证平滑，落位是瞬时的；
 - 浏览器的页内查找（Ctrl+F）命中不可见项时不会滚动过去——虚拟列表本来就如此。
+
+## 主轴与交叉轴分别归谁
+
+虚拟列表只需要拥有**被虚拟化的主轴**。交叉轴上的内容是完整 DOM，不需要虚拟化，
+也不应该仅仅因为外层用了 VirtList 就失去浏览器原生的滚动语义。
+
+| 组件 | 主轴 | 交叉轴默认行为 |
+| --- | --- | --- |
+| VirtList / VirtTree | 由库接管并自绘滚动条 | `crossScroll: false`，交给项内或外层最近的原生 scrollport |
+| VirtGrid | 两个方向都属于二维内容 | 默认 `crossScroll: true`，两个轴都由组件管理 |
+
+因此，聊天消息、日志、文章这类纵向列表里的代码块和宽表格，应当自己声明
+`overflow-x: auto`；滚轮或触控起点落在它们内部时，横向输入会优先交给它们，
+对话列表仍只滚纵向。
+
+```css
+.message-body {
+  min-width: 0; /* 允许后代在当前列宽内形成 overflow */
+}
+
+.message-body pre,
+.message-body .table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+```
+
+List / Tree 不写 `crossScroll` 就是上述默认值。业务代码也可以显式写 `false`，把轴所有权
+记录成可读的组件契约：
+
+```ts
+const options = {
+  list: messages,
+  itemKey: 'id',
+  estimatedSize: 120,
+  crossScroll: false,
+};
+```
+
+只有当**整个列表本身**就是宽表格、时间线或二维画布，所有行必须共享同一个横向位置时，
+才开启列表交叉轴：
+
+```ts
+const options = {
+  // ...
+  crossScroll: true,
+};
+```
+
+此时 `scrollContentEl` 是列表的原生交叉轴 scrollport；默认委托模式下它不产生交叉轴
+overflow，项内 scrollport 各自维护自己的 `scrollLeft`。
+
+### 滚轮与触控的路由规则
+
+一次输入按下面的顺序决定归属：
+
+1. 已被项内控件 `preventDefault()` 的事件不再处理；
+2. `deltaX` / `deltaY` 只取绝对值更大的**主导轴**，防止纵向阅读时代码块横向漂移；
+3. 从事件起点向外寻找最近、且当前方向仍有余量的原生 scrollport；
+4. 没有内层目标时，主轴交给 VirtList；只有显式开启 `crossScroll` 时交叉轴才交给列表；
+5. 当前容器到达边界后，遵循 `overscroll-behavior` 决定是否继续交给外层滚动链。
+
+触控会在越过起步阈值后锁定主导轴，并在手势开始时一次性确定滚动目标；同一次手势中途
+到达边界不会突然把页面带走。普通 List / Tree 未接管的交叉轴仍由浏览器原生处理。
+
+::: warning 不要在祖先上提前吞掉 wheel
+如果业务代码在列表根节点或更外层无条件 `preventDefault()`，浏览器就没有机会滚动项内
+代码块或表格。确实需要拦截时，只拦业务真正消费的轴，并让内层 scrollport 先处理。
+:::
 
 ## 迁移：读写滚动位置
 
@@ -142,8 +215,9 @@ const el = listRef.current.clientEl; // React
 浏览器偶尔为露出获得焦点的元素而静默改动它，那点位移也会被库立刻读走并归零。
 感知滚动请用 `scroll` 事件。
 
-**交叉轴**（竖向列表的横向）是另一回事：那条轴归浏览器原生滚动，容器是内层的
-`scrollContentEl`。读写横向滚动位置、或者监听横滚，都在它身上：
+**交叉轴**（竖向列表的横向）默认不归 List / Tree；代码块、表格等项内 scrollport
+按浏览器原生滚动。显式开启 `crossScroll` 后，列表自己的交叉轴容器才是内层的
+`scrollContentEl`。读写该横向滚动位置、或者监听横滚，都在它身上：
 
 ```ts
 const cross = listRef.value.scrollContentEl;
@@ -151,7 +225,7 @@ cross.scrollLeft = 200;                      // 横向滚到 200px
 cross.addEventListener('scroll', () => {     // 横滚是真的原生 scroll 事件
   console.log(cross.scrollLeft);
 });
-cross.style.overflowX = 'hidden';            // 不想要横滚（也可以用 crossScroll 选项）
+cross.style.overflowX = 'hidden';            // 临时关闭列表自己的横滚
 ```
 
 组件根元素是它的父节点，不是它本身——原生 `scroll` 不冒泡，挂错地方永远收不到。
@@ -182,3 +256,22 @@ import '@virt-list/vue/style.css'; // 换成你装的那个包
 
 滑块位置由 JS 每帧写 `transform`，**不要给它加 `transition`**——加了就意味着
 滑块落后于它所代表的内容，快速拖拽时尤其明显。
+
+## 滚动条看起来“有延迟”时
+
+先区分三种现象：
+
+- **开始滚动后约 200ms 才完全显形**：默认样式只对轨道 `opacity` 做淡入，这是视觉过渡，
+  不是位置落后。需要立即可见可覆盖 `.virt-scrollbar { transition: none; }`，需要常驻则设
+  `scrollbarAutoHideDelay: 0`；
+- **内容和滑块一起晚一帧**：滚轮、触控和滑块拖拽输入会按 `requestAnimationFrame` 合并，
+  上限是一帧。这样可避免高刷输入在一帧内重复计算区间；主线程有长任务时，JS 接管的
+  内容和滑块会一起受影响；
+- **内容已移动，但滑块随后才追上**：这不是预期行为。检查是否给
+  `.virt-scrollbar__thumb` 或它的通用样式加了 `transition: all` / `transition: transform`，
+  以及 `onScroll` / `onOffsetChange` 是否同步读取布局、触发大范围渲染或执行其他重活。
+
+当前版本使用 `offset / maxOffset` 的像素映射，内容与滑块的位置更新发生在同一个同步任务里。
+不定高测量改变 `totalSize` 后，滑块可能按新的真实滚动范围做一次小幅校准；这是空间比例的
+修正，不是时间延迟。若校准幅度过大，优先检查 `estimatedSize` 是否明显偏离常见项高度，
+以及项内容是否在短时间内反复改变尺寸。

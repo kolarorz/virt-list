@@ -142,7 +142,7 @@ describe('自绘滚动条与列表联动', () => {
     expect(track.classList.contains('is-enabled')).toBe(false);
   });
 
-  it('拖到轨道尽头 = 滚到底（分母用 maxBegin，不是 list.length）', () => {
+  it('拖到轨道尽头 = 滚到底（像素映射覆盖完整 maxOffset）', () => {
     const { vl, thumb } = mount();
     drag(thumb, 0, [99999]);
 
@@ -155,7 +155,7 @@ describe('自绘滚动条与列表联动', () => {
     const travel = thumbTravel(vl, thumb);
     drag(thumb, 0, [travel / 2]);
 
-    // maxBegin = 上限 39800 落在第 995 项 → 一半是第 497 项（含项内比例）
+    // maxOffset 的一半是 19900，落在第 497 项中间
     const begin = vl.core.state.inViewBegin;
     expect(begin).toBeGreaterThanOrEqual(496);
     expect(begin).toBeLessThanOrEqual(498);
@@ -224,6 +224,44 @@ describe('自绘滚动条与列表联动', () => {
       thumb.style.transform,
     );
     expect(Number(after![1])).toBeCloseTo(travel * 0.4, 0);
+  });
+
+  it('超长项内滚动时滑块仍按像素进度同步', () => {
+    const { vl, thumb } = mount(20, {
+      fixedSize: false,
+      estimatedSize: PRE_SIZE,
+    });
+
+    // 其余项仍按 40px 估算，首项实测为 1200px：这是聊天长消息的典型形态。
+    roCallback?.([sizeEntry('0', 1200)], {} as ResizeObserver);
+    vl.scrollToOffset(600);
+
+    const travel = thumbTravel(vl, thumb);
+    const match = /translate3d\(\s*[^,]+,\s*(-?[\d.]+)px/.exec(
+      thumb.style.transform,
+    );
+    const visualRatio = Number(match![1]) / travel;
+    const pixelRatio = vl.getOffset() / vl.getMaxOffset();
+
+    expect(vl.core.state.inViewBegin).toBe(0);
+    expect(visualRatio).toBeCloseTo(pixelRatio, 6);
+    expect(visualRatio).toBeGreaterThan(0.3);
+  });
+
+  it('在超长项内部松开滑块时保留项内位置', () => {
+    const { vl, thumb } = mount(20, {
+      fixedSize: false,
+      estimatedSize: PRE_SIZE,
+    });
+    roCallback?.([sizeEntry('0', 1200)], {} as ResizeObserver);
+
+    const travel = thumbTravel(vl, thumb);
+    const expected = vl.getMaxOffset() * 0.25;
+    drag(thumb, 0, [travel * 0.25]);
+
+    // 25% 仍落在 1200px 的首项内部；松手不能 scrollToIndex(0) 吸回顶部。
+    expect(vl.core.state.inViewBegin).toBe(0);
+    expect(vl.getOffset()).toBeCloseTo(expected, 6);
   });
 
   it('点击轨道空白处跳到该位置', () => {

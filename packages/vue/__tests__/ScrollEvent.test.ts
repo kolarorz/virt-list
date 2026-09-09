@@ -145,6 +145,7 @@ describe('emits.scroll 拦不到任何东西的前提', () => {
       itemKey: 'id',
       estimatedSize: 40,
       fixedSize: true,
+      crossScroll: true,
       renderItem: (item: Item, _i: number, el: HTMLElement) => {
         el.textContent = item.text;
       },

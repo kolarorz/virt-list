@@ -142,6 +142,7 @@ describe('React 17: clientEl 逃生舱', () => {
       itemKey: 'id',
       estimatedSize: 40,
       fixedSize: true,
+      crossScroll: true,
       renderItem: (item: Item, _i: number, el: HTMLElement) => {
         el.textContent = item.text;
       },

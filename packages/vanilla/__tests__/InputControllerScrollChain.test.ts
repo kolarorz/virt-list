@@ -227,6 +227,50 @@ describe('触摸 · iOS 语义：归属在起步时定一次，中途不转手',
     makeScrollable(document.documentElement, { scrollH: 5000, clientH: 800, scrollW: 300, clientW: 300 });
   }
 
+  it('内层横向 scrollport 优先于列表自己的交叉轴', async () => {
+    const { el, host } = setup();
+    const inner = document.createElement('pre');
+    inner.style.overflowX = 'auto';
+    makeScrollable(inner, {
+      scrollW: 1200,
+      clientW: 300,
+      scrollH: 100,
+      clientH: 100,
+    });
+    el.appendChild(inner);
+
+    touch(inner, 'touchstart', 300, 100, 0);
+    touch(inner, 'touchmove', 288, 100, 16);
+    const move = touch(inner, 'touchmove', 248, 100, 32);
+    await frame();
+
+    expect(inner.scrollLeft).toBeGreaterThan(0);
+    expect(el.scrollLeft).toBe(0);
+    expect(host.peek()).toBe(0);
+    expect(move.defaultPrevented).toBe(true);
+  });
+
+  it('内层纵向 scrollport 优先于列表主轴', async () => {
+    const { el, host } = setup();
+    const inner = document.createElement('div');
+    inner.style.overflowY = 'auto';
+    makeScrollable(inner, {
+      scrollW: 100,
+      clientW: 100,
+      scrollH: 1200,
+      clientH: 300,
+    });
+    el.appendChild(inner);
+
+    touch(inner, 'touchstart', 100, 300, 0);
+    touch(inner, 'touchmove', 100, 288, 16);
+    touch(inner, 'touchmove', 100, 248, 32);
+    await frame();
+
+    expect(inner.scrollTop).toBeGreaterThan(0);
+    expect(host.peek()).toBe(0);
+  });
+
   it('起步时表格已到底 → 整个手势交给页面，表格一动不动', async () => {
     const { el, host } = setup();
     host.seed(1000);

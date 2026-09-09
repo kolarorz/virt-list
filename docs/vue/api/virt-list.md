@@ -59,7 +59,7 @@
 | scrollbarAutoHideDelay  | 滚动条停止滚动多久后淡出（ms），`0` 表示常驻                      | `Number`                                                                                    | `1200`  | -                            |
 | scrollbarMinThumbSize | 滑块的最小长度（px）                                            | `Number`                                                                                    | `20`    | -                            |
 | keyboard          | 是否接管键盘（方向键 / PageUp-Down / Space / Home-End）。宿主已在**祖先**元素上处理这些键时关掉它——库的监听在后代上、先触发，两边都响应会让一次按键既滚一段又移动一格。滚轮 / 触摸不受影响 | `Boolean` | `true` | - |
-| crossScroll       | 交叉轴（竖向列表的横向、横向列表的竖向）是否允许滚动。那条轴上没有虚拟化、内容是完整的真实 DOM，所以交给浏览器原生滚动（落在 `scrollContentEl` 上）。关掉即回到两轴全裁切 | `Boolean` | `true` | - |
+| crossScroll       | 列表自身是否拥有交叉轴（竖向列表的横向、横向列表的竖向）。默认关闭，代码块等项内 scrollport 仍按浏览器原生滚动；显式开启后交叉轴落在 `scrollContentEl` 上 | `Boolean` | `false` | - |
 
 ## 插槽
 

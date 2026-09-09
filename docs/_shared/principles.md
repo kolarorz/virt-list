@@ -9,7 +9,7 @@
 ::: info 被虚拟化的那条轴不使用原生滚动
 多数虚拟列表把一个占位元素撑到列表总高，让浏览器产生原生滚动条。本库在**虚拟化的那条轴**上不这么做：容器是 `overflow: hidden`，内容靠 `transform` 移动，滚动条自绘，滚轮 / 键盘 / 触摸全部由库接管。
 
-**交叉轴**（竖向列表的横向）不在此列：那个方向上内容是完整的真实 DOM，下面所有理由一条都不成立，于是就用浏览器原生滚动（`crossScroll`，默认开启）。宽表格的水平滚动、`position: sticky` 的冻结列因此都是开箱可用的。
+**交叉轴**（竖向列表的横向）不在此列：那个方向上内容是完整的真实 DOM，下面所有理由一条都不成立。普通 List / Tree 默认不拥有交叉轴，代码块、表格等项内 scrollport 按浏览器原生滚动；需要宽表格 / 二维画布式行为时显式开启 `crossScroll`。VirtGrid 作为二维组件默认开启，`position: sticky` 的冻结列仍可直接使用。
 
 **偏移量是一个 JS 数字**，不是 `el.scrollTop`。这个选择贯穿下面每一步，理由见「为什么不用占位元素」。
 :::
@@ -27,6 +27,7 @@ virt-list 的滚动引擎位于 `@virt-list/core`，整个过程可以拆解为 
 ```
 maxOffset = getTotalSize() - clientSize   // 偏移量的上限
 滑块长度  = clientSize / getTotalSize()    // 自绘滚动条的几何
+滑块位置  = offset / maxOffset              // 与原生滚动条一致的像素进度
 ```
 
 账本就是权威——偏移量归 JS 掌管，不存在「账本与浏览器的 `scrollHeight` 对不上」这回事。

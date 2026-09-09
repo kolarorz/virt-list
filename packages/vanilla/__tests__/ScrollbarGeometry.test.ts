@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeThumb,
+  offsetToRatio,
+  ratioToOffset,
   positionToRatio,
   ratioToPosition,
   pointerToRatio,
@@ -64,7 +66,32 @@ describe('computeThumb', () => {
   });
 });
 
-describe('位置 ↔ 比例 的索引映射', () => {
+describe('像素偏移 ↔ 比例', () => {
+  it('两个方向严格互逆', () => {
+    const maxOffset = 9720;
+    for (const ratio of [0, 0.001, 0.25, 0.5, 0.7333, 0.999, 1]) {
+      const offset = ratioToOffset(ratio, maxOffset);
+      expect(offsetToRatio(offset, maxOffset)).toBeCloseTo(ratio, 10);
+    }
+  });
+
+  it('长消息占据与其像素高度相称的滑块行程', () => {
+    // 视口在 2400px 长消息内滚了 1200px；整个可滚动范围是 9720px。
+    // 这里必须是 12.35%，不能因为仍在第 0 项而接近 0。
+    expect(offsetToRatio(1200, 9720)).toBeCloseTo(0.12345679, 8);
+  });
+
+  it('空范围和越界值都会安全夹住', () => {
+    expect(offsetToRatio(100, 0)).toBe(0);
+    expect(ratioToOffset(0.7, 0)).toBe(0);
+    expect(offsetToRatio(-10, 100)).toBe(0);
+    expect(offsetToRatio(200, 100)).toBe(1);
+    expect(ratioToOffset(-1, 100)).toBe(0);
+    expect(ratioToOffset(1.5, 100)).toBe(100);
+  });
+});
+
+describe('每项等权场景的索引映射工具', () => {
   it('两个方向严格互逆（松手时滑块不会跳）', () => {
     const maxBegin = 2000;
     for (const ratio of [0, 0.001, 0.25, 0.5, 0.7333, 0.999, 1]) {

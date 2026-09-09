@@ -20,8 +20,10 @@ describe('@virt-list/vanilla 公共导出', () => {
       'createStreamBuffer',
       'mergeStyles',
       'normalizeStyle',
+      'offsetToRatio',
       'pointerToRatio',
       'positionToRatio',
+      'ratioToOffset',
       'ratioToPosition',
       'setAttrs',
     ]);
@@ -30,7 +32,9 @@ describe('@virt-list/vanilla 公共导出', () => {
   it('滚动条零件可被外部实例化 / 调用', () => {
     expect(typeof pkg.Scrollbar).toBe('function');
     expect(typeof pkg.InputController).toBe('function');
-    // geometry 那几个是纯函数，互逆关系是「拖到某处松手滑块不跳」的前提
+    // VirtList 默认使用像素映射，两向严格互逆
+    expect(pkg.offsetToRatio(pkg.ratioToOffset(0.5, 500), 500)).toBe(0.5);
+    // 索引映射继续作为通用工具导出
     const { index, frac } = pkg.ratioToPosition(0.5, 100);
     expect(pkg.positionToRatio({ inViewBegin: index, maxBegin: 100, frac })).toBeCloseTo(0.5, 10);
   });

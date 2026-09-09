@@ -53,11 +53,28 @@ export function computeThumb(params: {
 }
 
 /**
+ * 内容像素偏移 → 滑块比例（0..1）。
+ *
+ * 自绘滚动条要与原生滚动条保持同一种空间语义：内容走过可滚动距离的 30%，
+ * 滑块也走过自身行程的 30%。不定高列表可以在测量回填后重新计算 maxOffset，
+ * 但不能把不同高度的项压成相同的滑块刻度。
+ */
+export function offsetToRatio(offset: number, maxOffset: number): number {
+  if (maxOffset <= 0) return 0;
+  return clamp(offset / maxOffset, 0, 1);
+}
+
+/** 滑块比例 → 内容像素偏移，`offsetToRatio` 的逆运算。 */
+export function ratioToOffset(ratio: number, maxOffset: number): number {
+  if (maxOffset <= 0) return 0;
+  return clamp(ratio, 0, 1) * maxOffset;
+}
+
+/**
  * 内容位置 → 滑块比例（0..1）。
  *
- * 用**索引**而不是像素做基准：不定高列表的 totalSize 会随 ResizeObserver 回填
- * 一直变，按像素算的话滑块会在手指底下反复跳；按索引算则只随「视口顶部是第几项」
- * 变化，而这件事在拖拽期间是确定的。
+ * 这是供需要「每项等权」语义的外部组件使用的索引映射工具；VirtList 自己的
+ * 滚动条使用 `offsetToRatio`，与原生滚动条一样按像素距离映射。
  *
  * `frac` 是视口顶部扎进该项内部的比例，让滑块在长项上也能连续移动而不是一格一格跳。
  *

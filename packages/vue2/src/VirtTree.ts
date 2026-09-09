@@ -51,8 +51,8 @@ export const VirtTree = defineComponent({
     scrollbarMinThumbSize: { type: Number, default: undefined },
     /** 是否接管键盘（方向键 / PageUp-Down / Space / Home-End），默认 true。宿主已在祖先元素上处理这些键时关掉 */
     keyboard: { type: Boolean, default: true },
-    /** 交叉轴（竖向列表的横向、横向列表的竖向）是否允许原生滚动，默认 true。关掉即两轴全裁切 */
-    crossScroll: { type: Boolean, default: true },
+    /** 列表自身是否拥有交叉轴，默认 false；节点内部 scrollport 不受影响 */
+    crossScroll: { type: Boolean, default: false },
     showLine: { type: Boolean, default: false },
     itemClass: { type: String, default: undefined },
     listClass: { type: String, default: undefined },

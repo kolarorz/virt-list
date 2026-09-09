@@ -156,7 +156,8 @@ export class VirtGrid<T extends Record<string, any>> {
         scrollbarAutoHideDelay: options.scrollbarAutoHideDelay,
         scrollbarMinThumbSize: options.scrollbarMinThumbSize,
         keyboard: options.keyboard,
-        crossScroll: options.crossScroll,
+        // Grid 是二维内容，默认同时拥有两条轴；调用方仍可显式关闭。
+        crossScroll: options.crossScroll !== false,
         itemStyle: `display:flex;min-width:min-content;${options.itemStyle ? normalizeStyle(options.itemStyle) : ''}`,
         renderItem: (rowData: GridRow<T>, rowIndex: number, el: HTMLElement) => {
           for (let i = 0; i < rowData.children.length; i++) {

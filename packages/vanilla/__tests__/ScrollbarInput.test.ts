@@ -126,7 +126,7 @@ function mount(
 }
 
 function wheel(el: HTMLElement, init: WheelEventInit): WheelEvent {
-  const e = new WheelEvent('wheel', { cancelable: true, ...init });
+  const e = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init });
   el.dispatchEvent(e);
   runFrame();
   return e;
@@ -224,8 +224,17 @@ describe('滚轮', () => {
  * 横向分量也一起没了。真实 Chrome 里实测过：斜向手势下 scrollLeft 一动不动。
  */
 describe('交叉轴滚动', () => {
-  it('纯横向滚轮：主轴不动，滚动层横滚，事件仍被拦下', () => {
+  it('普通一维列表默认不拥有交叉轴', () => {
     const { vl, clientEl } = mount();
+    const e = wheel(clientEl, { deltaX: 120, deltaY: 0 });
+
+    expect(vl.core.getOffset()).toBe(0);
+    expect(vl.scrollContentEl.scrollLeft).toBe(0);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('纯横向滚轮：主轴不动，滚动层横滚，事件仍被拦下', () => {
+    const { vl, clientEl } = mount({ crossScroll: true });
     const e = wheel(clientEl, { deltaX: 120, deltaY: 0 });
 
     expect(vl.core.getOffset()).toBe(0);
@@ -234,23 +243,22 @@ describe('交叉轴滚动', () => {
     expect(e.defaultPrevented).toBe(true);
   });
 
-  it('斜向滚轮：两条轴同时走', () => {
-    const { vl, clientEl } = mount();
+  it('斜向滚轮锁定主导轴：纵向主导时横向分量被丢弃', () => {
+    const { vl, clientEl } = mount({ crossScroll: true });
     wheel(clientEl, { deltaX: 60, deltaY: 100 });
 
     expect(vl.core.getOffset()).toBe(100);
-    // 这一条是回归的重点：曾经 preventDefault 把横向分量一起吃掉了
-    expect(vl.scrollContentEl.scrollLeft).toBe(60);
+    expect(vl.scrollContentEl.scrollLeft).toBe(0);
   });
 
   it('行模式的横向分量同样折算成像素', () => {
-    const { vl } = mount();
+    const { vl } = mount({ crossScroll: true });
     wheel(vl.clientEl, { deltaX: 3, deltaY: 0, deltaMode: 1 });
     expect(vl.scrollContentEl.scrollLeft).toBe(120);
   });
 
   it('两条轴都到头才放行给外层（滚动链）', () => {
-    const { vl, clientEl } = mount();
+    const { vl, clientEl } = mount({ crossScroll: true });
     // jsdom 没有布局，scrollLeft 写多少是多少、永不夹取，得自己造一个到头的滚动层
     const cross = vl.scrollContentEl;
     Object.defineProperty(cross, 'scrollLeft', {
@@ -264,36 +272,78 @@ describe('交叉轴滚动', () => {
     expect(e.defaultPrevented).toBe(false);
   });
 
-  it('主轴到头但交叉轴还能滚时不放行', () => {
-    const { vl, clientEl } = mount();
+  it('主轴到头但交叉轴主导且还能滚时不放行', () => {
+    const { vl, clientEl } = mount({ crossScroll: true });
     vl.scrollToOffset(MAX_OFFSET);
 
-    const e = wheel(clientEl, { deltaX: 120, deltaY: 120 });
-    // 横向还有余量，放行就等于一边横滚一边把整个页面带着滚
+    const e = wheel(clientEl, { deltaX: 121, deltaY: 120 });
     expect(e.defaultPrevented).toBe(true);
-    expect(vl.scrollContentEl.scrollLeft).toBe(120);
+    expect(vl.scrollContentEl.scrollLeft).toBe(121);
   });
 
   it('横向列表的交叉轴是竖向', () => {
-    const { vl, clientEl } = mount({ horizontal: true });
-    // 横向列表里 deltaX 归主轴，剩下的 deltaY 归交叉轴
-    wheel(clientEl, { deltaX: 100, deltaY: 30 });
+    const { vl, clientEl } = mount({ horizontal: true, crossScroll: true });
+    const cross = vl.scrollContentEl;
+    let top = 0;
+    Object.defineProperties(cross, {
+      scrollHeight: { configurable: true, get: () => 500 },
+      clientHeight: { configurable: true, get: () => 200 },
+      scrollTop: {
+        configurable: true,
+        get: () => top,
+        set: (value: number) => {
+          top = Math.min(Math.max(value, 0), 300);
+        },
+      },
+    });
+    wheel(clientEl, { deltaX: 30, deltaY: 100 });
 
-    expect(vl.core.getOffset()).toBe(100);
-    expect(vl.scrollContentEl.scrollTop).toBe(30);
+    expect(vl.core.getOffset()).toBe(0);
+    expect(vl.scrollContentEl.scrollTop).toBe(100);
     expect(vl.scrollContentEl.scrollLeft).toBe(0);
   });
 
-  it('crossScroll: false 时一步都不碰滚动层', () => {
-    const { vl, clientEl } = mount({ crossScroll: false } as any);
-    wheel(clientEl, { deltaX: 120, deltaY: 100 });
+  it('显式拥有交叉轴时，事件起点里的内层横向 scrollport 仍然优先', () => {
+    const { vl } = mount({ crossScroll: true });
+    const inner = document.createElement('pre');
+    inner.style.overflowX = 'auto';
+    Object.defineProperties(inner, {
+      scrollWidth: { configurable: true, get: () => 800 },
+      clientWidth: { configurable: true, get: () => 200 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    });
+    vl.itemsEl.appendChild(inner);
 
-    expect(vl.core.getOffset()).toBe(100);
+    const e = wheel(inner, { deltaX: 120, deltaY: 0 });
+
+    // jsdom 不执行浏览器默认滚动；未拦截即代表位移完整交给 inner。
+    expect(e.defaultPrevented).toBe(false);
     expect(vl.scrollContentEl.scrollLeft).toBe(0);
+  });
+
+  it('事件已被内层自绘滚动器消费时不再重复处理', () => {
+    const { vl } = mount({ crossScroll: true });
+    const inner = document.createElement('div');
+    inner.addEventListener('wheel', (event) => event.preventDefault());
+    vl.itemsEl.appendChild(inner);
+
+    const e = wheel(inner, { deltaY: 100 });
+
+    expect(e.defaultPrevented).toBe(true);
+    expect(vl.core.getOffset()).toBe(0);
+  });
+
+  it('crossScroll: false 时横向主导的手势完整交回浏览器', () => {
+    const { vl, clientEl } = mount({ crossScroll: false } as any);
+    const e = wheel(clientEl, { deltaX: 120, deltaY: 100 });
+
+    expect(vl.core.getOffset()).toBe(0);
+    expect(vl.scrollContentEl.scrollLeft).toBe(0);
+    expect(e.defaultPrevented).toBe(false);
   });
 
   it('滚动层的静默滚动只归零主轴，横向位置不动', () => {
-    const { vl } = mount();
+    const { vl } = mount({ crossScroll: true });
     const cross = vl.scrollContentEl;
 
     // 浏览器为露出焦点元素而偷偷滚的是这一层（它离内容最近），
@@ -554,4 +604,3 @@ describe('focus 吸收', () => {
     expect(vl.core.getOffset()).toBe(400);
   });
 });
-

@@ -124,11 +124,11 @@ DOM 操作层。负责：
 需要原生滚动条的项目请用旧库
 [vue-virt-list](https://github.com/kolarorz/vue-virt-list)。
 
-**交叉轴**（竖向列表的横向）反过来：那个方向上没有虚拟化、内容是完整的真实 DOM，
-下面"为什么值得这么做"的两条理由一条都不成立。所以它就是原生滚动，落在内层的
-`scrollContentEl` 上（`overflow-x: auto`），白拿滚动条、拖拽与触摸惯性。
-自绘的主轴滚动条留在外层 `clientEl` 里，横滚时不会跟着跑掉。关掉 `crossScroll`
-即回到两轴全裁切。
+**交叉轴**（竖向列表的横向）反过来：那个方向上没有虚拟化，因此普通一维 List / Tree
+默认不拥有它，代码块、表格等项内 scrollport 和列表外层按浏览器原生滚动链响应。
+需要宽表格 / 二维画布式行为时显式开启 `crossScroll`，它才落在内层
+`scrollContentEl` 上（`overflow-x: auto`），由输入控制器统一驱动；VirtGrid 作为二维
+组件默认开启。自绘的主轴滚动条始终留在外层 `clientEl`，横滚时不会跟着跑掉。
 
 ### 为什么值得这么做
 

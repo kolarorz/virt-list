@@ -85,7 +85,7 @@ import '@virt-list/vanilla/src/tree/tree.css';  // 只要树
 | `VirtTree` | 虚拟树，展开 / 选择 / 勾选 / 过滤 / 拖拽排序 |
 | `DEFAULT_DOM_OPTIONS` | DOM 层配置项的默认值 |
 | `Scrollbar` / `InputController` | 自绘滚动条的可复用零件（画滑块、接管滚轮键盘触摸），供别的虚拟化组件共用同一套外观与手势 |
-| `computeThumb` / `positionToRatio` / `ratioToPosition` / `pointerToRatio` | 滑块几何的纯函数，前后互逆，保证「拖到某处松手滑块不跳」 |
+| `computeThumb` / `offsetToRatio` / `ratioToOffset` / `positionToRatio` / `ratioToPosition` / `pointerToRatio` | 滑块几何的纯函数；VirtList 使用像素映射，索引映射工具保留给每项等权的组件 |
 | `createStreamBuffer` | 流式输出的帧内合并（从 core 转出，免得你为它多依赖一个包） |
 | `normalizeStyle` / `mergeStyles` / `setAttrs` / `applyStyle` / `applyClass` | style / class / attrs 的归一化工具 |
 | 类型 | `VirtGridOptions` / `TreeNode` / `TreeFieldNames` / `VirtScrollEvent` / `ListState` / `LoadState` 等 |
