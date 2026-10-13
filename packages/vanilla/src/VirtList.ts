@@ -60,6 +60,7 @@ export class VirtList<T extends Record<string, any>> {
   private _input: InputController | null = null;
   /** 偏移量变化的订阅者，见 onOffsetChange */
   private _offsetListeners = new Set<(offset: number) => void>();
+  private _stopWatchingResolution?: () => void;
 
   private _stickyHeaderEl: HTMLElement | null = null;
   private _stickyFooterEl: HTMLElement | null = null;
@@ -194,6 +195,7 @@ export class VirtList<T extends Record<string, any>> {
     // 滚动条要读 core 的尺寸账本，必须在 core 建好之后再装
     this._initScrollbar();
     this._core.bindDOM(this._clientEl);
+    this._watchResolution();
 
     // 监听各插槽元素的尺寸变化
     if (options.renderStickyHeader && this._stickyHeaderEl) {
@@ -473,6 +475,8 @@ export class VirtList<T extends Record<string, any>> {
   }
 
   destroy(): void {
+    this._stopWatchingResolution?.();
+    this._stopWatchingResolution = undefined;
     if (this._stickyHeaderEl) this._core.unobserveSlotEl(this._stickyHeaderEl);
     if (this._stickyFooterEl) this._core.unobserveSlotEl(this._stickyFooterEl);
     if (this._headerEl) this._core.unobserveSlotEl(this._headerEl);
@@ -720,6 +724,20 @@ export class VirtList<T extends Record<string, any>> {
     this._containerEl.appendChild(this._clientEl);
   }
 
+  /** 缩放或切换显示器后，即使没有滚动也重新对齐绘制位置。 */
+  private _watchResolution(): void {
+    const view = this._clientEl.ownerDocument.defaultView;
+    if (!view?.matchMedia) return;
+    const watch = () => {
+      this._stopWatchingResolution?.();
+      const query = view.matchMedia(`(resolution: ${view.devicePixelRatio || 1}dppx)`);
+      query.addEventListener('change', watch);
+      this._stopWatchingResolution = () => query.removeEventListener('change', watch);
+      this._applyLayout();
+    };
+    watch();
+  }
+
   /**
    * 把参与滚动的每一段摆到它该在的位置。
    *
@@ -746,9 +764,11 @@ export class VirtList<T extends Record<string, any>> {
     const headerTop = stickyHeaderSize;
     const listTop = headerTop + headerSize;
 
+    const dpr = this._clientEl.ownerDocument.defaultView?.devicePixelRatio || 1;
     const shift = (el: HTMLElement | null, docPos: number) => {
       if (!el) return;
-      const d = docPos - offset;
+      // 仅对齐最终绘制残差，core 的尺寸和滚动偏移仍保留完整精度。
+      const d = Math.round((docPos - offset) * dpr) / dpr;
       el.style.transform = horizontal
         ? `translate3d(${d}px, 0, 0)`
         : `translate3d(0, ${d}px, 0)`;

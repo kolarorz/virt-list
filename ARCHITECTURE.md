@@ -62,6 +62,14 @@ DOM 操作层。负责：
 - 自绘滚动条与输入接管（滚轮 / 键盘 / 触摸 / 惯性）
 - 把偏移量变化落到 DOM（`offsetChange` → 重写各段 transform），把尺寸变化传给 core
 - `VirtList`、`VirtGrid`、`VirtTree` 的 DOM 实现
+
+参与滚动的 header、items、footer 在写入 transform 时，将最终主轴残差按
+`Math.round(residual * devicePixelRatio) / devicePixelRatio` 对齐到物理像素，减少合成层
+小数平移造成的文字发虚；横向和纵向使用同一规则。core 的尺寸、滚动偏移和区间计算
+仍保留小数精度。DOM 层监听所属窗口的 resolution 变化，在缩放或切屏后立即重新绘制，
+销毁时移除监听；各框架绑定以及复用 VirtList 的 Grid/Tree 无需额外补丁。
+此规则只对齐列表自身的平移，不补偿祖先元素的缩放或小数定位。
+
 ### @virt-list/vue（Vue >=3.2）
 
 轻量 Vue 3 绑定层。每个组件（`VirtList`、`VirtGrid`、`VirtTree`）均为 `defineComponent`，工作流程：
