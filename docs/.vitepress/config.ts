@@ -1,3 +1,4 @@
+import { seo } from './seo';
 import { defineConfig } from 'vitepress';
 import { fileURLToPath, URL } from 'node:url';
 import { FRAMEWORK_LABELS } from './shared/frameworks';
@@ -157,8 +158,10 @@ function buildApiSidebar(fw: string) {
 
 export default defineConfig({
   base,
+  ...seo,
+  lang: 'zh-CN',
   title: 'VirtList',
-  description: 'A high-performance virtual list component for JavaScript',
+  description: '适用于 React、Vue 和原生 JavaScript 的虚拟列表、虚拟树与网格，支持动态行高、流式聊天跟随及双向历史加载。',
   // _shared 下的片段只用于 @include，不作为独立页面构建
   // （否则片段里的相对链接无从解析，搜索索引里也会多出一份重复内容）
   // apps/*/README.md 是微应用的开发说明，跟着 docs/ 一起被扫成了页面，
