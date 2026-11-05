@@ -1,8 +1,8 @@
 <p align="center">
-  <a href="https://kolarorz.github.io/virt-list/"><img src="./docs/public/logo.svg" width="72" height="72" alt="virt-list logo"></a>
+  <a href="https://kolarorz.github.io/virt-list/"><img src="./docs/public/logo.svg" width="72" height="72" alt="VirtList logo"></a>
 </p>
 
-<h1 align="center">virt-list — React / Vue / 原生 JavaScript 虚拟列表</h1>
+<h1 align="center">VirtList — React / Vue / 原生JS 虚拟列表</h1>
 
 <p align="center">列表 · 网格 · 树形 · 流式聊天<br>动态行高，跨框架共享同一套虚拟滚动内核。</p>
 

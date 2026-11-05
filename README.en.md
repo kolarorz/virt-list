@@ -1,8 +1,8 @@
 <p align="center">
-  <a href="https://kolarorz.github.io/virt-list/"><img src="./docs/public/logo.svg" width="72" height="72" alt="virt-list logo"></a>
+  <a href="https://kolarorz.github.io/virt-list/"><img src="./docs/public/logo.svg" width="72" height="72" alt="VirtList logo"></a>
 </p>
 
-<h1 align="center">virt-list — React, Vue &amp; Vanilla JavaScript</h1>
+<h1 align="center">VirtList — React, Vue &amp; Vanilla JavaScript</h1>
 
 <p align="center">Virtual lists, trees and grids with dynamic heights.<br>Built for streaming chat and large, changing datasets.</p>
 
