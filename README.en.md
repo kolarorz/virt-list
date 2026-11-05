@@ -1,10 +1,21 @@
-# virt-list — Virtual Lists, Trees and Streaming Chat for React, Vue and Vanilla JavaScript
+<p align="center">
+  <a href="https://kolarorz.github.io/virt-list/"><img src="./docs/public/logo.svg" width="72" height="72" alt="virt-list logo"></a>
+</p>
 
-English · [简体中文](./README.md)
+<h1 align="center">virt-list — React, Vue &amp; Vanilla JavaScript</h1>
 
-Virtual lists, trees and grids for React, Vue and vanilla JavaScript, with dynamic item heights and streaming chat support.
+<p align="center">Virtual lists, trees and grids with dynamic heights.<br>Built for streaming chat and large, changing datasets.</p>
 
-**[Live demos](https://kolarorz.github.io/virt-list/)** · [Vanilla JS streaming chat](https://kolarorz.github.io/virt-list/vanilla/ai/streaming) · [React streaming chat](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue streaming chat](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [Architecture](./ARCHITECTURE.md)
+<p align="center">
+  <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core?style=flat-square&amp;label=core" alt="@virt-list/core npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license"></a>
+  <a href="https://github.com/kolarorz/virt-list"><img src="https://img.shields.io/badge/TypeScript-supported-3178c6?style=flat-square" alt="TypeScript supported"></a>
+</p>
+
+<p align="center">English · <a href="./README.md">简体中文</a></p>
+<p align="center"><strong><a href="https://kolarorz.github.io/virt-list/">Documentation</a> · <a href="https://kolarorz.github.io/virt-list/vanilla/ai/streaming">Live demos</a> · <a href="#react-quick-start">Quick start</a></strong></p>
+
+---
 
 The documentation site is currently in Chinese; this page covers installation and project selection in English.
 
