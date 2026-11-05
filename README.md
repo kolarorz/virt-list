@@ -1,4 +1,10 @@
-# virt-list
+# virt-list — React / Vue 虚拟列表、虚拟树与流式聊天
+
+[English](./README.en.md) · 简体中文
+
+Virtual lists, trees and grids for React, Vue and vanilla JavaScript — dynamic heights and streaming chat support.
+
+**[在线体验](https://kolarorz.github.io/virt-list/)** · [React 流式聊天](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue 流式聊天](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [快速开始](#快速开始)
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core.svg?sanitize=true" alt="@virt-list/core"></a>
@@ -25,6 +31,16 @@
 于是同一套经过验证的算法可以跨框架复用，core 层也能脱离浏览器做单元测试。
 
 📖 [文档站](https://kolarorz.github.io/virt-list/) · 🏗 [架构设计](./ARCHITECTURE.md) · 📦 [发布流程](./PUBLISHING.md) · 📋 [变更日志](./CHANGELOG.md)
+
+## 适合什么场景
+
+- **流式 AI 对话**：消息动态增高、贴底跟随、向上阅读时脱离跟随，以及历史双向加载。
+- **长列表与动态内容**：日志、消息流、不定高卡片；通过虚拟化只挂载渲染窗口内的内容。
+- **树形与网格**：在 Vue、React 与原生 JavaScript 中复用同一套虚拟滚动内核。
+
+本项目使用 **JavaScript 管理位移与自绘滚动条**。需要原生滚动行为的 Vue 项目，优先评估
+[vue-virt-list](https://github.com/kolarorz/vue-virt-list)；需要合并单元格、固定列、筛选与编辑等完整表格能力，查看
+[virt-table](https://github.com/kolarorz/virt-table)。[三个项目如何选择](https://kolarorz.github.io/vue-virt-list/guide/project-selection)。
 
 ## 包总览
 
