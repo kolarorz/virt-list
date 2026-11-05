@@ -1,19 +1,30 @@
-# virt-list — React / Vue / 原生 JavaScript 虚拟列表、虚拟树与流式聊天
+<p align="center">
+  <a href="https://kolarorz.github.io/virt-list/"><img src="./docs/public/logo.svg" width="72" height="72" alt="virt-list logo"></a>
+</p>
 
-[English](./README.en.md) · 简体中文
+<h1 align="center">virt-list — React / Vue / 原生 JavaScript 虚拟列表</h1>
 
-Virtual lists, trees and grids for React, Vue and vanilla JavaScript — dynamic heights and streaming chat support.
-
-**[在线体验](https://kolarorz.github.io/virt-list/)** · [原生 JS 流式聊天](https://kolarorz.github.io/virt-list/vanilla/ai/streaming) · [React 流式聊天](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue 流式聊天](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [快速开始](#快速开始)
+<p align="center">列表 · 网格 · 树形 · 流式聊天<br>动态行高，跨框架共享同一套虚拟滚动内核。</p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core.svg?sanitize=true" alt="@virt-list/core"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/vanilla"><img src="https://img.shields.io/npm/v/@virt-list/vanilla.svg?sanitize=true" alt="@virt-list/vanilla"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/vue"><img src="https://img.shields.io/npm/v/@virt-list/vue.svg?sanitize=true" alt="@virt-list/vue"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/vue2"><img src="https://img.shields.io/npm/v/@virt-list/vue2.svg?sanitize=true" alt="@virt-list/vue2"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/react"><img src="https://img.shields.io/npm/v/@virt-list/react.svg?sanitize=true" alt="@virt-list/react"></a>
-  <a href="https://www.npmjs.com/package/@virt-list/react-legacy"><img src="https://img.shields.io/npm/v/@virt-list/react-legacy.svg?sanitize=true" alt="@virt-list/react-legacy"></a>
+  <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core?style=flat-square&amp;label=core" alt="@virt-list/core npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license"></a>
+  <a href="https://github.com/kolarorz/virt-list"><img src="https://img.shields.io/badge/TypeScript-supported-3178c6?style=flat-square" alt="TypeScript supported"></a>
 </p>
+
+<p align="center"><a href="./README.en.md">English</a> · 简体中文</p>
+<p align="center"><strong><a href="https://kolarorz.github.io/virt-list/">文档</a> · <a href="https://kolarorz.github.io/virt-list/vanilla/ai/streaming">在线演示</a> · <a href="#快速开始">快速开始</a> · <a href="https://kolarorz.github.io/vue-virt-list/guide/project-selection">项目选型</a></strong></p>
+
+---
+
+## 从你的场景开始
+
+| 流式聊天 | 动态内容 | 树形与网格 |
+| --- | --- | --- |
+| 贴底跟随、脱离与恢复、历史双向加载 | 消息、日志与不定高卡片 | 列表之外的结构化内容 |
+| [原生 JS](https://kolarorz.github.io/virt-list/vanilla/ai/streaming) · [React](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue](https://kolarorz.github.io/virt-list/vue/ai/streaming) | [动态行高示例](https://kolarorz.github.io/virt-list/vanilla/examples/list/list-dynamic) | [虚拟树](https://kolarorz.github.io/virt-list/vanilla/examples/tree/tree-basic) · [网格](https://kolarorz.github.io/virt-list/vanilla/examples/grid/grid-basic) |
+
+## 为什么选择 virt-list
 
 高性能虚拟滚动引擎：**列表 / 网格 / 树形**三种形态，Vue 3、Vue 2、React 18+、React 16-17、
 原生 JS 五套实现共享同一份纯 JS 内核。
@@ -30,13 +41,9 @@ Virtual lists, trees and grids for React, Vue and vanilla JavaScript — dynamic
 响应式深度耦合，这里把它拆成**纯 JS 内核 + 原生 DOM 层 + 轻量框架绑定层**三段，
 于是同一套经过验证的算法可以跨框架复用，core 层也能脱离浏览器做单元测试。
 
-📖 [文档站](https://kolarorz.github.io/virt-list/) · 🏗 [架构设计](./ARCHITECTURE.md) · 📦 [发布流程](./PUBLISHING.md) · 📋 [变更日志](./CHANGELOG.md)
+[架构设计](./ARCHITECTURE.md) · [发布流程](./PUBLISHING.md) · [变更日志](./CHANGELOG.md)
 
-## 适合什么场景
-
-- **流式 AI 对话**：消息动态增高、贴底跟随、向上阅读时脱离跟随，以及历史双向加载。
-- **长列表与动态内容**：日志、消息流、不定高卡片；通过虚拟化只挂载渲染窗口内的内容。
-- **树形与网格**：在 Vue、React 与原生 JavaScript 中复用同一套虚拟滚动内核。
+## 选择合适的项目
 
 本项目使用 **JavaScript 管理位移与自绘滚动条**。需要原生滚动行为的 Vue 项目，优先评估
 [vue-virt-list](https://github.com/kolarorz/vue-virt-list)；需要合并单元格、固定列、筛选与编辑等完整表格能力，查看
