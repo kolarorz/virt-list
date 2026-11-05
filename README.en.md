@@ -1,10 +1,10 @@
-# virt-list — Virtual Lists, Trees and Streaming Chat
+# virt-list — Virtual Lists, Trees and Streaming Chat for React, Vue and Vanilla JavaScript
 
 English · [简体中文](./README.md)
 
 Virtual lists, trees and grids for React, Vue and vanilla JavaScript, with dynamic item heights and streaming chat support.
 
-**[Live demos](https://kolarorz.github.io/virt-list/)** · [React streaming chat](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue streaming chat](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [Architecture](./ARCHITECTURE.md)
+**[Live demos](https://kolarorz.github.io/virt-list/)** · [Vanilla JS streaming chat](https://kolarorz.github.io/virt-list/vanilla/ai/streaming) · [React streaming chat](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue streaming chat](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [Architecture](./ARCHITECTURE.md)
 
 The documentation site is currently in Chinese; this page covers installation and project selection in English.
 

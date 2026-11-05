@@ -1,10 +1,10 @@
-# virt-list — React / Vue 虚拟列表、虚拟树与流式聊天
+# virt-list — React / Vue / 原生 JavaScript 虚拟列表、虚拟树与流式聊天
 
 [English](./README.en.md) · 简体中文
 
 Virtual lists, trees and grids for React, Vue and vanilla JavaScript — dynamic heights and streaming chat support.
 
-**[在线体验](https://kolarorz.github.io/virt-list/)** · [React 流式聊天](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue 流式聊天](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [快速开始](#快速开始)
+**[在线体验](https://kolarorz.github.io/virt-list/)** · [原生 JS 流式聊天](https://kolarorz.github.io/virt-list/vanilla/ai/streaming) · [React 流式聊天](https://kolarorz.github.io/virt-list/react/ai/streaming) · [Vue 流式聊天](https://kolarorz.github.io/virt-list/vue/ai/streaming) · [快速开始](#快速开始)
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@virt-list/core"><img src="https://img.shields.io/npm/v/@virt-list/core.svg?sanitize=true" alt="@virt-list/core"></a>

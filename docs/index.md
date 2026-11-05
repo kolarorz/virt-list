@@ -1,13 +1,13 @@
 ---
 # https://vitepress.dev/reference/default-theme-home-page
 layout: home
-title: React / Vue 虚拟列表与流式聊天
+title: React / Vue / 原生 JavaScript 虚拟列表与流式聊天
 description: 适用于 React、Vue 和原生 JavaScript 的虚拟列表、虚拟树与网格，支持动态行高、流式聊天跟随及双向历史加载。
 
 hero:
   name: 'VirtList'
   text: '为流式对话而生的虚拟滚动'
-  tagline: 列表 / 网格 / 树形三种形态，五个框架共享同一内核。行高由内容决定，三百万行与三十行，滚动开销一样。
+  tagline: 支持原生 JavaScript、React 与 Vue，列表 / 网格 / 树形共享同一内核。行高由内容决定，三百万行与三十行，滚动开销一样。
   actions:
     - theme: brand
       text: 快速开始
