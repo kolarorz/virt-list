@@ -48,3 +48,10 @@ features:
 <ClientOnly>
   <BenchmarkPanel />
 </ClientOnly>
+
+## 相关项目与选型
+
+- **[VirtTable — 虚拟表格与 Data Grid](https://github.com/kolarorz/virt-table)**：需要合并单元格、固定行列、筛选与编辑时选择。[文档与示例](https://kolarorz.github.io/virt-table/)。
+- **[vue-virt-list — Vue 2 / Vue 3 虚拟列表](https://github.com/kolarorz/vue-virt-list)**：需要原生滚动行为的 Vue 列表与虚拟树时选择。[文档与示例](https://kolarorz.github.io/vue-virt-list/)。
+
+[查看三个项目的选型与迁移说明](https://kolarorz.github.io/vue-virt-list/guide/project-selection)。
